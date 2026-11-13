@@ -51,6 +51,11 @@ export const ARROW_SOURCE = "mv-arrows"
 export const PICKED_ARROW_SOURCE = "mv-picked-arrows"
 export const ARROW_LAYER = "mv-arrows"
 export const PICKED_ARROW_LAYER = "mv-picked-arrows"
+/** Areas and lines kept on a paddock, each with a name. */
+export const FEATURE_SOURCE = "mv-paddock-features"
+export const FEATURE_LAYERS = ["mv-feature-fill", "mv-feature-line"]
+/** The lasso drawn round pins to remove, and the pins it caught. */
+export const LASSO_SOURCE = "mv-lasso"
 /** Areas and lines drawn on the map and attached to a pin. */
 export const DRAWING_SOURCE = "mv-drawings"
 export const DRAWING_LAYERS = [
@@ -68,6 +73,9 @@ export const LAYER_GROUPS: Record<string, string[]> = {
     "mv-fence",
     "mv-fence-solid",
     "mv-paddock-dots",
+    "mv-feature-fill",
+    "mv-feature-line",
+    "mv-feature-name",
   ],
   fieldLabels: ["mv-paddock-name"],
   markers: ["mv-pins"],
@@ -478,6 +486,8 @@ export function buildStyle() {
       [MEASURE_SOURCE]: { type: "geojson", data: empty },
       [ARROW_SOURCE]: { type: "geojson", data: empty },
       [DRAWING_SOURCE]: { type: "geojson", data: empty },
+      [FEATURE_SOURCE]: { type: "geojson", data: empty },
+      [LASSO_SOURCE]: { type: "geojson", data: empty },
       [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
     },
     layers: [
@@ -964,6 +974,47 @@ export function buildStyle() {
           "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.8, 16, 3.6],
         },
       },
+      // What has been kept on a paddock: an area or a line with a name,
+      // over the trails so it can be read and tapped.
+      {
+        id: "mv-feature-fill",
+        type: "fill",
+        source: FEATURE_SOURCE,
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.32 },
+      },
+      {
+        id: "mv-feature-line",
+        type: "line",
+        source: FEATURE_SOURCE,
+        filter: ["!=", ["geometry-type"], "Point"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.4, 16, 3],
+        },
+      },
+      // The lasso for removing pins: red, dashed, with a ring on each pin
+      // it has caught.
+      {
+        id: "mv-lasso-fill",
+        type: "fill",
+        source: LASSO_SOURCE,
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: { "fill-color": "#ef4444", "fill-opacity": 0.15 },
+      },
+      {
+        id: "mv-lasso-line",
+        type: "line",
+        source: LASSO_SOURCE,
+        filter: ["==", ["geometry-type"], "LineString"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#ef4444",
+          "line-width": 3,
+          "line-dasharray": [2, 1.4],
+        },
+      },
       // The measure tool: the shape so far, its outline, and its corners.
       {
         id: "mv-measure-fill",
@@ -1076,24 +1127,81 @@ export function buildStyle() {
           ],
         },
       },
+      // A pin's note, the way the current viewer shows it: above the pin
+      // in pale yellow with a hard black edge, growing as the map closes in.
       {
         id: "mv-pin-notes",
         type: "symbol",
         source: PIN_SOURCE,
-        minzoom: 13.6,
+        minzoom: 12,
         filter: ["!=", ["get", "note"], ""],
         layout: {
           "text-field": ["get", "note"],
-          "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Regular"],
-          "text-size": 11.5,
-          "text-anchor": "top",
-          "text-offset": [0, 1.55],
-          "text-max-width": 9,
+          "text-font": ["DIN Offc Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12,
+            12.5,
+            14,
+            14.5,
+            16,
+            16.5,
+            18,
+            19,
+          ],
+          "text-anchor": "bottom",
+          "text-offset": [0, -1.45],
+          "text-max-width": 14,
+          "text-letter-spacing": 0.02,
+          "text-optional": true,
         },
         paint: {
-          "text-color": "#F4F1E6",
-          "text-halo-color": "rgba(13,22,17,0.85)",
-          "text-halo-width": 1.4,
+          "text-color": "#ffee8c",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2,
+        },
+      },
+      // The name on something kept on a paddock.
+      {
+        id: "mv-feature-name",
+        type: "symbol",
+        source: FEATURE_SOURCE,
+        minzoom: 12.5,
+        filter: ["==", ["geometry-type"], "Point"],
+        layout: {
+          "text-field": [
+            "format",
+            ["get", "label"],
+            {},
+            "\n",
+            {},
+            ["get", "size"],
+            { "font-scale": 0.8 },
+          ],
+          "text-font": ["DIN Offc Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 12.5, 11, 16, 15],
+          "text-max-width": 10,
+          "text-line-height": 1.15,
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "rgba(0,0,0,0.8)",
+          "text-halo-width": 1.6,
+        },
+      },
+      // The pins a lasso has caught, ringed in red.
+      {
+        id: "mv-lasso-hits",
+        type: "circle",
+        source: LASSO_SOURCE,
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 24,
+          "circle-color": "rgba(239, 68, 68, 0.25)",
+          "circle-stroke-color": "#ef4444",
+          "circle-stroke-width": 3,
         },
       },
     ],
@@ -1135,14 +1243,19 @@ export function applyBase(map: MapboxMap, look: BaseLook) {
   // (A picked trail's dimming is put back by the caller after this.)
   for (const id of TRAIL_LAYERS)
     map.setPaintProperty(id, "line-opacity", trailOpacity(look))
-  for (const id of ["mv-paddock-name", "mv-pin-notes"]) {
-    map.setPaintProperty(id, "text-color", paper ? INK : "#F4F1E6")
-    map.setPaintProperty(
-      id,
-      "text-halo-color",
-      paper ? "rgba(230,222,194,0.9)" : "rgba(13,22,17,0.85)",
-    )
-  }
+  map.setPaintProperty("mv-paddock-name", "text-color", paper ? INK : "#F4F1E6")
+  map.setPaintProperty(
+    "mv-paddock-name",
+    "text-halo-color",
+    paper ? "rgba(230,222,194,0.9)" : "rgba(13,22,17,0.85)",
+  )
+  // Pale yellow on black can't be read on the cream map: ink there.
+  map.setPaintProperty("mv-pin-notes", "text-color", paper ? INK : "#ffee8c")
+  map.setPaintProperty(
+    "mv-pin-notes",
+    "text-halo-color",
+    paper ? "rgba(251,249,242,0.95)" : "#000000",
+  )
   map.setPaintProperty("mv-fence", "line-opacity", paper ? 1 : 0.95)
   map.setPaintProperty(
     "mv-accuracy",

@@ -12,7 +12,9 @@
 // @ts-expect-error -- no type declarations for uuid in this repo
 import { v4 as uuidv4 } from "uuid"
 import { supabase } from "$lib/supabaseClient"
+import { area as turfArea, difference } from "@turf/turf"
 import { fileApi } from "$lib/api/fileApi"
+import { mapApi } from "$lib/api/mapApi"
 import { farmApi } from "$lib/api/farmApi"
 import { markerApi } from "$lib/api/markerApi"
 import { trailsApi } from "$lib/api/trailsApi"
@@ -78,7 +80,40 @@ export type Paddock = {
   /** Polygon rings, outer first; a paddock in several parts has several. */
   polygons: LngLat[][][]
   bbox: [number, number, number, number]
+  /** Areas and lines kept on it, each with a name. */
+  features: PaddockFeature[]
 }
+
+/** An area or a line kept on a paddock: a wet patch, a drain, a rock heap. */
+export type PaddockFeature = {
+  id: string
+  kind: "polygon" | "line"
+  label: string
+  colour: string
+  /** Its corners (an area closes back to the first). */
+  coordinates: LngLat[]
+  /** ms */
+  t: number
+}
+
+const featuresOf = (properties: Row | null | undefined): PaddockFeature[] =>
+  Array.isArray(properties?.agskan_features)
+    ? (properties.agskan_features as Row[])
+        .filter(
+          (feature) =>
+            feature?.id &&
+            Array.isArray(feature.coordinates) &&
+            feature.coordinates.length > 1,
+        )
+        .map((feature) => ({
+          id: String(feature.id),
+          kind: feature.kind === "line" ? "line" : "polygon",
+          label: String(feature.label ?? ""),
+          colour: String(feature.colour ?? "#0ea5e9"),
+          coordinates: feature.coordinates as LngLat[],
+          t: feature.created_at ? Date.parse(feature.created_at) : 0,
+        }))
+    : []
 
 function polygonsOf(boundary: Row | null): LngLat[][][] {
   if (!boundary) return []
@@ -167,6 +202,7 @@ export async function loadPaddocks(mapId: string): Promise<Paddock[]> {
       colour,
       polygons,
       bbox: [w, s, e, n],
+      features: featuresOf(field.properties),
     })
   }
   return paddocks
@@ -194,6 +230,8 @@ export type LivePin = {
   /** Its drawings show all the time, or only while it is picked. */
   drawingsAlways: boolean
   photos: PinPhoto[]
+  /** Who last changed it (the map keeps no record of who dropped it). */
+  by: string | null
 }
 
 /** A photo attached to a pin: where its file is kept. */
@@ -233,11 +271,12 @@ function pinFromRow(row: Row): LivePin | null {
       (row.marker_data?.properties?.drawings_visibility ?? "always") ===
       "always",
     photos: photosOf(row.marker_data?.properties),
+    by: row.update_user_id ? String(row.update_user_id) : null,
   }
 }
 
 const PIN_COLUMNS =
-  "id, marker_data, notes, last_confirmed, created_at, updated_at, deleted"
+  "id, marker_data, notes, last_confirmed, created_at, updated_at, deleted, update_user_id"
 
 export async function loadPins(mapId: string): Promise<LivePin[]> {
   const rows = await readAll((from, to) =>
@@ -450,6 +489,11 @@ export type VehicleState = {
   /** km/h */
   speed: number
   trailing: boolean
+  /**
+   * The job they have on the map ("Spraying"…): null for none, undefined
+   * when this update doesn't say.
+   */
+  operation?: string | null
   marker: VehicleMarkerData | null
   /**
    * What they are broadcasting to the crew ("Full", "Help"…), null when
@@ -544,6 +588,13 @@ function vehicleFromRow(row: Row): VehicleState {
         : null,
     speed: Number(row.speed) || 0,
     trailing: !!row.is_trailing,
+    // Said in what a machine sends as it moves, not kept with its position.
+    operation:
+      typeof row.operation_name === "string"
+        ? row.operation_name === "No operation"
+          ? null
+          : row.operation_name
+        : undefined,
     flash: flashFromRow(row),
     marker:
       marker && typeof marker === "object" && marker.type
@@ -1217,6 +1268,31 @@ export type SharedPlace = {
   refId: string | null
 }
 
+/** One thing a job points at: a paddock, a pin, or just a spot. */
+export type JobItem = {
+  type: "field" | "marker" | "spot"
+  id: string | null
+  label: string
+  at: LngLat
+}
+
+/**
+ * A job given to someone: what to do and where. It travels as a message
+ * (inside the message's attachment, beside a plain place, so the current
+ * viewer shows it as a shared location), and whoever it was given to moves
+ * it from open to "on it" to done.
+ */
+export type Job = {
+  id: string
+  title: string
+  note: string
+  items: JobItem[]
+  status: "open" | "accepted" | "done"
+  /** ms, when it was taken on and finished. */
+  acceptedAt: number | null
+  doneAt: number | null
+}
+
 export type Message = {
   id: number
   from: string
@@ -1224,10 +1300,39 @@ export type Message = {
   to: string
   body: string
   place: SharedPlace | null
+  job: Job | null
   /** ms */
   at: number
   /** The other person has opened it. */
   read: boolean
+}
+
+function jobFromAttachment(attachment: Row | null): Job | null {
+  const job = attachment?.job as Row | undefined
+  if (!job?.id || !job.title) return null
+  const items: JobItem[] = (Array.isArray(job.items) ? job.items : [])
+    .filter(
+      (item: Row) =>
+        Number.isFinite(Number(item?.lng)) &&
+        Number.isFinite(Number(item?.lat)),
+    )
+    .map((item: Row) => ({
+      type:
+        item.type === "field" || item.type === "marker" ? item.type : "spot",
+      id: item.id ? String(item.id) : null,
+      label: String(item.label ?? ""),
+      at: [Number(item.lng), Number(item.lat)] as LngLat,
+    }))
+  return {
+    id: String(job.id),
+    title: String(job.title),
+    note: String(job.note ?? ""),
+    items,
+    status:
+      job.status === "accepted" || job.status === "done" ? job.status : "open",
+    acceptedAt: job.accepted_at ? Date.parse(job.accepted_at) : null,
+    doneAt: job.done_at ? Date.parse(job.done_at) : null,
+  }
 }
 
 function messageFromRow(row: Row): Message {
@@ -1235,6 +1340,7 @@ function messageFromRow(row: Row): Message {
   const lng = Number(attachment?.lng)
   const lat = Number(attachment?.lat)
   return {
+    job: jobFromAttachment(attachment),
     id: Number(row.id),
     from: String(row.sender_id),
     fromName: row.sender_name ?? null,
@@ -1311,9 +1417,24 @@ export async function sendMessage(message: {
   to: string
   body: string
   place: SharedPlace | null
+  /** A job to give them; it goes out with its first place. */
+  job?: { id: string; title: string; note: string; items: JobItem[] } | null
   /** The other person has the map open right now. */
   online: boolean
 }): Promise<Message> {
+  const job = message.job ?? null
+  const first = job?.items[0]
+  // A job is also a place (its first one), so the current viewer, which
+  // knows nothing of jobs, still shows where it is.
+  const place: SharedPlace | null =
+    job && first
+      ? {
+          at: first.at,
+          label: `Job: ${job.title}`.slice(0, 80),
+          refType: first.type === "spot" ? null : first.type,
+          refId: first.id,
+        }
+      : message.place
   const { data, error } = await supabase
     .from("map_messages")
     .insert({
@@ -1322,14 +1443,31 @@ export async function sendMessage(message: {
       sender_name: message.fromName,
       recipient_id: message.to,
       body: message.body,
-      attachment: message.place
+      attachment: place
         ? {
             kind: "location",
-            lng: message.place.at[0],
-            lat: message.place.at[1],
-            label: message.place.label,
-            refType: message.place.refType,
-            refId: message.place.refId,
+            lng: place.at[0],
+            lat: place.at[1],
+            label: place.label,
+            refType: place.refType,
+            refId: place.refId,
+            ...(job
+              ? {
+                  job: {
+                    id: job.id,
+                    title: job.title,
+                    note: job.note,
+                    status: "open",
+                    items: job.items.map((item) => ({
+                      type: item.type,
+                      id: item.id,
+                      label: item.label,
+                      lng: item.at[0],
+                      lat: item.at[1],
+                    })),
+                  },
+                }
+              : {}),
           }
         : null,
     })
@@ -1342,8 +1480,8 @@ export async function sendMessage(message: {
         body: {
           recipient_id: message.to,
           sender_name: message.fromName,
-          // A place sent on its own still says what it is.
-          body: message.body || message.place?.label || "",
+          // A place or a job sent on its own still says what it is.
+          body: message.body || place?.label || "",
         },
       })
       .catch(() => {})
@@ -1366,12 +1504,57 @@ export async function markMessagesRead(
   if (error) throw error
 }
 
-/** Hear messages sent to me on this map as they arrive. */
+/**
+ * Say where a job given to me has got to. Only the person it was given to
+ * can change a message, which is what makes "on it" and "done" theirs.
+ */
+export async function setJobStatus(
+  messageId: number,
+  status: "accepted" | "done",
+): Promise<Message> {
+  const { data, error } = await supabase
+    .from("map_messages")
+    .select("attachment")
+    .eq("id", messageId)
+    .single()
+  if (error) throw error
+  const attachment = ((data as Row | null)?.attachment ?? {}) as Row
+  if (!attachment.job) throw new Error("Not a job")
+  const now = new Date().toISOString()
+  const { data: saved, error: failed } = await supabase
+    .from("map_messages")
+    .update({
+      attachment: {
+        ...attachment,
+        job: {
+          ...attachment.job,
+          status,
+          accepted_at: attachment.job.accepted_at ?? now,
+          ...(status === "done" ? { done_at: now } : {}),
+        },
+      },
+    })
+    .eq("id", messageId)
+    .select("*")
+    .single()
+  if (failed) throw failed
+  return messageFromRow(saved as Row)
+}
+
+/**
+ * Hear messages on this map as they happen: one sent to me arriving, and
+ * one of mine (either way) changing, such as being read or a job moving on.
+ */
 export function watchMessages(
   mapId: string,
   userId: string,
-  arrived: (message: Message) => void,
+  handlers: {
+    arrived: (message: Message) => void
+    changed: (message: Message) => void
+  },
 ) {
+  const mine = (row: Row | undefined): row is Row =>
+    !!row && (row.recipient_id === userId || row.sender_id === userId)
   const channel = supabase
     .channel(`mapnext-messages-${mapId}`)
     .on(
@@ -1385,7 +1568,20 @@ export function watchMessages(
       (payload: Row) => {
         const row = payload.new as Row | undefined
         if (!row || row.recipient_id !== userId) return
-        arrived(messageFromRow(row))
+        handlers.arrived(messageFromRow(row))
+      },
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "map_messages",
+        filter: `master_map_id=eq.${mapId}`,
+      },
+      (payload: Row) => {
+        const row = payload.new as Row | undefined
+        if (mine(row)) handlers.changed(messageFromRow(row))
       },
     )
     .subscribe()
@@ -1614,4 +1810,155 @@ export async function removePinPhoto(
   return writePhotos(pinId, userId, (photos) =>
     photos.filter((p) => p.id !== photo.id),
   )
+}
+
+// ── Things kept on a paddock: areas and lines with a name ───────────────
+// Kept in the paddock's own `properties` (under `agskan_features`), beside
+// whatever its import left there, so no other screen is disturbed by them.
+
+/** Read a paddock's features, change them, write them back. */
+async function writeFeatures(
+  paddockId: string,
+  change: (features: PaddockFeature[]) => PaddockFeature[],
+) {
+  const { data, error } = await supabase
+    .from("fields")
+    .select("properties")
+    .eq("field_id", paddockId)
+    .single()
+  if (error) throw new Error(error.message)
+  const properties = ((data as Row | null)?.properties ?? {}) as Row
+  const features = change(featuresOf(properties))
+  const { error: failed } = await supabase
+    .from("fields")
+    .update({
+      properties: {
+        ...properties,
+        agskan_features: features.map((feature) => ({
+          id: feature.id,
+          kind: feature.kind,
+          label: feature.label,
+          colour: feature.colour,
+          coordinates: feature.coordinates,
+          created_at: new Date(feature.t).toISOString(),
+        })),
+      },
+    })
+    .eq("field_id", paddockId)
+  if (failed) throw new Error(failed.message)
+  return features
+}
+
+/** Keep an area or a line on a paddock, with a name. */
+export function addPaddockFeature(
+  paddockId: string,
+  feature: Omit<PaddockFeature, "id" | "t">,
+) {
+  const added: PaddockFeature = {
+    ...feature,
+    id: uuidv4() as string,
+    t: Date.now(),
+  }
+  return writeFeatures(paddockId, (features) => [...features, added])
+}
+
+export function removePaddockFeature(paddockId: string, featureId: string) {
+  return writeFeatures(paddockId, (features) =>
+    features.filter((feature) => feature.id !== featureId),
+  )
+}
+
+const HA = 10_000
+
+/**
+ * Cut an area out of a paddock for good: its boundary gets a hole (or loses
+ * a bite from its edge) and its hectares come down to match. Resolves with
+ * the new shape, or null if the area doesn't touch the paddock.
+ */
+export async function cutPaddock(
+  paddock: Paddock,
+  area: LngLat[],
+): Promise<{ polygons: LngLat[][][]; ha: number } | null> {
+  const before = {
+    type: "Feature" as const,
+    properties: {},
+    geometry: { type: "MultiPolygon" as const, coordinates: paddock.polygons },
+  }
+  const bite = {
+    type: "Feature" as const,
+    properties: {},
+    geometry: {
+      type: "Polygon" as const,
+      coordinates: [[...area, area[0]]],
+    },
+  }
+  const after = difference({
+    type: "FeatureCollection",
+    features: [before, bite],
+  } as never)
+  if (!after) return null
+  const polygons = (
+    after.geometry.type === "Polygon"
+      ? [after.geometry.coordinates]
+      : after.geometry.coordinates
+  ) as LngLat[][][]
+  const parts = polygons.map(
+    (coordinates) => turfArea({ type: "Polygon", coordinates } as never) / HA,
+  )
+  const measured = parts.reduce((sum, part) => sum + part, 0)
+  // Nothing came off: the area was drawn outside the paddock.
+  const was = turfArea(before as never) / HA
+  const off = was - measured
+  if (!(off > 0.0001)) return null
+  // The farm's own figure for the paddock comes down by what was cut,
+  // rather than being replaced by a measurement of its outline.
+  const ha = polygons.length > 1 ? measured : Math.max(0, paddock.ha - off)
+  const result = (await fileApi.updateField(paddock.id, {
+    boundary:
+      polygons.length === 1
+        ? { type: "Polygon", coordinates: polygons[0] }
+        : { type: "MultiPolygon", coordinates: polygons },
+    area: ha,
+    polygonAreas:
+      polygons.length > 1 ? { individual_areas: parts, total_area: ha } : null,
+  })) as Row
+  if (result?.error || result?.success === false)
+    throw new Error(result.message || result.error || "Couldn't save")
+  return { polygons, ha }
+}
+
+// ── Who is on the map: inviting and removing ────────────────────────────
+
+/**
+ * A link that lets someone onto this map as a guest, the same kind the
+ * current viewer's "Invite to map" makes. Good for a week.
+ */
+export async function createGuestInvite(): Promise<string> {
+  const { data, error } = await supabase.rpc("create_map_invite", {
+    p_role: "viewer",
+    p_expires_hours: 168,
+    p_access_hours: 48,
+    p_retain_on_signup: false,
+  })
+  if (error) throw new Error(error.message)
+  const row = (Array.isArray(data) ? data[0] : data) as Row | null
+  if (!row?.token) throw new Error("No invite came back")
+  return `https://www.skanfarming.com.au/guest?invite=${row.token}`
+}
+
+/**
+ * Take someone off this map. A guest is removed the way the current
+ * viewer's people menu does it; one of the crew the way the account page
+ * does (which only the farm's owner is offered).
+ */
+export async function removeFromMap(person: { id: string; guest: boolean }) {
+  if (person.guest) {
+    const { error } = await supabase.rpc("revoke_guest_access", {
+      p_user_id: person.id,
+    })
+    if (error) throw new Error(error.message)
+    return
+  }
+  const result = (await mapApi.kickUser(person.id)) as Row
+  if (!result?.success) throw new Error(result?.message || "Couldn't remove")
 }

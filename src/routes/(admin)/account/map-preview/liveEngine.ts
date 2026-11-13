@@ -29,6 +29,9 @@ import {
   showPickedMarks,
   showArrowsTo,
   showDrawingsFor,
+  FEATURE_LAYERS,
+  FEATURE_SOURCE,
+  LASSO_SOURCE,
   DRAWING_LAYERS,
   DRAWING_SOURCE,
   ARROW_SOURCE,
@@ -81,6 +84,10 @@ import {
   setPinNote,
   loadDrawings,
   watchDrawings,
+  addPaddockFeature,
+  removePaddockFeature,
+  cutPaddock,
+  type JobItem,
   createDrawing,
   deleteDrawing,
   addPinPhoto,
@@ -150,11 +157,20 @@ export type CrewRow = {
   away: boolean
   /** Has ever reported a position on this map. */
   placed: boolean
+  /** This is the viewer's own row. */
+  me: boolean
+  /** The job they have on the map ("Spraying"…), if any. */
+  operation: string | null
+  /** Laying a trail right now. */
+  trailing: boolean
+  /** When they were last heard from (ms), 0 if never. */
+  seen: number
 }
 
 export type ToolView =
   | "home"
   | "messages"
+  | "jobs"
   | "crew"
   | "machine"
   | "pins"
@@ -179,6 +195,12 @@ export type Measure = {
   distance: number
   /** Hectares inside it, once there are three corners. */
   ha: number
+  /** Measuring an area (the shape closes) or a line. */
+  kind: "polygon" | "line"
+  /** The paddock the first corner sits in, if it is in one. */
+  paddock: { id: string; name: string } | null
+  /** Being kept: a save is on its way. */
+  keeping?: boolean
   /** Set when what is being tapped out will be attached to a pin. */
   drawing?: {
     pinId: string
@@ -263,6 +285,8 @@ type Tween = { from: LngLat; to: LngLat; start: number; dur: number }
 
 type CrewEntry = {
   profile: CrewProfile
+  /** The job they are on, as their machine last said it. */
+  operation?: string | null
   state: VehicleState | null
   vehicle: Vehicle | null
   tween: Tween | null
@@ -358,6 +382,38 @@ function arrowsAlong(
       travelled += length
     }
   return arrows
+}
+
+/** Hectares inside a ring of corners, on flat ground around the first. */
+function areaHa(points: LngLat[]) {
+  if (points.length < 3) return 0
+  const flat = projector(points[0])
+  const xy = points.map((p) => flat.toXY(p))
+  let twice = 0
+  for (let i = 0, j = xy.length - 1; i < xy.length; j = i++)
+    twice += xy[j][0] * xy[i][1] - xy[i][0] * xy[j][1]
+  return Math.abs(twice) / 2 / 10000
+}
+
+function lengthM(points: LngLat[]) {
+  let metres = 0
+  for (let i = 1; i < points.length; i++)
+    metres += distanceM(points[i - 1], points[i])
+  return metres
+}
+
+const middle = (points: LngLat[]): LngLat => [
+  points.reduce((sum, p) => sum + p[0], 0) / points.length,
+  points.reduce((sum, p) => sum + p[1], 0) / points.length,
+]
+
+/** How big something drawn is, in words: hectares, or metres along. */
+export const sizeOf = (kind: "polygon" | "line", points: LngLat[]) => {
+  if (kind === "polygon") return `${formatHa(areaHa(points))} ha`
+  const metres = lengthM(points)
+  return metres >= 1000
+    ? `${(metres / 1000).toFixed(2)} km`
+    : `${Math.round(metres)} m`
 }
 
 /** A line or multi-line feature's stretches. */
@@ -484,6 +540,32 @@ export class LiveEngine {
   } | null = null
   /** Every drawing attached to a pin on this map. */
   readonly drawings: Writable<PinDrawing[]> = writable([])
+  /** Every pin, the newest first (for the list of pins). */
+  readonly pins: Writable<LivePin[]> = writable([])
+  /** The viewer's own row for the crew list, once they are on the map. */
+  readonly self: Writable<CrewRow | null> = writable(null)
+  /** The crew member the camera is following, and which way up. */
+  readonly following: Writable<{ id: string; mode: "follow" | "cab" } | null> =
+    writable(null)
+  private tail: { id: string; mode: "follow" | "cab" } | null = null
+  /** The crew's order in the list, kept steady between re-sorts. */
+  private crewOrder: string[] = []
+  private crewSignature = ""
+  private crewSorted = 0
+  /** Taps on the map are being collected (for a job), not acted on. */
+  private grabbing = false
+  readonly grabbed: Writable<JobItem | null> = writable(null)
+  /** Pins being rounded up to remove: drawing the lasso, then confirming. */
+  readonly lasso: Writable<{
+    phase: "drawing" | "confirm"
+    count: number
+  } | null> = writable(null)
+  private lassoed: string[] = []
+  private stopLasso: (() => void) | null = null
+  /** The finished trails of the job on show that cross the picked paddock. */
+  readonly paddockTrails: Writable<TrailInfo[]> = writable([])
+  /** The thing kept on a paddock that was last tapped. */
+  readonly pickedFeature: Writable<string | null> = writable(null)
   /** Something is picked out with marching dashes: keep them moving. */
   private marching = false
   private measured: LngLat[] = []
@@ -604,8 +686,10 @@ export class LiveEngine {
     // A pinch also nudges the map, but that is zooming, not looking around.
     this.map.on("dragstart", (e: { originalEvent?: Event }) => {
       const touches = (e.originalEvent as TouchEvent | undefined)?.touches
-      if (e.originalEvent && !(touches && touches.length > 1))
+      if (e.originalEvent && !(touches && touches.length > 1)) {
         this.setFollow("free")
+        this.followCrew(null)
+      }
     })
     // Moving the camera cancels a gesture in progress, so following waits
     // while fingers are down or the wheel is turning.
@@ -660,7 +744,50 @@ export class LiveEngine {
           if (drawn && drawn !== get(this.selectedPin)?.id)
             pin = this.pinsById.get(drawn)
         }
-        this.tapped(pin ?? null, [e.lngLat.lng, e.lngLat.lat])
+        const at: LngLat = [e.lngLat.lng, e.lngLat.lat]
+        // Putting a job together: a tap picks up what is under it.
+        if (this.grabbing) {
+          const paddock = pin ? null : this.paddockAt(at)
+          const item: JobItem = pin
+            ? {
+                type: "marker",
+                id: pin.id,
+                label: this.pinName(pin),
+                at: pin.at,
+              }
+            : paddock
+              ? {
+                  type: "field",
+                  id: paddock.id,
+                  label: paddock.name,
+                  at: [
+                    (paddock.bbox[0] + paddock.bbox[2]) / 2,
+                    (paddock.bbox[1] + paddock.bbox[3]) / 2,
+                  ],
+                }
+              : { type: "spot", id: null, label: "A spot", at }
+          this.grabbed.set(item)
+          this.ripple(item.at)
+          return
+        }
+        // Something kept on a paddock is tapped before the paddock is.
+        const feature = pin
+          ? undefined
+          : (this.map.queryRenderedFeatures([e.point.x, e.point.y], {
+              layers: FEATURE_LAYERS,
+            })[0]?.properties as { id?: string; paddock?: string } | undefined)
+        this.pickedFeature.set(feature?.id ?? null)
+        if (feature?.paddock) {
+          const owner = this.paddocks.find((p) => p.id === feature.paddock)
+          if (owner) {
+            this.pickTrail(null)
+            this.selectedPin.set(null)
+            this.selectedCrew.set(null)
+            this.selectedPaddock.set(owner)
+            return
+          }
+        }
+        this.tapped(pin ?? null, at)
       },
     )
     this.map.on("mouseenter", PIN_LAYER, () => {
@@ -683,6 +810,8 @@ export class LiveEngine {
     this.selectedPaddock.subscribe((paddock) => {
       if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
       this.keepMarching()
+      this.paddockTrails.set(paddock ? this.trailsIn(paddock) : [])
+      if (!paddock) this.pickedFeature.set(null)
     })
     document.addEventListener("visibilitychange", this.onVisibility)
 
@@ -882,6 +1011,45 @@ export class LiveEngine {
     }
     this.map.getSource(FARM_SOURCE).setData(collection(features))
     this.map.getSource(LABEL_SOURCE).setData(collection(labels))
+    // What has been kept on each paddock: its shape, and its name and size.
+    const kept: unknown[] = []
+    for (const paddock of this.paddocks)
+      for (const feature of paddock.features) {
+        const properties = {
+          id: feature.id,
+          paddock: paddock.id,
+          color: feature.colour,
+          label: feature.label,
+          size: sizeOf(feature.kind, feature.coordinates),
+        }
+        kept.push({
+          type: "Feature",
+          properties,
+          geometry:
+            feature.kind === "polygon"
+              ? {
+                  type: "Polygon",
+                  coordinates: [
+                    [...feature.coordinates, feature.coordinates[0]],
+                  ],
+                }
+              : { type: "LineString", coordinates: feature.coordinates },
+        })
+        kept.push({
+          type: "Feature",
+          properties,
+          geometry: {
+            type: "Point",
+            coordinates:
+              feature.kind === "polygon"
+                ? middle(feature.coordinates)
+                : feature.coordinates[
+                    Math.floor(feature.coordinates.length / 2)
+                  ],
+          },
+        })
+      }
+    this.map.getSource(FEATURE_SOURCE)?.setData(collection(kept))
     pickPaddock(this.map, get(this.selectedPaddock)?.id ?? null)
   }
 
@@ -1231,6 +1399,8 @@ export class LiveEngine {
       points: 0,
       distance: 0,
       ha: 0,
+      kind,
+      paddock: null,
       drawing: { pinId, kind, colour, saving: false },
     })
     this.map.getCanvas().style.cursor = "crosshair"
@@ -1548,21 +1718,26 @@ export class LiveEngine {
     const turnNumber = ++this.pinDraw
     await loadPinGlyphs()
     const pins = [...this.pinsById.values()]
+    this.pins.set([...pins].sort((a, b) => b.t - a.t))
     const features = pins.map((pin) => {
       const image = pinImageKey(this.pinLook(pin))
       const bin = pin.grainType || pin.fill > 0
+      // A long note is cut short on the map, as the current viewer does.
+      const words =
+        pin.note.length > 25 ? `${pin.note.slice(0, 25)}...` : pin.note
       return {
         type: "Feature",
         properties: {
           id: pin.id,
           image,
           note: pin.noteVisible
-            ? pin.note ||
-              (bin
+            ? words
+              ? `\u2022 ${words}`
+              : bin
                 ? [pin.grainType, `${Math.round(pin.fill)}%`]
                     .filter(Boolean)
                     .join(" · ")
-                : "")
+                : ""
             : "",
         },
         geometry: { type: "Point", coordinates: pin.at },
@@ -1664,6 +1839,7 @@ export class LiveEngine {
       marker: state.marker ?? previous?.marker ?? null,
       flash: flash ?? null,
     }
+    if (state.operation !== undefined) entry.operation = state.operation
     // A broadcast runs five minutes; one left on longer is stale.
     const live =
       flash && Date.now() - flash.started < BROADCAST_FOR ? flash : null
@@ -1741,7 +1917,8 @@ export class LiveEngine {
   private publishCrew() {
     const now = Date.now()
     const mine = this.mine
-    const rows: (CrewRow & { seen: number })[] = []
+    this.publishSelf(now)
+    const rows: CrewRow[] = []
     for (const [id, entry] of this.crewById) {
       const state = entry.state
       const marker = state?.marker
@@ -1775,11 +1952,231 @@ export class LiveEngine {
         online: entry.online,
         away: age > AWAY_AFTER,
         placed: !!state?.at,
+        me: false,
+        operation:
+          entry.operation !== undefined
+            ? entry.operation
+            : entry.profile.operation,
+        trailing: !!state?.trailing && age < 5 * 60_000,
         seen: state?.t ?? 0,
       })
     }
-    rows.sort((a, b) => Number(b.online) - Number(a.online) || b.seen - a.seen)
-    this.crew.set(rows)
+    this.crew.set(this.inOrder(rows, now))
+  }
+
+  /**
+   * The crew in a steady order (the current viewer's rule). Who is first is
+   * decided by what matters, the machine being followed, then whoever is on
+   * and trailing, on, trailing, and how lately they were heard from in broad
+   * steps, and after that people keep the place they had. It is only worked
+   * out again when one of those changes or half a minute has gone by, so a
+   * row doesn't hop about each time someone's position ticks over.
+   */
+  private inOrder(rows: CrewRow[], now: number) {
+    const recency = (row: CrewRow) => {
+      if (!row.seen) return 5
+      const age = now - row.seen
+      if (age < 30_000) return 0
+      if (age < 2 * 60_000) return 1
+      if (age < 10 * 60_000) return 2
+      if (age < 60 * 60_000) return 3
+      return 4
+    }
+    const followed = this.tail?.id
+    const signature = rows
+      .map(
+        (row) =>
+          `${row.id}:${row.id === followed ? 1 : 0}${row.online ? 1 : 0}${
+            row.trailing ? 1 : 0
+          }`,
+      )
+      .sort()
+      .join("|")
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    const place = new Map(this.crewOrder.map((id, index) => [id, index]))
+    const rank = (a: CrewRow, b: CrewRow) =>
+      Number(b.id === followed) - Number(a.id === followed) ||
+      Number(b.online && b.trailing) - Number(a.online && a.trailing) ||
+      Number(b.online) - Number(a.online) ||
+      Number(b.trailing) - Number(a.trailing) ||
+      recency(a) - recency(b) ||
+      (place.get(a.id) ?? Infinity) - (place.get(b.id) ?? Infinity) ||
+      b.seen - a.seen ||
+      a.name.localeCompare(b.name)
+    const due =
+      !this.crewOrder.length ||
+      signature !== this.crewSignature ||
+      now - this.crewSorted >= 30_000
+    let ordered: CrewRow[]
+    if (due) {
+      ordered = [...rows].sort(rank)
+      this.crewSignature = signature
+      this.crewSorted = now
+    } else {
+      // The same order as before; anyone new goes on the end.
+      const kept = this.crewOrder
+        .map((id) => byId.get(id))
+        .filter((row): row is CrewRow => !!row)
+      const known = new Set(this.crewOrder)
+      ordered = [...kept, ...rows.filter((r) => !known.has(r.id)).sort(rank)]
+    }
+    this.crewOrder = ordered.map((row) => row.id)
+    return ordered
+  }
+
+  /** The viewer's own row for the crew list. */
+  private publishSelf(now: number) {
+    const mine = this.mine
+    if (!mine || !this.meKnown) {
+      this.self.set(null)
+      return
+    }
+    const spec = machineFor(this.me.type)
+    const fresh = !!this.lastFix && now - this.lastFix.t < 15_000
+    const moving = fresh && this.speedKmh >= 0.7
+    const where = this.paddockAt(mine.pos)
+    const trailing = this.recorder.recording
+    this.self.set({
+      id: ME,
+      name: "You",
+      guest: false,
+      type: spec.type,
+      machineLabel: spec.label,
+      colour: drawColour(this.me.bodyColor),
+      doing:
+        (moving
+          ? trailing && spec.paints
+            ? spec.verb
+            : "On the move"
+          : "Stopped") + (where ? ` · ${where.name}` : ""),
+      speed: moving ? Math.round(this.speedKmh) : 0,
+      distance: null,
+      online: true,
+      away: false,
+      placed: true,
+      me: true,
+      operation: this.operation?.name ?? null,
+      trailing,
+      seen: this.lastFix?.t ?? now,
+    })
+  }
+
+  /**
+   * Keep the camera on one of the crew: north up ("follow") or turned the
+   * way they are heading ("cab"). Dragging the map, or null, lets go.
+   */
+  followCrew(id: string | null, mode: "follow" | "cab" = "follow") {
+    const vehicle = id ? this.crewById.get(id)?.vehicle : null
+    const before = this.tail
+    if (!id || !vehicle) {
+      if (!before) return false
+      this.tail = null
+      this.following.set(null)
+      if (before.mode === "cab")
+        this.map.easeTo({ bearing: 0, duration: 500, offset: [0, 0] })
+      return false
+    }
+    // One thing is followed at a time: not yourself as well.
+    this.setFollow("free")
+    this.tail = { id, mode }
+    this.following.set(this.tail)
+    this.followPausedUntil = performance.now() + 650
+    this.map.easeTo({
+      center: vehicle.pos,
+      zoom: Math.max(this.map.getZoom(), 15.2),
+      bearing: mode === "cab" ? vehicle.heading : 0,
+      offset: this.followOffset(mode),
+      duration: 650,
+    })
+    return true
+  }
+
+  /** Collect taps on the map (for a job) instead of acting on them. */
+  setGrabbing(on: boolean) {
+    this.grabbing = on
+    if (on) {
+      this.clearSelection()
+      this.armPin(null)
+    }
+    this.grabbed.set(null)
+    this.map.getCanvas().style.cursor = on ? "copy" : ""
+  }
+
+  /** What is picked on the map right now, as something a job can point at. */
+  pickedItem(): JobItem | null {
+    const pin = get(this.selectedPin)
+    if (pin)
+      return {
+        type: "marker",
+        id: pin.id,
+        label: this.pinName(pin),
+        at: pin.at,
+      }
+    const paddock = get(this.selectedPaddock)
+    if (paddock)
+      return {
+        type: "field",
+        id: paddock.id,
+        label: paddock.name,
+        at: [
+          (paddock.bbox[0] + paddock.bbox[2]) / 2,
+          (paddock.bbox[1] + paddock.bbox[3]) / 2,
+        ],
+      }
+    return null
+  }
+
+  /** Bring everything a job points at into view, and pick out its first. */
+  showJob(items: JobItem[]) {
+    if (!items.length) return
+    let w = Infinity
+    let s = Infinity
+    let e = -Infinity
+    let n = -Infinity
+    const take = (lng: number, lat: number) => {
+      w = Math.min(w, lng)
+      e = Math.max(e, lng)
+      s = Math.min(s, lat)
+      n = Math.max(n, lat)
+    }
+    for (const item of items) {
+      const paddock =
+        item.type === "field"
+          ? this.paddocks.find((p) => p.id === item.id)
+          : null
+      if (paddock) {
+        take(paddock.bbox[0], paddock.bbox[1])
+        take(paddock.bbox[2], paddock.bbox[3])
+      } else take(item.at[0], item.at[1])
+    }
+    this.clearSelection()
+    const first = items[0]
+    const pin =
+      first.type === "marker" && first.id ? this.pinsById.get(first.id) : null
+    const paddock =
+      first.type === "field"
+        ? this.paddocks.find((p) => p.id === first.id)
+        : null
+    if (pin) this.selectedPin.set(pin)
+    else if (paddock) this.selectedPaddock.set(paddock)
+    this.setFollow("free")
+    this.followCrew(null)
+    this.map.fitBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      {
+        padding: {
+          top: 110,
+          right: 70,
+          bottom: 210 + this.insets.bottom,
+          left: 70 + this.insets.left,
+        },
+        maxZoom: 16,
+        duration: 900,
+      },
+    )
   }
 
   /** Look at a crew member (and stop following yourself). */
@@ -2616,14 +3013,297 @@ export class LiveEngine {
 
   // ── Measuring ───────────────────────────────────────────────────────────
 
-  /** Start (or stop) the measure tool: taps on the map add corners. */
-  setMeasuring(on: boolean) {
+  /**
+   * Start (or stop) the measure and draw tool: taps on the map add corners
+   * of an area, or points along a line. What is drawn can then be kept.
+   */
+  setMeasuring(on: boolean, kind: "polygon" | "line" = "polygon") {
     this.measured = []
     this.clearSelection()
     this.armPin(null)
-    this.measure.set(on ? { points: 0, distance: 0, ha: 0 } : null)
+    this.measure.set(
+      on ? { points: 0, distance: 0, ha: 0, kind, paddock: null } : null,
+    )
     this.map.getCanvas().style.cursor = on ? "crosshair" : ""
     this.drawMeasure()
+  }
+
+  /** Switch between an area and a line without losing the corners. */
+  setMeasureKind(kind: "polygon" | "line") {
+    this.measure.update((m) => (m ? { ...m, kind } : m))
+    this.drawMeasure()
+  }
+
+  /** What has been tapped out, if there is enough of it to keep. */
+  private drawn() {
+    const state = get(this.measure)
+    const points = [...this.measured]
+    if (!state || state.drawing || state.keeping) return null
+    if (points.length < (state.kind === "polygon" ? 3 : 2)) return null
+    return { state, points }
+  }
+
+  private async keep(save: () => Promise<void>, failed: string) {
+    this.measure.update((m) => (m ? { ...m, keeping: true } : m))
+    try {
+      await save()
+    } catch {
+      this.measure.update((m) => (m ? { ...m, keeping: false } : m))
+      this.problem.set(navigator.onLine ? failed : `No signal: ${failed}`)
+      return false
+    }
+    this.cancelDrawing()
+    return true
+  }
+
+  private setPaddock(id: string, change: Partial<Paddock>) {
+    this.paddocks = this.paddocks.map((p) =>
+      p.id === id ? { ...p, ...change } : p,
+    )
+    this.paddockList.set(this.paddocks)
+    const now = this.paddocks.find((p) => p.id === id)
+    if (now && get(this.selectedPaddock)?.id === id)
+      this.selectedPaddock.set(now)
+    this.farm.set({
+      paddocks: this.paddocks.length,
+      ha: this.paddocks.reduce((sum, p) => sum + p.ha, 0),
+    })
+    this.drawPaddocks()
+  }
+
+  /** Keep what has been drawn on the paddock it sits in, with a name. */
+  keepOnPaddock(label: string, colour: string) {
+    const drawn = this.drawn()
+    const paddock = drawn?.state.paddock
+    if (!drawn || !paddock) return Promise.resolve(false)
+    return this.keep(async () => {
+      const features = await addPaddockFeature(paddock.id, {
+        kind: drawn.state.kind,
+        label: label.trim().slice(0, 40),
+        colour,
+        coordinates: drawn.points,
+      })
+      this.setPaddock(paddock.id, { features })
+    }, "that didn't save. Try again.")
+  }
+
+  /** Take something kept on a paddock off it. */
+  async removeFeature(paddockId: string, featureId: string) {
+    try {
+      const features = await removePaddockFeature(paddockId, featureId)
+      this.setPaddock(paddockId, { features })
+      return true
+    } catch {
+      this.problem.set("That couldn't be removed. Try again.")
+      return false
+    }
+  }
+
+  /**
+   * Cut the drawn area out of the paddock it sits in, for good: the
+   * paddock's boundary and hectares change.
+   */
+  cutFromPaddock() {
+    const drawn = this.drawn()
+    const paddock = this.paddocks.find((p) => p.id === drawn?.state.paddock?.id)
+    if (!drawn || !paddock || drawn.state.kind !== "polygon")
+      return Promise.resolve(false)
+    return this.keep(async () => {
+      const cut = await cutPaddock(paddock, drawn.points)
+      if (!cut) throw new Error("Nothing to cut")
+      this.setPaddock(paddock.id, { polygons: cut.polygons, ha: cut.ha })
+    }, "that couldn't be cut out. Try again.")
+  }
+
+  /** Keep what has been drawn on a new pin dropped in its middle. */
+  keepAsPin(iconClass: string, note: string, colour: string) {
+    const drawn = this.drawn()
+    if (!drawn) return Promise.resolve(false)
+    return this.keep(async () => {
+      const pin = await createPin(
+        this.mapId,
+        this.userId,
+        iconClass,
+        middle(drawn.points),
+      )
+      this.pinsById.set(pin.id, pin)
+      this.drawPins()
+      if (note.trim()) await this.updatePin(pin.id, { note })
+      await createDrawing({
+        mapId: this.mapId,
+        userId: this.userId,
+        pinId: pin.id,
+        kind: drawn.state.kind,
+        points: drawn.points,
+        colour,
+      })
+      await this.refreshDrawings()
+      const made = this.pinsById.get(pin.id)
+      if (made) this.selectedPin.set(made)
+    }, "that didn't save. Try again.")
+  }
+
+  /** The finished trails of the job on show that cross a paddock. */
+  private trailsIn(paddock: Paddock) {
+    const [w, s, e, n] = paddock.bbox
+    const inside = (at: LngLat) =>
+      at[0] >= w &&
+      at[0] <= e &&
+      at[1] >= s &&
+      at[1] <= n &&
+      paddock.polygons.some((rings) => pointInPolygon(at, rings))
+    const found = new Set<string>()
+    for (const feature of this.history) {
+      const properties = (
+        feature as { properties: { id: string; segment?: string } }
+      ).properties
+      if (properties.segment === "pause" || found.has(properties.id)) continue
+      for (const part of partsOf(feature)) {
+        // Every few points is plenty to tell if a trail went through.
+        const step = Math.max(1, Math.floor(part.length / 400))
+        let hit = false
+        for (let i = 0; i < part.length && !hit; i += step)
+          hit = inside(part[i])
+        if (hit) {
+          found.add(properties.id)
+          break
+        }
+      }
+    }
+    return get(this.trails).filter((trail) => found.has(trail.id))
+  }
+
+  // ── Rounding up pins to remove ──────────────────────────────────────────
+  // The current viewer's bulk delete: drag a line round the pins, see which
+  // it caught, confirm.
+
+  startLasso() {
+    this.cancelLasso()
+    this.clearSelection()
+    this.armPin(null)
+    this.map.dragPan.disable()
+    this.map.getCanvas().style.cursor = "crosshair"
+    this.lasso.set({ phase: "drawing", count: 0 })
+    const container = this.map.getContainer() as HTMLElement
+    let path: LngLat[] | null = null
+    const pointOf = (e: MouseEvent | TouchEvent): LngLat | null => {
+      const touch = "touches" in e ? (e.touches[0] ?? e.changedTouches[0]) : e
+      if (!touch) return null
+      const box = container.getBoundingClientRect()
+      const at = this.map.unproject([
+        touch.clientX - box.left,
+        touch.clientY - box.top,
+      ])
+      return [at.lng, at.lat]
+    }
+    const draw = (features: unknown[]) =>
+      this.map.getSource(LASSO_SOURCE)?.setData(collection(features))
+    const lineOf = (points: LngLat[]) => ({
+      type: "Feature",
+      properties: {},
+      geometry: { type: "LineString", coordinates: points },
+    })
+    const down = (e: MouseEvent | TouchEvent) => {
+      if (get(this.lasso)?.phase !== "drawing") return
+      if ("touches" in e && e.touches.length > 1) return
+      const at = pointOf(e)
+      if (!at) return
+      e.preventDefault()
+      e.stopPropagation()
+      path = [at]
+    }
+    const drag = (e: MouseEvent | TouchEvent) => {
+      const at = pointOf(e)
+      if (!path || !at) return
+      if (e.cancelable) e.preventDefault()
+      path.push(at)
+      draw([lineOf(path)])
+    }
+    const up = () => {
+      const ring = path
+      path = null
+      if (!ring) return
+      if (ring.length < 3) {
+        draw([])
+        return
+      }
+      const caught = [...this.pinsById.values()].filter((pin) =>
+        pointInPolygon(pin.at, [ring]),
+      )
+      if (!caught.length) {
+        draw([])
+        this.problem.set("No pins inside that. Draw right round them.")
+        return
+      }
+      this.lassoed = caught.map((pin) => pin.id)
+      draw([
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Polygon", coordinates: [[...ring, ring[0]]] },
+        },
+        lineOf([...ring, ring[0]]),
+        ...caught.map((pin) => ({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "Point", coordinates: pin.at },
+        })),
+      ])
+      this.map.dragPan.enable()
+      this.map.getCanvas().style.cursor = ""
+      this.lasso.set({ phase: "confirm", count: caught.length })
+    }
+    container.addEventListener("mousedown", down, true)
+    container.addEventListener("touchstart", down, {
+      capture: true,
+      passive: false,
+    })
+    window.addEventListener("mousemove", drag)
+    window.addEventListener("touchmove", drag, { passive: false })
+    window.addEventListener("mouseup", up)
+    window.addEventListener("touchend", up)
+    this.stopLasso = () => {
+      container.removeEventListener("mousedown", down, true)
+      container.removeEventListener("touchstart", down, true)
+      window.removeEventListener("mousemove", drag)
+      window.removeEventListener("touchmove", drag)
+      window.removeEventListener("mouseup", up)
+      window.removeEventListener("touchend", up)
+    }
+  }
+
+  /** Put the lasso away without removing anything. */
+  cancelLasso() {
+    this.stopLasso?.()
+    this.stopLasso = null
+    this.lassoed = []
+    if (!get(this.lasso)) return
+    this.lasso.set(null)
+    this.map.dragPan.enable()
+    this.map.getCanvas().style.cursor = ""
+    this.map.getSource(LASSO_SOURCE)?.setData(collection([]))
+  }
+
+  /** Go back to drawing the lasso again. */
+  redoLasso() {
+    if (get(this.lasso)) this.startLasso()
+  }
+
+  /** Remove every pin the lasso caught. Resolves with the ones removed. */
+  async removeLassoed() {
+    const ids = [...this.lassoed]
+    this.cancelLasso()
+    const removed: LivePin[] = []
+    for (const id of ids) {
+      const pin = await this.removePin(id)
+      if (pin) removed.push(pin)
+    }
+    return removed
+  }
+
+  /** Put back pins that were just removed. */
+  async restorePins(pins: LivePin[]) {
+    for (const pin of pins) await this.restorePin(pin)
   }
 
   /** Take back the last corner. */
@@ -2634,10 +3314,12 @@ export class LiveEngine {
 
   private drawMeasure() {
     const points = this.measured
-    // Drawing for a pin: in its colour, and a line stays open.
-    const drawing = get(this.measure)?.drawing
+    // Drawing for a pin: in its colour. A line stays open either way.
+    const state = get(this.measure)
+    const drawing = state?.drawing
     const properties = drawing ? { color: drawing.colour } : {}
-    const closed = points.length > 2 && drawing?.kind !== "line"
+    const closed =
+      points.length > 2 && (drawing?.kind ?? state?.kind) !== "line"
     const features: unknown[] = points.map((at) => ({
       type: "Feature",
       properties,
@@ -2646,6 +3328,8 @@ export class LiveEngine {
     let distance = 0
     for (let i = 1; i < points.length; i++)
       distance += distanceM(points[i - 1], points[i])
+    // An area is measured all the way round, back to where it started.
+    if (closed) distance += distanceM(points[points.length - 1], points[0])
     let ha = 0
     if (points.length > 1)
       features.push({
@@ -2672,8 +3356,18 @@ export class LiveEngine {
     }
     if (get(this.ready))
       this.map.getSource(MEASURE_SOURCE)?.setData(collection(features))
+    // Which paddock it is being drawn in (where its first corner sits).
+    const under = points.length ? this.paddockAt(points[0]) : null
     this.measure.update((m) =>
-      m ? { ...m, points: points.length, distance, ha } : m,
+      m
+        ? {
+            ...m,
+            points: points.length,
+            distance,
+            ha,
+            paddock: under ? { id: under.id, name: under.name } : null,
+          }
+        : m,
     )
   }
 
@@ -2692,6 +3386,10 @@ export class LiveEngine {
       return
     }
     if (!this.mine) return
+    if (this.tail) {
+      this.tail = null
+      this.following.set(null)
+    }
     // Glide to the machine once, then stick to it frame by frame.
     this.followPausedUntil = performance.now() + 650
     this.map.easeTo({
@@ -3014,6 +3712,25 @@ export class LiveEngine {
       this.turnTo(vehicle, vehicle.eased - bearing)
     }
 
+    const tail = this.tail
+    if (tail) {
+      const followed = this.crewById.get(tail.id)?.vehicle
+      if (!followed) this.followCrew(null)
+      else if (now > this.followPausedUntil && !this.touching)
+        this.map.easeTo({
+          center: followed.pos,
+          ...(tail.mode === "cab"
+            ? {
+                bearing:
+                  bearing +
+                  turn(bearing, followed.heading) * (1 - Math.exp(-dt * 3)),
+              }
+            : {}),
+          offset: this.followOffset(tail.mode),
+          duration: 0,
+        })
+    }
+
     const mine = this.mine
     if (mine) {
       if (this.tween) {
@@ -3139,6 +3856,7 @@ export class LiveEngine {
   destroy() {
     this.destroyed = true
     this.endMove(false)
+    this.stopLasso?.()
     cancelAnimationFrame(this.raf)
     document.removeEventListener("visibilitychange", this.onVisibility)
     if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId)

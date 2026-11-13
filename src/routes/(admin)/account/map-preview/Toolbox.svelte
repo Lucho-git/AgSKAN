@@ -13,6 +13,7 @@
   import {
     ArrowLeft,
     ChevronRight,
+    ClipboardList,
     LandPlot,
     Layers,
     LocateFixed,
@@ -31,11 +32,13 @@
   import vehicles from "$lib/vehicles"
   import MachinePicker from "$lib/components/mapnext/MachinePicker.svelte"
   import CrewRows from "./CrewRows.svelte"
+  import PinsTool from "./PinsTool.svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
   import { formatHa } from "$lib/components/mapnext/format"
   import type { PinChoice, PinLook } from "$lib/components/mapnext/pins"
+  import type { LivePin } from "./liveData"
   import type {
     BaseChoice,
     CrewRow,
@@ -100,6 +103,19 @@
   export let messageWith = ""
   /** Messages not yet opened, by who sent them. */
   export let unreadBy: Record<string, number> = {}
+  /** The viewer's own row for the crew list. */
+  export let self: CrewRow | null = null
+  /** Leave people not seen in ten days out of the crew list. */
+  export let hideStale = false
+  /** Every pin on the farm, newest first, and how each is drawn. */
+  export let pins: LivePin[] = []
+  export let pinLook: (pin: LivePin) => PinLook = (pin) => ({
+    iconClass: pin.iconClass,
+  })
+  /** The colour this person has set for each kind of pin. */
+  export let typeColours: Record<string, string> = {}
+  /** Jobs given to this person that aren't finished. */
+  export let jobsWaiting = 0
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -123,14 +139,19 @@
     leave: "dashboard" | "viewer"
     messagesBack: void
     messageCrew: string
+    invite: void
+    stale: boolean
+    typeColour: { iconClass: string; colour: string }
+    lookPin: string
+    lasso: void
   }>()
+
+  $: names = Object.fromEntries(crew.map((person) => [person.id, person.name]))
 
   $: machine = machineFor(marker.type)
   $: colour = drawColour(marker.bodyColor)
   $: trailOn = recording.phase === "on" || recording.phase === "stopping"
   $: online = crew.filter((person) => person.online).length
-  $: pinLabelNow =
-    pinChoices.find((choice) => choice.iconClass === pinKind)?.label ?? "Pin"
   $: baseLabel = baseChoices.find((choice) => choice.key === base)?.label ?? ""
   $: otherFarms = farms.filter((choice) => choice.id !== currentFarmId)
   $: hidden = LAYERS.filter(
@@ -140,6 +161,7 @@
   const TITLES: Record<ToolView, string> = {
     home: "",
     messages: "Messages",
+    jobs: "Jobs",
     crew: "Crew",
     machine: "Your machine",
     pins: "Pins",
@@ -270,6 +292,13 @@
         <strong>Messages</strong>
         <small>{unread ? `${unread} new` : "talk to the crew"}</small>
       </button>
+      <button type="button" class="mn-tile" on:click={() => (view = "jobs")}>
+        {#if jobsWaiting}<span class="mn-badge">{jobsWaiting}</span>{/if}
+        <span class="icon"><ClipboardList size={24} /></span>
+        <strong>Jobs</strong>
+        <small>{jobsWaiting ? `${jobsWaiting} for you` : "give and take"}</small
+        >
+      </button>
       {#if !guest}
         <button
           type="button"
@@ -338,8 +367,8 @@
         on:click={() => dispatch("measure")}
       >
         <span class="icon"><Ruler size={24} /></span>
-        <strong>Measure</strong>
-        <small>distance, area</small>
+        <strong>Draw</strong>
+        <small>measure, keep</small>
       </button>
       <button type="button" class="mn-tile" on:click={() => (view = "map")}>
         <span class="icon"><MapIcon size={24} /></span>
@@ -375,12 +404,17 @@
         <p class="lp-eyebrow">
           Crew · {online} on now{crew.length ? ` of ${crew.length}` : ""}
         </p>
-        {#if crew.length}
+        {#if crew.length || self || !guest}
           <CrewRows
             {crew}
+            {self}
             {unreadBy}
+            {hideStale}
+            canInvite={!guest}
             on:look={(e) => dispatch("lookCrew", e.detail)}
             on:message={(e) => dispatch("messageCrew", e.detail)}
+            on:invite={() => dispatch("invite")}
+            on:stale={(e) => dispatch("stale", e.detail)}
           />
         {:else}
           <p class="mn-empty">
@@ -437,14 +471,21 @@
 
     {#if view === "messages"}
       <slot name="messages" />
+    {:else if view === "jobs"}
+      <slot name="jobs" />
     {:else if view === "crew"}
       <p class="lp-eyebrow">{online} on the map now · {crew.length} in all</p>
-      {#if crew.length}
+      {#if crew.length || self || !guest}
         <CrewRows
           {crew}
+          {self}
           {unreadBy}
+          {hideStale}
+          canInvite={!guest}
           on:look={(e) => dispatch("lookCrew", e.detail)}
           on:message={(e) => dispatch("messageCrew", e.detail)}
+          on:invite={() => dispatch("invite")}
+          on:stale={(e) => dispatch("stale", e.detail)}
         />
       {:else}
         <p class="mn-empty">
@@ -467,32 +508,21 @@
         />
       {/if}
     {:else if view === "pins"}
-      <p class="mn-note">
-        {pinCount}
-        {pinCount === 1 ? "pin" : "pins"} on this farm. Choose what you drop, then
-        tap the map. Tap any pin to change it, move it or remove it.
-      </p>
-      <button
-        type="button"
-        class="lp-btn lp-btn-primary"
-        on:click={() => dispatch("dropPins")}
-      >
-        Drop {pinLabelNow.toLowerCase()} pins
-      </button>
-      <div class="mn-kinds all" style="margin: 0; padding: 0">
-        {#each pinChoices as choice (choice.iconClass)}
-          <button
-            type="button"
-            class="mn-kind"
-            class:selected={pinKind === choice.iconClass}
-            aria-pressed={pinKind === choice.iconClass}
-            on:click={() => dispatch("pinKind", choice.iconClass)}
-          >
-            <PinArt look={choiceLook(choice.iconClass)} size={36} />
-            {choice.label}
-          </button>
-        {/each}
-      </div>
+      <PinsTool
+        {pinChoices}
+        {pinKind}
+        {choiceLook}
+        {pinLook}
+        {pins}
+        {typeColours}
+        {names}
+        {guest}
+        on:pinKind={(e) => dispatch("pinKind", e.detail)}
+        on:dropPins={() => dispatch("dropPins")}
+        on:colour={(e) => dispatch("typeColour", e.detail)}
+        on:lookPin={(e) => dispatch("lookPin", e.detail)}
+        on:lasso={() => dispatch("lasso")}
+      />
     {:else if view === "trails"}
       <section class="mn-section">
         <p class="lp-eyebrow">Job on the map</p>

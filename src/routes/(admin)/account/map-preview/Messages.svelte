@@ -5,13 +5,27 @@
    *
    * Built for a cab: answers that take one tap, a place sent in two (where
    * you are, or whatever is picked on the map), and a place received opens
-   * on the map.
+   * on the map. A job, something to do at a paddock or a pin, is sent from
+   * here too and shows with a picture of where it is.
    */
   import { createEventDispatcher, tick } from "svelte"
-  import { LocateFixed, MapPin, SendHorizontal, X } from "lucide-svelte"
+  import {
+    ClipboardList,
+    LocateFixed,
+    MapPin,
+    SendHorizontal,
+    X,
+  } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
+  import JobBlock from "./JobBlock.svelte"
   import type { CrewRow } from "./liveEngine"
-  import type { Message, SharedPlace } from "./liveData"
+  import type {
+    Job,
+    Message,
+    Paddock,
+    PinDrawing,
+    SharedPlace,
+  } from "./liveData"
   import type { Conversation } from "./messenger"
 
   /** This person's id. */
@@ -25,12 +39,20 @@
   export let sending = false
   /** Places that can be sent right now: where I am, and what is picked. */
   export let places: { key: string; label: string; place: SharedPlace }[] = []
+  /** The farm, for the picture on a job. */
+  export let paddocks: Paddock[] = []
+  export let drawings: PinDrawing[] = []
+  export let guest = false
 
   const dispatch = createEventDispatcher<{
     open: string | null
     send: { body: string; place: SharedPlace | null }
     show: SharedPlace
     look: string
+    /** Start putting a job together for this person. */
+    job: void
+    showJob: Job
+    moveJob: { id: number; status: "accepted" | "done" }
   }>()
 
   const QUICK = [
@@ -108,7 +130,12 @@
   }
   const preview = (message: Message) =>
     (message.from === me ? "You: " : "") +
-    (message.body || (message.place ? message.place.label : ""))
+    (message.body ||
+      (message.job
+        ? `Job: ${message.job.title}`
+        : message.place
+          ? message.place.label
+          : ""))
 
   /** The last of mine they have opened: "Seen" goes under that one. */
   $: seen = [...thread].reverse().find((m) => m.from === me && m.read)?.id
@@ -160,8 +187,19 @@
         class="mn-bubble"
         class:mine={message.from === me}
         class:placed={!!message.place}
+        class:job={!!message.job}
       >
-        {#if message.place}
+        {#if message.job}
+          <JobBlock
+            job={message.job}
+            mine={message.to === me}
+            {paddocks}
+            {drawings}
+            on:show={() => message.job && dispatch("showJob", message.job)}
+            on:move={(e) =>
+              dispatch("moveJob", { id: message.id, status: e.detail })}
+          />
+        {:else if message.place}
           <button
             type="button"
             class="place"
@@ -224,17 +262,23 @@
       </p>
     {/if}
 
-    <form class="mn-compose" on:submit|preventDefault={() => send()}>
+    <div class="mn-send-row">
       <button
         type="button"
-        class="place"
         class:on={choosing || !!attached}
-        aria-label="Send a place"
         aria-expanded={choosing}
         on:click={() => (choosing = !choosing)}
       >
-        <MapPin size={22} />
+        <MapPin size={18} /> Send location
       </button>
+      {#if !guest}
+        <button type="button" on:click={() => dispatch("job")}>
+          <ClipboardList size={18} /> Send job
+        </button>
+      {/if}
+    </div>
+
+    <form class="mn-compose" on:submit|preventDefault={() => send()}>
       <input
         type="text"
         bind:value={draft}

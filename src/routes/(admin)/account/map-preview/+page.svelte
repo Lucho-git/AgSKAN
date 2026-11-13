@@ -18,6 +18,7 @@
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
     LoaderCircle,
+    ClipboardList,
     LocateFixed,
     MessageCircle,
     Navigation,
@@ -27,6 +28,7 @@
     SkipBack,
     SkipForward,
     Trash2,
+    UserMinus,
     Users,
     X,
   } from "lucide-svelte"
@@ -76,7 +78,10 @@
   } from "./liveEngine"
   import {
     DRAWING_COLOURS,
+    createGuestInvite,
+    removeFromMap,
     flashLabel,
+    type JobItem,
     loadBroadcastChoices,
     loadFarmChoices,
     loadMyVehicle,
@@ -104,6 +109,8 @@
   import MachineCard from "./MachineCard.svelte"
   import PaddockCard from "./PaddockCard.svelte"
   import Messages from "./Messages.svelte"
+  import Jobs from "./Jobs.svelte"
+  import JobThumb from "./JobThumb.svelte"
   import { Messenger, type Conversation } from "./messenger"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
@@ -275,6 +282,38 @@
   let selectedCrewId: string | null = null
   let trails: TrailInfo[] = []
 
+  // ── Crew ──
+  let self: CrewRow | null = null
+  let following: { id: string; mode: "follow" | "cab" } | null = null
+  let hideStale = load<boolean>("hide-stale") ?? false
+  let removeAsk = false
+  /** The invite card: its link once it has been made. */
+  let invite: { link: string | null } | null = null
+  let copied = ""
+
+  // ── Pins, all of them, and the lasso for removing several ──
+  let pins: LivePin[] = []
+  let lasso: { phase: "drawing" | "confirm"; count: number } | null = null
+
+  // ── Paddocks ──
+  let paddockTrails: TrailInfo[] = []
+  let pickedFeature: string | null = null
+
+  // ── Jobs ──
+  let jobs: Message[] = []
+  /** A job being put together: taps on the map add to it. */
+  let jobDraft: {
+    to: string | null
+    title: string
+    note: string
+    items: JobItem[]
+  } | null = null
+
+  // ── Keeping something drawn with the draw tool ──
+  let keepStep = false
+  let keepLabel = ""
+  let cutAsk = false
+
   // ── Messages ──
   const myName = $profileStore?.full_name || "Someone"
   let messenger: Messenger | null = null
@@ -397,6 +436,26 @@
       created.measure.subscribe((v) => (measure = v)),
       created.movingPin.subscribe((v) => (movingPin = v)),
       created.drawings.subscribe((v) => (drawings = v)),
+      created.self.subscribe((v) => (self = v)),
+      created.following.subscribe((v) => (following = v)),
+      created.pins.subscribe((v) => (pins = v)),
+      created.lasso.subscribe((v) => (lasso = v)),
+      created.paddockTrails.subscribe((v) => (paddockTrails = v)),
+      created.pickedFeature.subscribe((v) => (pickedFeature = v)),
+      created.grabbed.subscribe((item) => {
+        if (!item || !jobDraft) return
+        // Tapping something already on the job takes it off again.
+        const same = (other: JobItem) =>
+          item.type !== "spot" &&
+          other.type === item.type &&
+          other.id === item.id
+        jobDraft = {
+          ...jobDraft,
+          items: jobDraft.items.some(same)
+            ? jobDraft.items.filter((other) => !same(other))
+            : [...jobDraft.items, item].slice(0, 12),
+        }
+      }),
       created.broadcast.subscribe((v) => (broadcast = v)),
       created.heard.subscribe((heard) => {
         if (!heard) return
@@ -432,6 +491,19 @@
       post.thread.subscribe((v) => (thread = v)),
       post.loading.subscribe((v) => (chatLoading = v)),
       post.sending.subscribe((v) => (chatSending = v)),
+      post.jobs.subscribe((v) => (jobs = v)),
+      post.jobMoved.subscribe((message) => {
+        const job = message?.job
+        if (!message || !job) return
+        const who =
+          crew.find((person) => person.id === message.to)?.name ?? "They"
+        say(
+          job.status === "done"
+            ? `${who.split(/\s+/)[0]} finished "${job.title}"`
+            : `${who.split(/\s+/)[0]} is on "${job.title}"`,
+        )
+        post.jobMoved.set(null)
+      }),
       post.arrived.subscribe((message) => {
         if (!message) return
         // One notice a person: their latest replaces their last.
@@ -861,6 +933,183 @@
     return list
   }
 
+  // ── Jobs: something to do at a place, given to one of the crew ──
+  $: jobsWaiting = jobs.filter(
+    (m) => m.to === userId && m.job?.status !== "done",
+  ).length
+  $: jobCrew = crew.filter((person) => !person.guest)
+
+  function startJob(to: string | null = null) {
+    const picked = engine?.pickedItem()
+    jobDraft = { to, title: "", note: "", items: picked ? [picked] : [] }
+    if (!wide) panelOpen = false
+    stopPinning()
+    engine?.setGrabbing(true)
+  }
+
+  function endJob() {
+    jobDraft = null
+    engine?.setGrabbing(false)
+  }
+
+  function addWhereIAm() {
+    const mine = engine?.myPosition()
+    if (!mine || !jobDraft) return
+    jobDraft = {
+      ...jobDraft,
+      items: [
+        ...jobDraft.items,
+        { type: "spot", id: null, label: "Where I was", at: mine },
+      ],
+    }
+  }
+
+  async function giveJob() {
+    const draft = jobDraft
+    const title = draft?.title.trim() ?? ""
+    if (!draft?.to || !title || !draft.items.length || chatSending) return
+    const person = crew.find((member) => member.id === draft.to)
+    const given = await messenger?.send(
+      draft.to,
+      "",
+      null,
+      person?.online ?? false,
+      {
+        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+        title: title.slice(0, 60),
+        note: draft.note.trim().slice(0, 300),
+        items: draft.items,
+      },
+    )
+    if (!given) return
+    say(`Job given to ${person?.name.split(/\s+/)[0] ?? "them"}`)
+    endJob()
+  }
+
+  // ── Crew: following, inviting, removing ──
+  $: followed = following
+    ? (crew.find((person) => person.id === following?.id) ?? null)
+    : null
+  $: canRemove = !guest && !!selectedCrew && (selectedCrew.guest || isOwner)
+  $: if (!selectedCrew) removeAsk = false
+
+  function tailCrew(id: string, mode: "follow" | "cab") {
+    if (following?.id === id && following.mode === mode)
+      engine?.followCrew(null)
+    else if (!engine?.followCrew(id, mode))
+      say("They aren't on the map to follow yet.")
+  }
+
+  function setHideStale(on: boolean) {
+    hideStale = on
+    save("hide-stale", on)
+  }
+
+  async function openInvite() {
+    if (!wide) panelOpen = false
+    invite = { link: null }
+    try {
+      const link = await createGuestInvite()
+      if (invite) invite = { link }
+    } catch {
+      invite = null
+      say("Couldn't make an invite link. Try again.")
+    }
+  }
+
+  $: teamLink = `https://www.skanfarming.com.au/login?map_code=${
+    $connectedMapStore?.join_code || mapId || ""
+  }`
+  async function copyLink(link: string) {
+    try {
+      await navigator.clipboard.writeText(link)
+      copied = link
+      setTimeout(() => (copied = ""), 2000)
+    } catch {
+      say("Couldn't copy it. Press and hold the link instead.")
+    }
+  }
+  function shareLink(link: string) {
+    navigator
+      .share?.({ title: `Join ${farmName} on AgSKAN`, url: link })
+      .catch(() => {})
+  }
+
+  async function removeCrew() {
+    const person = selectedCrew
+    if (!person || !canRemove) return
+    if (!removeAsk) {
+      removeAsk = true
+      return
+    }
+    removeAsk = false
+    try {
+      await removeFromMap({ id: person.id, guest: person.guest })
+      engine?.selectedCrew.set(null)
+      say(`${person.name} was taken off this map`)
+    } catch {
+      say("Couldn't take them off the map. Try again.")
+    }
+  }
+
+  // ── Pins: the colour a kind gets, finding one, removing several ──
+  function setTypeColour(iconClass: string, colour: string) {
+    const perType = { ...($userSettingsStore.markerTypeDefaultColors ?? {}) }
+    if (colour === "default") delete perType[iconClass]
+    else perType[iconClass] = colour
+    userSettingsApi
+      .updateMarkerDefaultColors(
+        "single",
+        $userSettingsStore.markerDefaultColor ?? "default",
+        perType,
+      )
+      .catch(() => say("That colour didn't save. Try again."))
+  }
+
+  function startLasso() {
+    if (!wide) panelOpen = false
+    stopPinning()
+    engine?.startLasso()
+  }
+
+  async function removeLassoed() {
+    const removed = (await engine?.removeLassoed()) ?? []
+    if (!removed.length) return
+    say(`${removed.length} ${removed.length === 1 ? "pin" : "pins"} removed`, {
+      label: "Undo",
+      run: () => {
+        snack = null
+        engine?.restorePins(removed)
+      },
+    })
+  }
+
+  // ── Keeping what the draw tool has drawn ──
+  $: if (!measure) {
+    keepStep = false
+    cutAsk = false
+    keepLabel = ""
+  }
+  $: canKeep =
+    !!measure &&
+    !measure.drawing &&
+    measure.points >= (measure.kind === "line" ? 2 : 3)
+
+  async function keepOnPaddock() {
+    const name = measure?.paddock?.name
+    if (await engine?.keepOnPaddock(keepLabel, drawColourNow))
+      say(`Kept on ${name ?? "the paddock"}`)
+  }
+  async function keepAsPin() {
+    if (await engine?.keepAsPin("default", keepLabel, drawColourNow))
+      say("Pin dropped with the drawing on it")
+  }
+  async function cutOut() {
+    const name = measure?.paddock?.name
+    if (await engine?.cutFromPaddock())
+      say(`Cut out of ${name ?? "the paddock"}`)
+  }
+
   // ── What is attached to the picked pin ──
   let drawings: PinDrawing[] = []
   $: pinDrawings = selectedPin
@@ -947,6 +1196,9 @@
     stopPinning()
     engine?.setMeasuring(true)
   }
+  $: areaNow = measure
+    ? (measure.drawing?.kind ?? measure.kind) !== "line"
+    : true
   const metres = (m: number) =>
     m >= 1000 ? `${(m / 1000).toFixed(2)}` : `${Math.round(m)}`
 
@@ -1007,6 +1259,9 @@
     if (event.key !== "Escape") return
     if (pinning) stopPinning()
     else if (driverOffer) confirmDriver()
+    else if (jobDraft) endJob()
+    else if (lasso) engine?.cancelLasso()
+    else if (invite) invite = null
     else if (measure?.drawing) engine?.cancelDrawing()
     else if (measure) engine?.setMeasuring(false)
     else if (movingPin) engine?.movePin(null)
@@ -1042,6 +1297,9 @@
 
   $: cardOpen =
     !!driverOffer ||
+    !!jobDraft ||
+    !!lasso ||
+    !!invite ||
     pinning ||
     roadAsk ||
     stopAsk ||
@@ -1227,6 +1485,20 @@
           )}
         </button>
       {/if}
+      {#if following && followed}
+        <p class="mn-chip tail">
+          Following {followed.name.split(/\s+/)[0]}{following.mode === "cab"
+            ? " · heads up"
+            : ""}
+          <button
+            type="button"
+            aria-label="Stop following"
+            on:click={() => engine?.followCrew(null)}
+          >
+            <X size={16} />
+          </button>
+        </p>
+      {/if}
       {#if readout.paddock}
         <p class="mn-place">
           <b>{readout.paddock.name}</b><span
@@ -1283,7 +1555,12 @@
                 ? ` · ${notices.length - 1} more`
                 : ""}
             </strong>
-            <span>{notice.body || notice.place?.label || ""}</span>
+            <span>
+              {notice.body ||
+                (notice.job ? `Job: ${notice.job.title}` : "") ||
+                notice.place?.label ||
+                ""}
+            </span>
           </button>
           <button
             type="button"
@@ -1320,6 +1597,12 @@
             {#if onlineCrew.length}<b>{onlineCrew.length}</b>{/if}
           </button>
         {/if}
+      </div>
+    {/if}
+    <!-- The working buttons sit down the right: trail, pin, and where am I
+         at the very bottom. -->
+    {#if wide || !cardOpen}
+      <div class="mn-corner bottom-right">
         {#if !guest}
           <button
             type="button"
@@ -1338,10 +1621,17 @@
             <span>{trailOn ? "Stop" : "Trail"}</span>
           </button>
         {/if}
-      </div>
-    {/if}
-    {#if wide || !cardOpen}
-      <div class="mn-corner bottom-right">
+        {#if !guest}
+          <button
+            type="button"
+            class="mn-pin-button"
+            aria-label="Drop a pin"
+            on:click={startPinning}
+          >
+            <PinArt look={choiceLook(pinKind)} size={wide ? 36 : 32} />
+            <span>Pin</span>
+          </button>
+        {/if}
         <button
           type="button"
           class="mn-follow {follow}"
@@ -1366,17 +1656,6 @@
             {#if follow === "follow" && followHint}<small>North up</small>{/if}
           {/if}
         </button>
-        {#if !guest}
-          <button
-            type="button"
-            class="mn-pin-button"
-            aria-label="Drop a pin"
-            on:click={startPinning}
-          >
-            <PinArt look={choiceLook(pinKind)} size={wide ? 36 : 32} />
-            <span>Pin</span>
-          </button>
-        {/if}
       </div>
     {/if}
 
@@ -1404,6 +1683,209 @@
           >
             Yes · {driverLeft}
           </button>
+        </div>
+      </div>
+    {:else if jobDraft}
+      <!-- ── Putting a job together ── -->
+      <div class="mn-card mn-menu" in:rise>
+        <div class="mn-card-head">
+          <p class="lp-eyebrow">New job</p>
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Close"
+            on:click={endJob}
+          >
+            <X size={22} />
+          </button>
+        </div>
+        <div class="mn-job-build">
+          <JobThumb items={jobDraft.items} {paddocks} {drawings} />
+          <div class="mn-fields">
+            <input
+              type="text"
+              bind:value={jobDraft.title}
+              maxlength="60"
+              placeholder="What needs doing"
+              aria-label="What needs doing"
+            />
+            <input
+              type="text"
+              bind:value={jobDraft.note}
+              maxlength="300"
+              placeholder="Anything they should know (optional)"
+              aria-label="Notes"
+            />
+          </div>
+        </div>
+        {#if jobDraft.items.length}
+          <div class="mn-job-items">
+            {#each jobDraft.items as item, i}
+              <span>
+                {item.label}
+                <button
+                  type="button"
+                  aria-label="Take {item.label} off the job"
+                  on:click={() =>
+                    jobDraft &&
+                    (jobDraft = {
+                      ...jobDraft,
+                      items: jobDraft.items.filter((_, index) => index !== i),
+                    })}
+                >
+                  <X size={15} />
+                </button>
+              </span>
+            {/each}
+          </div>
+        {/if}
+        <p class="mn-note">
+          Tap a paddock or a pin on the map to add it to the job{jobDraft.items
+            .length
+            ? "; tap it again to take it off"
+            : ""}.
+          {#if readout.hasFix}
+            <button type="button" class="mn-text-button" on:click={addWhereIAm}>
+              Add where I am
+            </button>
+          {/if}
+        </p>
+        <div class="mn-fields">
+          <label>
+            <span class="lp-eyebrow">For</span>
+            <select bind:value={jobDraft.to}>
+              <option value={null}>Choose who it's for</option>
+              {#each jobCrew as person (person.id)}
+                <option value={person.id}>{person.name}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        <div class="mn-card-actions">
+          <button type="button" class="lp-btn lp-btn-ghost" on:click={endJob}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="lp-btn lp-btn-primary"
+            disabled={chatSending ||
+              !jobDraft.to ||
+              !jobDraft.title.trim() ||
+              !jobDraft.items.length}
+            on:click={giveJob}
+          >
+            <ClipboardList size={18} /> Give job
+          </button>
+        </div>
+      </div>
+    {:else if lasso}
+      <!-- ── Rounding up pins to remove ── -->
+      <div class="mn-card" in:rise>
+        <p class="lp-eyebrow">Remove several pins</p>
+        {#if lasso.phase === "drawing"}
+          <h2 class="mn-card-title">Draw right round them.</h2>
+          <p class="mn-card-text">
+            Drag a line on the map around the pins to remove. The map stays
+            still while you draw.
+          </p>
+          <div class="mn-card-actions one">
+            <button
+              type="button"
+              class="lp-btn lp-btn-ghost"
+              on:click={() => engine?.cancelLasso()}
+            >
+              Cancel
+            </button>
+          </div>
+        {:else}
+          <h2 class="mn-card-title">
+            Remove {lasso.count === 1
+              ? "this pin"
+              : `these ${lasso.count} pins`}?
+          </h2>
+          <p class="mn-card-text">
+            They come off the map for everyone. You can undo straight
+            afterwards.
+          </p>
+          <div class="mn-card-actions three">
+            <button
+              type="button"
+              class="lp-btn lp-btn-ghost"
+              on:click={() => engine?.cancelLasso()}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="lp-btn lp-btn-ghost"
+              on:click={() => engine?.redoLasso()}
+            >
+              Redraw
+            </button>
+            <button
+              type="button"
+              class="mn-remove solid"
+              on:click={removeLassoed}
+            >
+              <Trash2 size={17} /> Remove {lasso.count}
+            </button>
+          </div>
+        {/if}
+      </div>
+    {:else if invite}
+      <!-- ── Inviting someone onto the map ── -->
+      <div class="mn-card mn-menu" in:rise>
+        <div class="mn-card-head">
+          <p class="lp-eyebrow">Invite to {farmName}</p>
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Close"
+            on:click={() => (invite = null)}
+          >
+            <X size={22} />
+          </button>
+        </div>
+        <p class="mn-card-text">
+          <b>A guest</b> can look at the map without an account. The link works for
+          a week and lets them in for 48 hours.
+        </p>
+        {#if invite.link}
+          <p class="mn-link-box">{invite.link}</p>
+          <div class="mn-menu-actions">
+            <button
+              type="button"
+              on:click={() => invite?.link && copyLink(invite.link)}
+            >
+              {copied === invite.link ? "Copied" : "Copy link"}
+            </button>
+            {#if typeof navigator !== "undefined" && "share" in navigator}
+              <button
+                type="button"
+                on:click={() => invite?.link && shareLink(invite.link)}
+              >
+                Send it
+              </button>
+            {/if}
+          </div>
+        {:else}
+          <p class="mn-note">
+            <span class="mn-spin"><LoaderCircle size={16} /></span> Making a link…
+          </p>
+        {/if}
+        <p class="mn-card-text">
+          <b>One of the crew</b> signs up with this link and joins the farm for good.
+        </p>
+        <p class="mn-link-box">{teamLink}</p>
+        <div class="mn-menu-actions">
+          <button type="button" on:click={() => copyLink(teamLink)}>
+            {copied === teamLink ? "Copied" : "Copy link"}
+          </button>
+          {#if typeof navigator !== "undefined" && "share" in navigator}
+            <button type="button" on:click={() => shareLink(teamLink)}>
+              Send it
+            </button>
+          {/if}
         </div>
       </div>
     {:else if pinning}
@@ -1815,13 +2297,19 @@
         {/if}
       </div>
     {:else if measure}
-      <!-- ── Measuring ── -->
+      <!-- ── Drawing: to measure, to keep, or for a pin ── -->
       {@const drawing = measure.drawing}
-      {@const line = drawing?.kind === "line"}
+      {@const line = !areaNow}
       <div class="mn-card mn-menu" in:rise>
         <div class="mn-card-head">
           <p class="lp-eyebrow">
-            {drawing ? (line ? "Draw a line" : "Draw an area") : "Measure"}
+            {drawing
+              ? line
+                ? "Draw a line"
+                : "Draw an area"
+              : keepStep
+                ? "Keep it"
+                : "Draw and measure"}
           </p>
           <p class="mn-hint">
             {#if line}
@@ -1837,20 +2325,38 @@
             {/if}
           </p>
         </div>
-        {#if drawing}
+        {#if !drawing && !keepStep}
+          <div class="mn-pair" role="group" aria-label="What to draw">
+            <button
+              type="button"
+              aria-pressed={!line}
+              on:click={() => engine?.setMeasureKind("polygon")}
+            >
+              Area
+            </button>
+            <button
+              type="button"
+              aria-pressed={line}
+              on:click={() => engine?.setMeasureKind("line")}
+            >
+              Line
+            </button>
+          </div>
+        {/if}
+        {#if drawing || keepStep}
           <div
             class="mn-swatches"
             style="--across: 6"
             role="group"
-            aria-label="Drawing colour"
+            aria-label="Colour"
           >
             {#each DRAWING_COLOURS as colour}
               <button
                 type="button"
-                class:selected={drawing.colour === colour}
+                class:selected={(drawing?.colour ?? drawColourNow) === colour}
                 style="--swatch: {colour}"
                 aria-label="Colour {colour}"
-                aria-pressed={drawing.colour === colour}
+                aria-pressed={(drawing?.colour ?? drawColourNow) === colour}
                 on:click={() => chooseDrawColour(colour)}
               ></button>
             {/each}
@@ -1859,7 +2365,8 @@
         <div class="mn-measure">
           <div>
             <b>{metres(measure.distance)}</b><span
-              >{measure.distance >= 1000 ? "km" : "m"} along</span
+              >{measure.distance >= 1000 ? "km" : "m"}
+              {line ? "long" : "around"}</span
             >
           </div>
           {#if !line}
@@ -1870,41 +2377,137 @@
             </div>
           {/if}
         </div>
-        <div class="mn-card-actions" class:three={!!drawing}>
-          <button
-            type="button"
-            class="lp-btn lp-btn-ghost"
-            disabled={!measure.points}
-            on:click={() => engine?.undoMeasure()}
-          >
-            Undo
-          </button>
-          {#if drawing}
+
+        {#if keepStep && !drawing}
+          <div class="mn-fields">
+            <input
+              type="text"
+              bind:value={keepLabel}
+              maxlength="40"
+              placeholder="Name it: wet patch, drain, rocks…"
+              aria-label="A name for it"
+            />
+          </div>
+          {#if cutAsk}
+            <p class="mn-warning">
+              Cut this out of {measure.paddock?.name}? The paddock's boundary
+              and hectares change for everyone, and this screen can't put it
+              back.
+            </p>
+            <div class="mn-card-actions">
+              <button
+                type="button"
+                class="lp-btn lp-btn-ghost"
+                on:click={() => (cutAsk = false)}
+              >
+                Leave it
+              </button>
+              <button
+                type="button"
+                class="mn-remove solid"
+                disabled={measure.keeping}
+                on:click={cutOut}
+              >
+                {measure.keeping ? "Cutting…" : "Cut it out"}
+              </button>
+            </div>
+          {:else}
+            <div class="mn-keep">
+              <button
+                type="button"
+                disabled={!measure.paddock || measure.keeping}
+                on:click={keepOnPaddock}
+              >
+                <strong>
+                  {measure.paddock
+                    ? `Keep it on ${measure.paddock.name}`
+                    : "Keep it on a paddock"}
+                </strong>
+                <span>
+                  {measure.paddock
+                    ? "It shows on the paddock with its name and size."
+                    : "Start it inside a paddock to keep it there."}
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled={measure.keeping}
+                on:click={keepAsPin}
+              >
+                <strong>Drop a pin with it</strong>
+                <span>
+                  A pin in its middle, named, with this drawn on it. Shows in
+                  the current viewer too.
+                </span>
+              </button>
+              {#if !line && measure.paddock}
+                <button
+                  type="button"
+                  class="danger"
+                  disabled={measure.keeping}
+                  on:click={() => (cutAsk = true)}
+                >
+                  <strong>Cut it out of {measure.paddock.name}</strong>
+                  <span>
+                    For ground that is never worked: changes the paddock's
+                    boundary and hectares for good.
+                  </span>
+                </button>
+              {/if}
+            </div>
+            <button
+              type="button"
+              class="mn-text-button"
+              on:click={() => (keepStep = false)}
+            >
+              Back to drawing
+            </button>
+          {/if}
+        {:else}
+          <div class="mn-card-actions three">
             <button
               type="button"
               class="lp-btn lp-btn-ghost"
-              on:click={() => engine?.cancelDrawing()}
+              disabled={!measure.points}
+              on:click={() => engine?.undoMeasure()}
             >
-              Cancel
+              Undo
             </button>
-            <button
-              type="button"
-              class="lp-btn lp-btn-primary"
-              disabled={drawing.saving || measure.points < (line ? 2 : 3)}
-              on:click={saveDrawing}
-            >
-              {drawing.saving ? "Saving…" : "Save"}
-            </button>
-          {:else}
-            <button
-              type="button"
-              class="lp-btn lp-btn-primary"
-              on:click={() => engine?.setMeasuring(false)}
-            >
-              Done
-            </button>
-          {/if}
-        </div>
+            {#if drawing}
+              <button
+                type="button"
+                class="lp-btn lp-btn-ghost"
+                on:click={() => engine?.cancelDrawing()}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="lp-btn lp-btn-primary"
+                disabled={drawing.saving || measure.points < (line ? 2 : 3)}
+                on:click={saveDrawing}
+              >
+                {drawing.saving ? "Saving…" : "Save"}
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="lp-btn lp-btn-ghost"
+                on:click={() => engine?.setMeasuring(false)}
+              >
+                Done
+              </button>
+              <button
+                type="button"
+                class="lp-btn lp-btn-primary"
+                disabled={!canKeep || guest}
+                on:click={() => (keepStep = true)}
+              >
+                Keep it
+              </button>
+            {/if}
+          </div>
+        {/if}
       </div>
     {:else if selectedPin}
       <!-- ── A pin ── -->
@@ -1981,6 +2584,13 @@
                 {[
                   selectedCrew.machineLabel,
                   selectedCrew.doing,
+                  ...(selectedCrew.trailing
+                    ? [
+                        `Trailing${selectedCrew.operation ? ` · ${selectedCrew.operation}` : ""}`,
+                      ]
+                    : selectedCrew.operation
+                      ? [selectedCrew.operation]
+                      : []),
                   ...(selectedCrew.speed > 0
                     ? [`${selectedCrew.speed} km/h`]
                     : []),
@@ -2013,6 +2623,49 @@
               <MessageCircle size={18} /> Message
             </button>
           </div>
+          {#if selectedCrew.placed}
+            <div class="mn-menu-actions">
+              <button
+                type="button"
+                class:on={following?.id === selectedCrew.id &&
+                  following.mode === "follow"}
+                on:click={() =>
+                  selectedCrew && tailCrew(selectedCrew.id, "follow")}
+              >
+                <LocateFixed size={18} />
+                {following?.id === selectedCrew.id &&
+                following.mode === "follow"
+                  ? "Following"
+                  : "Follow"}
+              </button>
+              <button
+                type="button"
+                class:on={following?.id === selectedCrew.id &&
+                  following.mode === "cab"}
+                on:click={() =>
+                  selectedCrew && tailCrew(selectedCrew.id, "cab")}
+              >
+                <Navigation size={18} />
+                {following?.id === selectedCrew.id && following.mode === "cab"
+                  ? "Riding along"
+                  : "Ride along"}
+              </button>
+            </div>
+          {/if}
+          {#if canRemove}
+            <button
+              type="button"
+              class="mn-text-button danger"
+              on:click={removeCrew}
+            >
+              <UserMinus size={16} />
+              {removeAsk
+                ? `Tap again to take ${selectedCrew.name.split(/\s+/)[0]} off this map`
+                : selectedCrew.guest
+                  ? "Remove this guest"
+                  : "Remove from this map"}
+            </button>
+          {/if}
         </div>
       {/key}
     {:else if selectedPaddock}
@@ -2023,6 +2676,18 @@
           farms={farmNames}
           {guest}
           here={readout.paddock?.name === selectedPaddock.name}
+          trails={paddockTrails}
+          operation={operation?.name ?? ""}
+          {pickedFeature}
+          on:draw={startMeasuring}
+          on:removeFeature={async (e) => {
+            if (
+              selectedPaddock &&
+              (await engine?.removeFeature(selectedPaddock.id, e.detail))
+            )
+              say("Removed from the paddock")
+          }}
+          on:trail={(e) => pickTrail(e.detail)}
           on:close={() => engine?.selectedPaddock.set(null)}
           on:change={(e) =>
             selectedPaddock &&
@@ -2101,8 +2766,27 @@
         on:close={closePanel}
         on:locate={askForLocation}
         on:machine={(e) => changeMachine(e.detail)}
+        {self}
+        {hideStale}
+        {pins}
+        pinLook={(pin) => engine?.pinLook(pin) ?? { iconClass: pin.iconClass }}
+        typeColours={$userSettingsStore.markerTypeDefaultColors ?? {}}
+        {jobsWaiting}
+        on:invite={openInvite}
+        on:stale={(e) => setHideStale(e.detail)}
+        on:typeColour={(e) =>
+          setTypeColour(e.detail.iconClass, e.detail.colour)}
+        on:lookPin={(e) => {
+          engine?.showPlace({ at: [0, 0], refType: "marker", refId: e.detail })
+          if (!wide) closePanel()
+        }}
+        on:lasso={startLasso}
         on:lookCrew={(e) => {
-          if (engine?.lookAt(e.detail)) {
+          if (e.detail === ME) {
+            // Your own row: back to yourself.
+            engine?.setFollow("follow")
+            if (!wide) closePanel()
+          } else if (engine?.lookAt(e.detail)) {
             engine.pickCrew(e.detail)
             if (!wide) closePanel()
           }
@@ -2145,6 +2829,15 @@
             loading={chatLoading}
             sending={chatSending}
             places={sharePlaces}
+            {paddocks}
+            {drawings}
+            {guest}
+            on:job={() => startJob(chatWith)}
+            on:showJob={(e) => {
+              engine?.showJob(e.detail.items)
+              if (!wide) closePanel()
+            }}
+            on:moveJob={(e) => messenger?.moveJob(e.detail.id, e.detail.status)}
             on:open={(e) => messenger?.open(e.detail)}
             on:send={(e) =>
               chatWith &&
@@ -2164,6 +2857,22 @@
                 if (!wide) closePanel()
               }
             }}
+          />
+        </svelte:fragment>
+        <svelte:fragment slot="jobs">
+          <Jobs
+            me={userId}
+            {jobs}
+            {crew}
+            {paddocks}
+            {drawings}
+            {guest}
+            on:new={() => startJob()}
+            on:show={(e) => {
+              engine?.showJob(e.detail.items)
+              if (!wide) closePanel()
+            }}
+            on:move={(e) => messenger?.moveJob(e.detail.id, e.detail.status)}
           />
         </svelte:fragment>
       </Toolbox>
