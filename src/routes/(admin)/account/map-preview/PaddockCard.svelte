@@ -1,17 +1,19 @@
 <script lang="ts">
   /**
    * The menu for a picked paddock, with what the current viewer's field
-   * panel offers short of redrawing the boundary: its name, what is in it,
-   * its colour, which farm it belongs to, and deleting it. It also lists
-   * what has been kept on it (areas and lines with a name) and the trails
-   * of the job on show that have been through it.
+   * panel offers: its name, what is in it, its colour, which farm it belongs
+   * to, changing its boundary and deleting it. What is known about it sits
+   * in blocks; tapping a block changes it. It also lists what has been kept
+   * on it (areas and lines with a name) and the trails of the job on show
+   * that have been through it.
    */
-  import { createEventDispatcher } from "svelte"
+  import { createEventDispatcher, tick } from "svelte"
   import {
     ArrowLeft,
     Check,
     History,
-    LocateFixed,
+    Layers,
+    Pencil,
     PencilRuler,
     Trash2,
     X,
@@ -31,8 +33,10 @@
   export let trails: TrailInfo[] = []
   /** The name of that job. */
   export let operation = ""
-  /** The thing kept on it that was tapped on the map, if one was. */
+  /** The thing kept on it that is picked out, if one is. */
   export let pickedFeature: string | null = null
+  /** All of its trails are being shown at once. */
+  export let allTrails = false
   /**
    * What has been written in for other paddocks on this map: each crop, and
    * the varieties entered with it, the most used first.
@@ -42,7 +46,6 @@
   const dispatch = createEventDispatcher<{
     close: void
     change: PaddockPatch
-    look: void
     remove: void
     /** Start drawing something to keep on it. */
     draw: void
@@ -50,9 +53,13 @@
     boundary: void
     /** Put its boundary back to what it was before the last change. */
     putBack: void
+    /** Pick out (or let go of) something kept on it. */
+    feature: string | null
     removeFeature: string
     /** Pick one of its trails out. */
     trail: string
+    /** Show all of its trails at once, or stop. */
+    allTrails: boolean
   }>()
 
   const when = (t: number) =>
@@ -73,53 +80,78 @@
     "#c27219",
   ]
 
-  let name = paddock.name
-  let crop = paddock.crop
-  let variety = paddock.variety
+  type Block = "name" | "crop" | "variety"
+  /** The block being written in, and what has been typed. */
+  let editing: Block | null = null
+  let draft = ""
+  let field: HTMLInputElement | null = null
   let last = paddock.id
   let deleting = false
   /** Asked to draw: something on it, or its own boundary? */
   let drawAsk = false
-  /** Which of the two is being typed in, for the suggestions under them. */
-  let typing: "crop" | "variety" | null = null
   $: if (paddock.id !== last) {
     last = paddock.id
-    name = paddock.name
-    crop = paddock.crop
-    variety = paddock.variety
+    editing = null
     deleting = false
     drawAsk = false
-    typing = null
   }
+
+  const value = (block: Block) =>
+    block === "name"
+      ? paddock.name
+      : block === "crop"
+        ? paddock.crop
+        : paddock.variety
+
+  async function edit(block: Block) {
+    if (guest) return
+    if (editing) save()
+    editing = block
+    draft = value(block)
+    await tick()
+    field?.focus()
+    field?.select()
+  }
+
+  function save(next: Block | null = null) {
+    const block = editing
+    if (!block) return
+    const typed = draft.trim()
+    editing = null
+    if (typed !== value(block) && (block !== "name" || typed))
+      dispatch("change", { [block]: typed })
+    if (next) edit(next)
+  }
+
   const starts = (option: string, typed: string) =>
     option.toLowerCase().startsWith(typed.trim().toLowerCase()) &&
     option.toLowerCase() !== typed.trim().toLowerCase()
   // Crops already used on this map that match what has been typed so far.
-  $: cropIdeas = crops
-    .map((entry) => entry.crop)
-    .filter((option) => starts(option, crop))
-    .slice(0, 6)
+  $: cropIdeas =
+    editing === "crop"
+      ? crops
+          .map((entry) => entry.crop)
+          .filter((option) => starts(option, draft))
+          .slice(0, 6)
+      : []
   // Varieties already entered with this crop.
-  $: varietyIdeas = (
-    crops.find(
-      (entry) => entry.crop.toLowerCase() === crop.trim().toLowerCase(),
-    )?.varieties ?? []
-  )
-    .filter((option) => starts(option, variety))
-    .slice(0, 6)
-  $: changed =
-    (name.trim() && name.trim() !== paddock.name) ||
-    crop.trim() !== paddock.crop ||
-    variety.trim() !== paddock.variety
+  $: varietyIdeas =
+    editing === "variety"
+      ? (
+          crops.find(
+            (entry) =>
+              entry.crop.toLowerCase() === paddock.crop.trim().toLowerCase(),
+          )?.varieties ?? []
+        )
+          .filter((option) => starts(option, draft))
+          .slice(0, 6)
+      : []
 
-  function save() {
-    const change: PaddockPatch = {}
-    if (name.trim() && name.trim() !== paddock.name) change.name = name.trim()
-    if (crop.trim() !== paddock.crop) change.crop = crop.trim()
-    if (variety.trim() !== paddock.variety) change.variety = variety.trim()
-    typing = null
-    if (Object.keys(change).length) dispatch("change", change)
-  }
+  const BLOCKS: { key: Block; label: string; empty: string; max: number }[] = [
+    { key: "name", label: "Name", empty: "Name it", max: 60 },
+    { key: "crop", label: "What's in it", empty: "Add a crop", max: 40 },
+    { key: "variety", label: "Variety", empty: "Add variety", max: 40 },
+  ]
 </script>
 
 <div class="mn-card mn-menu">
@@ -132,9 +164,6 @@
       <p>
         {[
           ...(paddock.ha > 0 ? [`${formatHa(paddock.ha)} ha`] : []),
-          ...(paddock.crop
-            ? [paddock.crop + (paddock.variety ? ` (${paddock.variety})` : "")]
-            : []),
           ...(paddock.farm ? [paddock.farm] : []),
           ...(here ? ["You're in it"] : []),
         ].join(" · ") || "Paddock"}
@@ -191,8 +220,8 @@
       <button type="button" on:click={() => dispatch("boundary")}>
         <strong>Change its boundary</strong>
         <span>
-          Move its corners, cut ground out of it, or add a piece. This changes
-          the paddock itself.
+          Move its corners, cut ground out, add a piece, split it in two or join
+          the paddock next door onto it.
         </span>
       </button>
     </div>
@@ -207,6 +236,96 @@
       </button>
     {/if}
   {:else}
+    <!-- ── What is known about it: tap a block to change it ── -->
+    <div class="mn-info">
+      {#each BLOCKS as block (block.key)}
+        {#if editing === block.key}
+          <form
+            class="editing block"
+            class:whole={block.key === "name"}
+            on:submit|preventDefault={() => save()}
+          >
+            <span class="lp-eyebrow">{block.label}</span>
+            <input
+              bind:this={field}
+              type="text"
+              bind:value={draft}
+              maxlength={block.max}
+              autocomplete="off"
+              enterkeyhint="done"
+              on:blur={() => save()}
+              on:keydown={(e) => e.key === "Escape" && (editing = null)}
+            />
+            <button type="submit" class="go" aria-label="Save">
+              <Check size={18} strokeWidth={3} />
+            </button>
+          </form>
+        {:else}
+          <button
+            type="button"
+            class="block"
+            class:whole={block.key === "name"}
+            class:empty={!value(block.key)}
+            disabled={guest ||
+              (block.key === "variety" && !paddock.crop && !paddock.variety)}
+            on:click={() => edit(block.key)}
+          >
+            <span class="lp-eyebrow">{block.label}</span>
+            <strong>
+              {value(block.key) ||
+                (guest
+                  ? "—"
+                  : block.key === "variety" && !paddock.crop
+                    ? "—"
+                    : block.empty)}
+            </strong>
+            {#if !guest}<i><Pencil size={14} /></i>{/if}
+          </button>
+        {/if}
+      {/each}
+      {#if farms.length > 1 && !guest}
+        <label class="block">
+          <span class="lp-eyebrow">Farm</span>
+          <select
+            value={paddock.farmId ?? ""}
+            on:change={(e) =>
+              e.currentTarget.value &&
+              dispatch("change", { farmId: e.currentTarget.value })}
+          >
+            {#if !paddock.farmId}<option value="">No farm</option>{/if}
+            {#each farms as farm (farm.id)}
+              <option value={farm.id}>{farm.name}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
+      <div class="still block">
+        <span class="lp-eyebrow">Area</span>
+        <strong>{paddock.ha > 0 ? `${formatHa(paddock.ha)} ha` : "—"}</strong>
+      </div>
+    </div>
+    <!-- What has been used on this map before, a tap away. -->
+    {#if cropIdeas.length || varietyIdeas.length}
+      <div
+        class="mn-chips mn-ideas"
+        role="group"
+        aria-label={editing === "crop"
+          ? "Crops used here"
+          : "Varieties used here"}
+      >
+        {#each editing === "crop" ? cropIdeas : varietyIdeas as option}
+          <!-- (mousedown, so the tap lands before the field's blur saves.) -->
+          <button
+            type="button"
+            on:mousedown|preventDefault={() => {
+              draft = option
+              save(editing === "crop" && !paddock.variety ? "variety" : null)
+            }}>{option}</button
+          >
+        {/each}
+      </div>
+    {/if}
+
     {#if !guest}
       <div
         class="mn-swatches"
@@ -226,89 +345,6 @@
           ></button>
         {/each}
       </div>
-
-      <div class="mn-fields">
-        <label>
-          <span class="lp-eyebrow">Name</span>
-          <input type="text" bind:value={name} maxlength="60" />
-        </label>
-        <div class="mn-crop">
-          <label>
-            <span class="lp-eyebrow">What's in it</span>
-            <input
-              type="text"
-              bind:value={crop}
-              maxlength="40"
-              placeholder="Wheat, canola, hay…"
-              autocomplete="off"
-              on:focus={() => (typing = "crop")}
-            />
-          </label>
-          <label>
-            <span class="lp-eyebrow">Variety</span>
-            <input
-              type="text"
-              bind:value={variety}
-              maxlength="40"
-              placeholder={crop.trim() ? "Add variety" : "—"}
-              autocomplete="off"
-              disabled={!crop.trim()}
-              on:focus={() => (typing = "variety")}
-            />
-          </label>
-        </div>
-        <!-- What has been used on this map before, a tap away. -->
-        {#if typing === "crop" && cropIdeas.length}
-          <div
-            class="mn-chips mn-ideas"
-            role="group"
-            aria-label="Crops used here"
-          >
-            {#each cropIdeas as option}
-              <button
-                type="button"
-                on:click={() => {
-                  crop = option
-                  typing = "variety"
-                }}>{option}</button
-              >
-            {/each}
-          </div>
-        {:else if typing === "variety" && varietyIdeas.length}
-          <div
-            class="mn-chips mn-ideas"
-            role="group"
-            aria-label="Varieties used here"
-          >
-            {#each varietyIdeas as option}
-              <button type="button" on:click={() => (variety = option)}
-                >{option}</button
-              >
-            {/each}
-          </div>
-        {/if}
-        {#if farms.length > 1}
-          <label>
-            <span class="lp-eyebrow">Farm</span>
-            <select
-              value={paddock.farmId ?? ""}
-              on:change={(e) =>
-                e.currentTarget.value &&
-                dispatch("change", { farmId: e.currentTarget.value })}
-            >
-              {#if !paddock.farmId}<option value="">No farm</option>{/if}
-              {#each farms as farm (farm.id)}
-                <option value={farm.id}>{farm.name}</option>
-              {/each}
-            </select>
-          </label>
-        {/if}
-      </div>
-      {#if changed}
-        <button type="button" class="lp-btn lp-btn-primary" on:click={save}>
-          <Check size={18} strokeWidth={3} /> Save
-        </button>
-      {/if}
     {/if}
 
     {#if paddock.features.length}
@@ -316,23 +352,36 @@
       <ul class="mn-drawn">
         {#each paddock.features as feature (feature.id)}
           <li class:picked={pickedFeature === feature.id}>
-            {#if feature.kind === "line"}
-              <ShapeArt
-                line={feature.coordinates}
-                colour={feature.colour}
-                size={30}
-              />
-            {:else}
-              <ShapeArt
-                polygons={[[[...feature.coordinates, feature.coordinates[0]]]]}
-                colour={feature.colour}
-                size={30}
-              />
-            {/if}
-            <span class="what">
-              {feature.label || (feature.kind === "line" ? "Line" : "Area")}
-              <small>{sizeOf(feature.kind, feature.coordinates)}</small>
-            </span>
+            <button
+              type="button"
+              class="pick"
+              aria-pressed={pickedFeature === feature.id}
+              on:click={() =>
+                dispatch(
+                  "feature",
+                  pickedFeature === feature.id ? null : feature.id,
+                )}
+            >
+              {#if feature.kind === "line"}
+                <ShapeArt
+                  line={feature.coordinates}
+                  colour={feature.colour}
+                  size={30}
+                />
+              {:else}
+                <ShapeArt
+                  polygons={[
+                    [[...feature.coordinates, feature.coordinates[0]]],
+                  ]}
+                  colour={feature.colour}
+                  size={30}
+                />
+              {/if}
+              <span class="what">
+                {feature.label || (feature.kind === "line" ? "Line" : "Area")}
+                <small>{sizeOf(feature.kind, feature.coordinates)}</small>
+              </span>
+            </button>
             {#if !guest}
               <button
                 type="button"
@@ -355,6 +404,16 @@
           : ""}
       </p>
       <div class="mn-chips mn-through">
+        {#if trails.length > 1}
+          <button
+            type="button"
+            class="all"
+            aria-pressed={allTrails}
+            on:click={() => dispatch("allTrails", !allTrails)}
+          >
+            <Layers size={15} /> All {trails.length}
+          </button>
+        {/if}
         {#each trails.slice(0, 8) as trail (trail.id)}
           <button type="button" on:click={() => dispatch("trail", trail.id)}>
             <i style="background: {drawColour(trail.colour)}"></i>
@@ -365,22 +424,23 @@
         {/each}
         {#if trails.length > 8}<span>+{trails.length - 8} more</span>{/if}
       </div>
+      {#if allTrails}
+        <p class="mn-note">
+          Every trail through {paddock.name} is picked out. Where one carries on
+          past the fence it is drawn dashed.
+        </p>
+      {/if}
     {/if}
 
-    <div class="mn-menu-actions">
-      <button type="button" on:click={() => dispatch("look")}>
-        <LocateFixed size={18} /> Show it all
-      </button>
-      {#if !guest}
+    {#if !guest}
+      <div class="mn-menu-actions">
         <button type="button" on:click={() => (drawAsk = true)}>
           <PencilRuler size={18} /> Draw
         </button>
-      {/if}
-      {#if !guest}
         <button type="button" class="danger" on:click={() => (deleting = true)}>
           <Trash2 size={18} /> Delete
         </button>
-      {/if}
-    </div>
+      </div>
+    {/if}
   {/if}
 </div>

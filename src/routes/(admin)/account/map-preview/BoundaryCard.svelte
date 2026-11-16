@@ -3,7 +3,9 @@
    * Changing a paddock's boundary. On the map every corner has a handle to
    * drag, and a small dot sits between corners to drag out into a new one.
    * From here ground can be cut out (a hole, or a bite off the edge) or
-   * added (joined on, or as a separate piece of the same paddock).
+   * added (joined on, or as a separate piece of the same paddock); the
+   * paddock can be split in two along a line, or have the paddock next
+   * door joined onto it.
    *
    * Nothing changes on the farm until Save, every step can be stepped back,
    * and a saved change can be put back afterwards.
@@ -13,8 +15,10 @@
     Check,
     Hand,
     History,
+    Merge,
     Minus,
     Plus,
+    Scissors,
     RotateCcw,
     Trash2,
     Undo2,
@@ -31,7 +35,9 @@
   export let priorAt: number | null = null
 
   const dispatch = createEventDispatcher<{
-    add: "hole" | "piece"
+    add: "hole" | "piece" | "split"
+    join: void
+    cancelJoin: void
     undoPoint: void
     cancelAdd: void
     doneAdd: void
@@ -56,7 +62,7 @@
     ...(Math.abs(change) >= 0.05
       ? [`${formatHa(Math.abs(change))} ha ${change > 0 ? "more" : "less"}`]
       : []),
-    ...(edit.pieces > 1 ? [`${edit.pieces} pieces`] : []),
+    ...(edit.pieces > 1 && !edit.apart ? [`${edit.pieces} pieces`] : []),
     ...(edit.holes
       ? [`${edit.holes} ${edit.holes === 1 ? "hole" : "holes"}`]
       : []),
@@ -83,17 +89,38 @@
     </button>
   </div>
 
-  {#if edit.adding}
+  {#if edit.joining}
     <p class="mn-move-hint">
-      <Hand size={17} />
-      {edit.adding.kind === "hole"
-        ? "Tap round the ground to take out"
-        : "Tap round the ground to add"}
+      <Hand size={17} /> Tap the paddock to join onto this one
     </p>
     <p class="mn-note">
-      {edit.adding.kind === "hole"
-        ? "Inside the paddock it becomes a hole. Across the edge, it takes a bite out of it."
-        : "Touching the paddock, it joins on. Apart from it, it becomes another piece of the same paddock."}
+      Its ground is added to {edit.name} and the line between them goes. It stops
+      being a paddock of its own when you save.
+    </p>
+    <div class="mn-card-actions one">
+      <button
+        type="button"
+        class="lp-btn lp-btn-ghost"
+        on:click={() => dispatch("cancelJoin")}
+      >
+        Cancel
+      </button>
+    </div>
+  {:else if edit.adding}
+    <p class="mn-move-hint">
+      <Hand size={17} />
+      {edit.adding.kind === "split"
+        ? "Tap a line across the paddock, fence to fence"
+        : edit.adding.kind === "hole"
+          ? "Tap round the ground to take out"
+          : "Tap round the ground to add"}
+    </p>
+    <p class="mn-note">
+      {edit.adding.kind === "split"
+        ? "Two taps make a straight cut; more make it bend. Each side becomes a paddock of its own when you save."
+        : edit.adding.kind === "hole"
+          ? "Inside the paddock it becomes a hole. Across the edge, it takes a bite out of it."
+          : "Touching the paddock, it joins on. Apart from it, it becomes another piece of the same paddock."}
     </p>
     <div class="mn-card-actions three">
       <button
@@ -114,10 +141,14 @@
       <button
         type="button"
         class="lp-btn lp-btn-primary"
-        disabled={edit.adding.points < 3}
+        disabled={edit.adding.points < (edit.adding.kind === "split" ? 2 : 3)}
         on:click={() => dispatch("doneAdd")}
       >
-        {edit.adding.kind === "hole" ? "Cut it" : "Add it"}
+        {edit.adding.kind === "split"
+          ? "Split here"
+          : edit.adding.kind === "hole"
+            ? "Cut it"
+            : "Add it"}
       </button>
     </div>
   {:else}
@@ -156,7 +187,31 @@
         <strong><Plus size={16} strokeWidth={3} /> Add ground</strong>
         <span>Push it out, or give it a second piece.</span>
       </button>
+      <button type="button" on:click={() => dispatch("add", "split")}>
+        <strong><Scissors size={16} /> Split it</strong>
+        <span>Draw a line across; each side becomes a paddock.</span>
+      </button>
+      <button type="button" on:click={() => dispatch("join")}>
+        <strong><Merge size={16} /> Join a neighbour</strong>
+        <span>Tap the paddock next door; the line between goes.</span>
+      </button>
     </div>
+    {#if edit.apart}
+      <p class="mn-trailing">
+        <i></i>Splits into {edit.apart.length} paddocks: {edit.apart
+          .map((ha) => `${formatHa(ha)} ha`)
+          .join(" and ")}. The biggest keeps the name.
+      </p>
+    {/if}
+    {#if edit.joined.length}
+      <p class="mn-trailing">
+        <i></i>{edit.joined.join(" and ")} joined on. {edit.joined.length === 1
+          ? "It stops"
+          : "They stop"} being {edit.joined.length === 1
+          ? "a paddock of its own"
+          : "paddocks of their own"} when you save.
+      </p>
+    {/if}
 
     <div class="mn-menu-actions">
       <button
@@ -195,7 +250,13 @@
         on:click={() => dispatch("save")}
       >
         <Check size={18} strokeWidth={3} />
-        {edit.saving ? "Saving…" : "Save boundary"}
+        {edit.saving
+          ? "Saving…"
+          : edit.apart
+            ? `Save as ${edit.apart.length} paddocks`
+            : edit.joined.length
+              ? "Save as one paddock"
+              : "Save boundary"}
       </button>
     </div>
   {/if}

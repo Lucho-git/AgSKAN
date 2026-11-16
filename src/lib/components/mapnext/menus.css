@@ -2040,3 +2040,126 @@
 .mn-boundary .mn-keep {
   grid-template-columns: 1fr 1fr;
 }
+
+/* ── Fifth pass ─────────────────────────────────────────────────────────── */
+/* A menu taller than its room scrolls, but its head and its bottom row of
+   buttons stay where they are. */
+.mn-card.mn-menu > .head,
+.mn-card.mn-menu > .mn-card-head {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
+  margin: -14px -14px 0;
+  padding: 14px 14px 6px;
+  background: var(--lp-card);
+}
+.mn-card.mn-menu > .mn-card-actions:last-child,
+.mn-card.mn-menu > .mn-menu-actions:last-child {
+  position: sticky;
+  bottom: -14px;
+  z-index: 3;
+  margin: 0 -14px -14px;
+  padding: 10px 14px 14px;
+  background: var(--lp-card);
+  box-shadow: 0 -1px 0 var(--lp-line);
+}
+
+/* What is known about a paddock: a block each, tapped to change it. */
+.mn-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.mn-info .block {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 7px 34px 7px 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-paper);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-info .block.whole {
+  grid-column: 1 / -1;
+}
+.mn-info button.block:hover:not(:disabled) {
+  border-color: var(--lp-ink);
+}
+.mn-info .block strong {
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.mn-info .block.empty strong {
+  font-weight: 600;
+  color: var(--lp-ink-soft);
+}
+.mn-info .block i {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  display: flex;
+  color: var(--lp-ink-soft);
+  transform: translateY(-50%);
+}
+.mn-info .block.still {
+  padding-right: 12px;
+  border-style: dashed;
+  background: none;
+}
+.mn-info .block.editing {
+  padding-right: 50px;
+  border-color: var(--lp-ink);
+  background: var(--lp-card);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lp-yellow) 60%, transparent);
+}
+.mn-info .block input,
+.mn-info .block select {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--lp-ink);
+  outline: none;
+}
+.mn-info .block .go {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  color: #15261c;
+  transform: translateY(-50%);
+}
+/* Something kept on a paddock: the row itself picks it out on the map. */
+.mn-drawn li:has(> .pick) {
+  padding-left: 0;
+}
+.mn-drawn button.pick {
+  flex: 1;
+  justify-content: flex-start;
+  gap: 10px;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  padding-left: 12px;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-drawn li.picked .pick {
+  color: #15261c;
+}

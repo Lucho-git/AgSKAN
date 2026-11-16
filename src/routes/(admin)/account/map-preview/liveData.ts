@@ -22,7 +22,7 @@ import { listMapBroadcasts } from "$lib/api/broadcastApi"
 import { userSettingsApi } from "$lib/api/userSettingsApi"
 import { markerRowToClientMarker } from "$lib/utils/markerRow"
 import { grainBinDefaultCapacity } from "$lib/components/map/markers/markerPalette"
-import type { LngLat } from "$lib/components/mapnext/geo"
+import { projector, type LngLat, type XY } from "$lib/components/mapnext/geo"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>
@@ -295,6 +295,65 @@ export async function createPaddock(
   const paddock = paddockFromField(row, new Map())
   if (!paddock) throw new Error("Couldn't make the paddock")
   return paddock
+}
+
+/**
+ * Make a paddock that takes after another: the same crop, colour and farm,
+ * with its own name and outline. Used when a paddock is split in two, and
+ * to bring back one that was joined onto its neighbour.
+ */
+export async function createPaddockLike(
+  mapId: string,
+  like: Paddock,
+  name: string,
+  polygons: LngLat[][][],
+  ha: number,
+  features: PaddockFeature[] = [],
+): Promise<Paddock> {
+  const parts = polygons.map(
+    (coordinates) =>
+      turfArea({ type: "Polygon", coordinates } as never) / 10_000,
+  )
+  const result = (await fileApi.uploadFields(mapId, [
+    {
+      name,
+      area: ha,
+      boundary: geometryOf(polygons),
+      polygon_areas:
+        polygons.length > 1
+          ? { individual_areas: parts, total_area: ha }
+          : null,
+      properties: {
+        Name: name,
+        createdFrom: "map-boundary-editor",
+        ...(like.variety ? { agskan_variety: like.variety } : {}),
+        ...(features.length
+          ? { agskan_features: features.map(featureRow) }
+          : {}),
+      },
+      status: "accepted",
+      ...(like.farmId ? { farm_id: like.farmId } : {}),
+    } as never,
+  ])) as Row
+  const row = (result?.insertedFields ?? [])[0] as Row | undefined
+  if (!result?.success || !row)
+    throw new Error(result?.message || "Couldn't make the paddock")
+  const paddock = paddockFromField(row, new Map())
+  if (!paddock) throw new Error("Couldn't make the paddock")
+  if (like.crop || like.colour) {
+    // What is in it and its colour are columns of their own.
+    try {
+      await patchPaddock(paddock.id, {
+        ...(like.crop ? { crop: like.crop } : {}),
+        ...(like.colour ? { colour: like.colour } : {}),
+      })
+      paddock.crop = like.crop
+      paddock.colour = like.colour
+    } catch {
+      // The paddock is made; these can be put in by hand.
+    }
+  }
+  return { ...paddock, farm: like.farm }
 }
 
 // ── Pins (`map_markers`) ──────────────────────────────────────────────────
@@ -1859,6 +1918,15 @@ export async function removePinPhoto(
 // Kept in the paddock's own `properties` (under `agskan_features`), beside
 // whatever its import left there, so no other screen is disturbed by them.
 
+const featureRow = (feature: PaddockFeature) => ({
+  id: feature.id,
+  kind: feature.kind,
+  label: feature.label,
+  colour: feature.colour,
+  coordinates: feature.coordinates,
+  created_at: new Date(feature.t).toISOString(),
+})
+
 /** Read a paddock's features, change them, write them back. */
 async function writeFeatures(
   paddockId: string,
@@ -1877,14 +1945,7 @@ async function writeFeatures(
     .update({
       properties: {
         ...properties,
-        agskan_features: features.map((feature) => ({
-          id: feature.id,
-          kind: feature.kind,
-          label: feature.label,
-          colour: feature.colour,
-          coordinates: feature.coordinates,
-          created_at: new Date(feature.t).toISOString(),
-        })),
+        agskan_features: features.map(featureRow),
       },
     })
     .eq("field_id", paddockId)
@@ -1909,6 +1970,18 @@ export function removePaddockFeature(paddockId: string, featureId: string) {
   return writeFeatures(paddockId, (features) =>
     features.filter((feature) => feature.id !== featureId),
   )
+}
+
+/** Put some kept things onto a paddock, and take others off, in one go. */
+export function changePaddockFeatures(
+  paddockId: string,
+  add: PaddockFeature[],
+  removeIds: string[] = [],
+) {
+  return writeFeatures(paddockId, (features) => [
+    ...features.filter((feature) => !removeIds.includes(feature.id)),
+    ...add.filter((feature) => !features.some((f) => f.id === feature.id)),
+  ])
 }
 
 const HA = 10_000
@@ -1980,6 +2053,249 @@ export function joinOn(
   )
   if (!after) return null
   return outlineHa(after) - outlineHa(polygons) > 0.0001 ? after : null
+}
+
+const pieceHa = (coordinates: LngLat[][]) =>
+  turfArea({ type: "Polygon", coordinates } as never) / HA
+
+/**
+ * An outline split along a line drawn across it: the pieces either side,
+ * the biggest first. The line is run on a little past both of its ends, so
+ * a tap just short of the fence still cuts through. Null when the line
+ * doesn't part anything.
+ */
+export function splitAlong(
+  polygons: LngLat[][][],
+  line: LngLat[],
+): LngLat[][][] | null {
+  if (line.length < 2) return null
+  const flat = projector(line[0])
+  const xy = line
+    .map((at) => flat.toXY(at))
+    .filter(
+      (at, i, all) =>
+        i === 0 ||
+        Math.hypot(at[0] - all[i - 1][0], at[1] - all[i - 1][1]) > 0.2,
+    )
+  if (xy.length < 2) return null
+  const past = (from: XY, to: XY, by: number): XY => {
+    const d = Math.hypot(to[0] - from[0], to[1] - from[1]) || 1
+    return [
+      to[0] + ((to[0] - from[0]) / d) * by,
+      to[1] + ((to[1] - from[1]) / d) * by,
+    ]
+  }
+  const path: XY[] = [
+    past(xy[1], xy[0], 15),
+    ...xy.slice(1, -1),
+    past(xy[xy.length - 2], xy[xy.length - 1], 15),
+  ]
+  // The cut is a strip a hand's width across: too thin to see, wide enough
+  // that the two sides are really apart.
+  const HALF = 0.12
+  const left: XY[] = []
+  const right: XY[] = []
+  path.forEach((at, i) => {
+    const a = path[Math.max(0, i - 1)]
+    const b = path[Math.min(path.length - 1, i + 1)]
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1
+    const nx = (-(b[1] - a[1]) / d) * HALF
+    const ny = ((b[0] - a[0]) / d) * HALF
+    left.push([at[0] + nx, at[1] + ny])
+    right.push([at[0] - nx, at[1] - ny])
+  })
+  const strip = [...left, ...right.reverse()].map((at) => flat.toLngLat(at))
+  const after = polygonsFrom(
+    difference({
+      type: "FeatureCollection",
+      features: [asFeature(polygons), ringFeature(strip)],
+    } as never) as Row | null,
+  )
+  if (!after) return null
+  // A scrap of a few square metres isn't a paddock.
+  const pieces = after
+    .filter((coordinates) => pieceHa(coordinates) >= 0.01)
+    .sort((a, b) => pieceHa(b) - pieceHa(a))
+  if (pieces.length <= polygons.length) return null
+  // Where the line clips a kink in the fence it leaves a sliver on the far
+  // side. That isn't a paddock either: it stays with the piece it was cut
+  // away from, across the line.
+  const whole = pieces.reduce((sum, piece) => sum + pieceHa(piece), 0)
+  const least = Math.max(0.3, whole * 0.03)
+  const kept = pieces.filter((piece) => pieceHa(piece) >= least)
+  if (kept.length < 2) return pieces
+  for (const sliver of pieces.filter((piece) => pieceHa(piece) < least)) {
+    let joined = false
+    for (let i = 0; i < kept.length && !joined; i++) {
+      let merged: LngLat[][][] | null = null
+      try {
+        // (Only straight back across the cut, not round any corner.)
+        merged = mergeOutlines([kept[i]], [sliver], 1)
+      } catch {
+        merged = null
+      }
+      if (merged?.length === 1) {
+        kept[i] = merged[0]
+        joined = true
+      }
+    }
+    if (!joined) kept.push(sliver)
+  }
+  return kept.length > polygons.length ? kept : null
+}
+
+/** The nearest point to `p` on a closed ring, and how far off it is. */
+function nearestOnRings(p: XY, rings: XY[][]) {
+  let best: { at: XY; d: number } = { at: p, d: Infinity }
+  for (const ring of rings)
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[j]
+      const b = ring[i]
+      const dx = b[0] - a[0]
+      const dy = b[1] - a[1]
+      const len = dx * dx + dy * dy
+      const t = len
+        ? Math.max(
+            0,
+            Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len),
+          )
+        : 0
+      const at: XY = [a[0] + dx * t, a[1] + dy * t]
+      const d = Math.hypot(p[0] - at[0], p[1] - at[1])
+      if (d < best.d) best = { at, d }
+    }
+  return best
+}
+
+/** A ring with a point put in at least every `every` metres along it. */
+function denser(ring: XY[], every: number) {
+  const out: XY[] = []
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]
+    const b = ring[(i + 1) % ring.length]
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / every),
+    )
+    for (let s = 0; s < steps; s++)
+      out.push([
+        a[0] + ((b[0] - a[0]) * s) / steps,
+        a[1] + ((b[1] - a[1]) * s) / steps,
+      ])
+  }
+  return out
+}
+
+const crosses = (a: XY, b: XY, c: XY, d: XY) => {
+  const side = (p: XY, q: XY, r: XY) =>
+    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+  return side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0
+}
+
+/** How far apart two outlines are at their closest, in metres. */
+export function gapBetween(a: LngLat[][][], b: LngLat[][][]) {
+  const flat = projector(a[0][0][0])
+  const outer = (polygons: LngLat[][][]) =>
+    polygons.map((polygon) =>
+      polygon[0].slice(0, -1).map((at) => flat.toXY(at)),
+    )
+  const ra = outer(a)
+  const rb = outer(b)
+  let gap = Infinity
+  for (const ring of ra)
+    for (const at of denser(ring, 10))
+      gap = Math.min(gap, nearestOnRings(at, rb).d)
+  for (const ring of rb)
+    for (const at of denser(ring, 10))
+      gap = Math.min(gap, nearestOnRings(at, ra).d)
+  return gap
+}
+
+/**
+ * Two paddocks' outlines made into one. Where they run side by side with a
+ * fence line's width between them (up to 40 m), the strip between is
+ * filled in so the dividing line goes; where they are further apart than
+ * that, the result is one paddock in two pieces.
+ */
+export function mergeOutlines(
+  a: LngLat[][][],
+  b: LngLat[][][],
+  /** How far apart, in metres, the two may be where they are bridged. */
+  within: number | null = null,
+): LngLat[][][] | null {
+  const flat = projector(a[0][0][0])
+  const outer = (polygons: LngLat[][][]) =>
+    polygons.map((polygon) =>
+      denser(
+        polygon[0].slice(0, -1).map((at) => flat.toXY(at)),
+        8,
+      ),
+    )
+  const ra = outer(a)
+  const rb = outer(b)
+  const gap = gapBetween(a, b)
+  const bridges: unknown[] = []
+  if (gap <= 40) {
+    // Only where the two are about as close as they ever get: the fence
+    // line between them, not every corner that happens to be near.
+    const reach = within ?? Math.max(6, gap * 1.6 + 3)
+    const span = (from: XY[][], to: XY[][]) => {
+      for (const ring of from) {
+        const near = ring.map((at) => nearestOnRings(at, to))
+        for (let i = 0; i < ring.length; i++) {
+          const j = (i + 1) % ring.length
+          if (near[i].d > reach || near[j].d > reach) continue
+          if (near[i].d < 0.02 && near[j].d < 0.02) continue
+          const quad: XY[] = [ring[i], ring[j], near[j].at, near[i].at]
+          if (crosses(quad[0], quad[3], quad[1], quad[2])) continue
+          let twice = 0
+          for (let k = 0, m = 3; k < 4; m = k++)
+            twice += quad[m][0] * quad[k][1] - quad[k][0] * quad[m][1]
+          if (Math.abs(twice) < 0.02) continue
+          bridges.push(ringFeature(quad.map((at) => flat.toLngLat(at))))
+        }
+      }
+    }
+    span(ra, rb)
+    span(rb, ra)
+  }
+  const after = polygonsFrom(
+    union({
+      type: "FeatureCollection",
+      features: [asFeature(a), asFeature(b), ...bridges],
+    } as never) as Row | null,
+  )
+  if (!after) return null
+  // Filling the strip leaves pin-holes where the two fences wander. The
+  // only holes kept are ones the two paddocks already had.
+  const had = [...a, ...b].flatMap((polygon) => polygon.slice(1))
+  const inRing = (at: LngLat, ring: LngLat[]) => {
+    let inside = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
+      if (
+        ring[i][1] > at[1] !== ring[j][1] > at[1] &&
+        at[0] <
+          ((ring[j][0] - ring[i][0]) * (at[1] - ring[i][1])) /
+            (ring[j][1] - ring[i][1]) +
+            ring[i][0]
+      )
+        inside = !inside
+    return inside
+  }
+  const centre = (ring: LngLat[]): LngLat => {
+    const open = ring.slice(0, -1)
+    return [
+      open.reduce((sum, at) => sum + at[0], 0) / open.length,
+      open.reduce((sum, at) => sum + at[1], 0) / open.length,
+    ]
+  }
+  return after.map((polygon) => [
+    polygon[0],
+    ...polygon.slice(1).filter((hole) => {
+      const at = centre(hole)
+      return had.some((old) => inRing(at, old) || inRing(centre(old), hole))
+    }),
+  ])
 }
 
 /** Whether an outline crosses over itself anywhere. */

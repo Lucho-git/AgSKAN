@@ -35,6 +35,9 @@ import {
   GUIDE_SOURCE,
   GUIDE_AHEAD_SOURCE,
   EDIT_SOURCE,
+  THROUGH_SOURCE,
+  PICKED_SHAPE_SOURCE,
+  showThrough,
   LASSO_SOURCE,
   DRAWING_LAYERS,
   DRAWING_SOURCE,
@@ -99,6 +102,11 @@ import {
   saveBoundary,
   bboxOf,
   createPaddock,
+  createPaddockLike,
+  changePaddockFeatures,
+  splitAlong,
+  mergeOutlines,
+  gapBetween,
   type JobItem,
   createDrawing,
   deleteDrawing,
@@ -328,6 +336,23 @@ export type Guide = {
   rate: number
 }
 
+/** What saving a boundary did, so it can be put back. */
+export type BoundarySaved = {
+  paddockId: string
+  name: string
+  /** Paddocks made by a split. */
+  made: Paddock[]
+  /** Paddocks that were joined on, and so are gone. */
+  gone: Paddock[]
+}
+
+/** A drawing picked out: one on a pin, or one kept on a paddock. */
+export type PickedShape = {
+  id: string
+  /** west, south, east, north */
+  bbox: [number, number, number, number]
+}
+
 /** A paddock's boundary while it is being changed. */
 export type BoundaryEdit = {
   paddockId: string
@@ -343,8 +368,20 @@ export type BoundaryEdit = {
     canRemoveCorner: boolean
     canRemoveRing: boolean
   } | null
-  /** Ground being tapped out: a hole to cut, or a piece to add. */
-  adding: { kind: "hole" | "piece"; points: number } | null
+  /**
+   * Ground being tapped out: a hole to cut, a piece to add, or a line
+   * across the paddock to split it along.
+   */
+  adding: { kind: "hole" | "piece" | "split"; points: number } | null
+  /** Waiting for a tap on the paddock next door, to join it on. */
+  joining: boolean
+  /** The paddocks joined onto this one so far, by name. */
+  joined: string[]
+  /**
+   * Split with a line: on saving, each piece becomes a paddock of its own.
+   * The hectares of each, the biggest (which keeps the name) first.
+   */
+  apart: number[] | null
   /** Changes that can be stepped back through. */
   steps: number
   changed: boolean
@@ -358,10 +395,15 @@ type Editing = {
   /** Each piece's rings, outer first, without the corner that closes them. */
   rings: LngLat[][][]
   original: string
-  history: LngLat[][][][]
+  history: { rings: LngLat[][][]; absorbed: string[]; apart: boolean }[]
   /** Piece, ring, corner. */
   picked: [number, number, number] | null
-  adding: { kind: "hole" | "piece"; points: LngLat[] } | null
+  adding: { kind: "hole" | "piece" | "split"; points: LngLat[] } | null
+  /** Paddocks joined on: they go when this is saved. */
+  absorbed: string[]
+  /** Split with a line: the pieces part company when this is saved. */
+  apart: boolean
+  joining: boolean
   drag: {
     at: [number, number, number]
     from: [number, number]
@@ -714,6 +756,11 @@ export class LiveEngine {
   readonly paddockTrails: Writable<TrailInfo[]> = writable([])
   /** The thing kept on a paddock that was last tapped. */
   readonly pickedFeature: Writable<string | null> = writable(null)
+  /** The drawing on a pin that is picked out, and the box it sits in. */
+  readonly pickedDrawing: Writable<PickedShape | null> = writable(null)
+  /** The paddock whose trails are all being shown at once, if one is. */
+  readonly through: Writable<string | null> = writable(null)
+  private throughIds: string[] = []
   /**
    * A pin being placed by hand before it exists (the one dropped with a
    * drawing): what it will be. It is dragged like a pin being moved.
@@ -921,14 +968,29 @@ export class LiveEngine {
         const id = hits[0]?.properties?.id as string | undefined
         let pin = id ? this.pinsById.get(id) : undefined
         // A tap on something drawn picks the pin it belongs to.
+        let drawingId: string | null = null
         if (!pin && this.map.getLayer(DRAWING_LAYERS[0])) {
           const drawn = this.map.queryRenderedFeatures([e.point.x, e.point.y], {
             layers: DRAWING_LAYERS,
-          })[0]?.properties?.pin as string | undefined
-          if (drawn && drawn !== get(this.selectedPin)?.id)
-            pin = this.pinsById.get(drawn)
+          })[0]?.properties as { pin?: string; id?: string } | undefined
+          if (drawn?.pin) {
+            pin = this.pinsById.get(drawn.pin)
+            drawingId = pin ? (drawn.id ?? null) : null
+          }
         }
         const at: LngLat = [e.lngLat.lng, e.lngLat.lat]
+        // A drawing on a pin: its pin's menu opens with the drawing picked.
+        if (pin && drawingId && !this.grabbing) {
+          if (get(this.selectedTrail)) this.pickTrail(null)
+          this.selectedCrew.set(null)
+          this.selectedPaddock.set(null)
+          if (get(this.selectedPin)?.id !== pin.id) this.selectedPin.set(pin)
+          this.pickDrawing(
+            get(this.pickedDrawing)?.id === drawingId ? null : drawingId,
+            false,
+          )
+          return
+        }
         // Putting a job together: a tap picks up what is under it.
         if (this.grabbing) {
           const paddock = pin ? null : this.paddockAt(at)
@@ -960,7 +1022,6 @@ export class LiveEngine {
           : (this.map.queryRenderedFeatures([e.point.x, e.point.y], {
               layers: FEATURE_LAYERS,
             })[0]?.properties as { id?: string; paddock?: string } | undefined)
-        this.pickedFeature.set(feature?.id ?? null)
         if (feature?.paddock) {
           const owner = this.paddocks.find((p) => p.id === feature.paddock)
           if (owner) {
@@ -968,9 +1029,11 @@ export class LiveEngine {
             this.selectedPin.set(null)
             this.selectedCrew.set(null)
             this.selectedPaddock.set(owner)
+            this.pickFeature(owner.id, feature.id ?? null, false)
             return
           }
         }
+        this.pickFeature(null, null)
         this.tapped(pin ?? null, at)
       },
     )
@@ -985,6 +1048,14 @@ export class LiveEngine {
       if (this.move && pin?.id !== this.move.id) this.endMove(false)
       this.showPicked(pin)
       if (get(this.ready)) showDrawingsFor(this.map, pin?.id ?? null)
+      const drawing = get(this.pickedDrawing)
+      if (
+        drawing &&
+        !get(this.drawings).some(
+          (d) => d.id === drawing.id && d.pinId === pin?.id,
+        )
+      )
+        this.pickDrawing(null)
     })
     this.selectedCrew.subscribe((id) => {
       for (const [crewId, entry] of this.crewById)
@@ -996,7 +1067,9 @@ export class LiveEngine {
       if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
       this.keepMarching()
       this.paddockTrails.set(paddock ? this.trailsIn(paddock) : [])
-      if (!paddock) this.pickedFeature.set(null)
+      if (!paddock) this.pickFeature(null, null)
+      const through = get(this.through)
+      if (through && through !== paddock?.id) this.showThrough(null)
     })
     document.addEventListener("visibilitychange", this.onVisibility)
 
@@ -1150,6 +1223,7 @@ export class LiveEngine {
     for (const paddock of this.paddocks) {
       // The one whose boundary is being changed is drawn by the editor.
       if (this.editing?.paddock.id === paddock.id) continue
+      if (this.editing?.absorbed.includes(paddock.id)) continue
       // On the dark map a paddock with no colour takes its block's.
       const glow = paddock.colour ?? blockColour(paddock.farmId ?? this.mapId)
       features.push({
@@ -1839,6 +1913,126 @@ export class LiveEngine {
     this.selectedPaddock.set(
       paddock && current.paddock?.id !== paddock.id ? paddock : null,
     )
+  }
+
+  // ── A drawing picked out ────────────────────────────────────────────────
+  // From a menu's list or by a tap on the map: it gets a white halo, and the
+  // map moves only as far as it must to have it in view.
+
+  private haloShape(
+    shape: {
+      kind: "polygon" | "line"
+      points: LngLat[]
+      colour: string
+    } | null,
+  ) {
+    if (!get(this.ready)) return
+    this.map.getSource(PICKED_SHAPE_SOURCE)?.setData(
+      collection(
+        shape
+          ? [
+              {
+                type: "Feature",
+                properties: { color: shape.colour },
+                geometry:
+                  shape.kind === "line"
+                    ? { type: "LineString", coordinates: shape.points }
+                    : {
+                        type: "Polygon",
+                        coordinates: [[...shape.points, shape.points[0]]],
+                      },
+              },
+            ]
+          : [],
+      ),
+    )
+  }
+
+  /** Move the map so a box is in view above the menus, if it isn't. */
+  private bringIntoView(bbox: [number, number, number, number]) {
+    const container = this.map.getContainer() as HTMLElement
+    const wide = container.clientWidth
+    const tall = container.clientHeight
+    const a = this.map.project([bbox[0], bbox[3]])
+    const b = this.map.project([bbox[2], bbox[1]])
+    // A menu card sits over the bottom of the map: what it covers is no use
+    // for showing anything. (A pin's menu opens under its drawing instead.)
+    const card = container.parentElement?.querySelector(".mn-card")
+    const covered = card
+      ? container.getBoundingClientRect().bottom -
+        card.getBoundingClientRect().top
+      : tall * 0.45
+    const room = {
+      top: 80,
+      right: 50,
+      bottom: Math.round(
+        Math.min(tall * 0.74, Math.max(covered + 24, 60 + this.insets.bottom)),
+      ),
+      left: 50 + this.insets.left,
+    }
+    const inView =
+      a.x >= room.left - 20 &&
+      b.x <= wide - room.right + 20 &&
+      a.y >= room.top - 20 &&
+      b.y <= tall - room.bottom + 20 &&
+      // And not a speck: big enough on screen to make out.
+      Math.max(b.x - a.x, b.y - a.y) > 40
+    if (inView) return
+    this.setFollow("free")
+    this.map.fitBounds(
+      [
+        [bbox[0], bbox[1]],
+        [bbox[2], bbox[3]],
+      ],
+      { padding: room, maxZoom: 17.5, duration: 700 },
+    )
+  }
+
+  /** Pick out something kept on a paddock (or let it go). */
+  pickFeature(paddockId: string | null, featureId: string | null, look = true) {
+    const paddock = this.paddocks.find((p) => p.id === paddockId)
+    const feature = paddock?.features.find((f) => f.id === featureId)
+    this.pickedFeature.set(feature?.id ?? null)
+    if (feature) this.pickedDrawing.set(null)
+    if (feature || !get(this.pickedDrawing))
+      this.haloShape(
+        feature
+          ? {
+              kind: feature.kind,
+              points: feature.coordinates,
+              colour: feature.colour,
+            }
+          : null,
+      )
+    if (feature && look) this.bringIntoView(bboxOf([[feature.coordinates]]))
+  }
+
+  /** Pick out a drawing on the picked pin (or let it go). */
+  pickDrawing(id: string | null, look = true) {
+    const drawing = id ? get(this.drawings).find((d) => d.id === id) : null
+    if (!drawing) {
+      if (get(this.pickedDrawing)) {
+        this.pickedDrawing.set(null)
+        this.haloShape(null)
+      }
+      return
+    }
+    const points = (
+      drawing.kind === "line"
+        ? drawing.geometry.coordinates
+        : (drawing.geometry.coordinates as LngLat[][])[0].slice(0, -1)
+    ) as LngLat[]
+    const bbox = bboxOf([[points]])
+    this.pickedFeature.set(null)
+    this.pickedDrawing.set({ id: drawing.id, bbox })
+    this.haloShape({ kind: drawing.kind, points, colour: drawing.colour })
+    if (look) this.bringIntoView(bbox)
+  }
+
+  /** Where a pin is right now: where it is being dragged to, mid-move. */
+  pinPlace(id: string): LngLat | null {
+    if (this.move?.id === id) return this.move.live
+    return this.pinsById.get(id)?.at ?? null
   }
 
   /** Pick a crew member out (from the list), letting go of anything else. */
@@ -2730,7 +2924,84 @@ export class LiveEngine {
   private paintPicked() {
     if (!get(this.ready)) return
     const picked = get(this.selectedTrail)
-    paintPickedTrail(this.map, picked?.id ?? null, this.base, !!this.replaying)
+    if (!picked && get(this.through))
+      showThrough(this.map, this.throughIds, this.base)
+    else
+      paintPickedTrail(
+        this.map,
+        picked?.id ?? null,
+        this.base,
+        !!this.replaying,
+      )
+  }
+
+  /**
+   * Show every trail through a paddock at once (or stop): inside the
+   * paddock they stand as they were laid, outside it each carries on as a
+   * dashed line, and the rest of the job's trails fade back. The map stays
+   * where it is.
+   */
+  showThrough(paddockId: string | null) {
+    const paddock = paddockId
+      ? this.paddocks.find((p) => p.id === paddockId)
+      : null
+    const source = this.map.getSource(THROUGH_SOURCE)
+    if (!paddock) {
+      if (!get(this.through)) return
+      this.through.set(null)
+      this.throughIds = []
+      source?.setData(collection([]))
+      this.paintPicked()
+      return
+    }
+    if (get(this.selectedTrail)) this.pickTrail(null)
+    const ids = new Set(this.trailsIn(paddock).map((trail) => trail.id))
+    const [w, s, e, n] = paddock.bbox
+    const inside = (at: LngLat) =>
+      at[0] >= w &&
+      at[0] <= e &&
+      at[1] >= s &&
+      at[1] <= n &&
+      paddock.polygons.some((rings) => pointInPolygon(at, rings))
+    const features: unknown[] = []
+    for (const feature of this.history) {
+      const properties = (
+        feature as {
+          properties: { id: string; segment?: string; color: string }
+        }
+      ).properties
+      if (properties.segment === "pause" || !ids.has(properties.id)) continue
+      for (const part of partsOf(feature)) {
+        // The trail is cut wherever it crosses the fence: runs inside the
+        // paddock, and runs outside it.
+        let run: LngLat[] = []
+        let within = false
+        const end = () => {
+          if (run.length > 1)
+            features.push({
+              type: "Feature",
+              properties: { ...properties, part: within ? "in" : "out" },
+              geometry: { type: "LineString", coordinates: run },
+            })
+        }
+        part.forEach((at, i) => {
+          const here = inside(at)
+          if (i === 0) within = here
+          else if (here !== within) {
+            run.push(at)
+            end()
+            run = []
+            within = here
+          }
+          run.push(at)
+        })
+        end()
+      }
+    }
+    this.throughIds = [...ids]
+    source?.setData(collection(features))
+    this.through.set(paddock.id)
+    this.paintPicked()
   }
 
   /**
@@ -3623,7 +3894,7 @@ export class LiveEngine {
     const down = (e: MouseEvent | TouchEvent) => {
       const edit = this.editing
       const at = pointOf(e)
-      if (!edit || edit.adding || edit.saving || !at) return
+      if (!edit || edit.adding || edit.joining || edit.saving || !at) return
       if ("touches" in e && e.touches.length > 1) return
       // A finger is wider than a mouse pointer.
       const reach = "touches" in e ? 30 : 22
@@ -3716,6 +3987,9 @@ export class LiveEngine {
       history: [],
       picked: null,
       adding: null,
+      absorbed: [],
+      apart: false,
+      joining: false,
       drag: null,
       was: outlineHa(paddock.polygons),
       dirty: false,
@@ -3764,11 +4038,13 @@ export class LiveEngine {
   private rememberEdit() {
     const edit = this.editing
     if (!edit) return
-    edit.history.push(
-      edit.rings.map((polygon) =>
+    edit.history.push({
+      rings: edit.rings.map((polygon) =>
         polygon.map((ring) => ring.map((c) => [c[0], c[1]] as LngLat)),
       ),
-    )
+      absorbed: [...edit.absorbed],
+      apart: edit.apart,
+    })
     if (edit.history.length > 80) edit.history.shift()
   }
 
@@ -3782,8 +4058,75 @@ export class LiveEngine {
   private editTap(at: LngLat) {
     const edit = this.editing
     if (!edit || edit.saving || performance.now() < edit.quietUntil) return
+    if (edit.joining) {
+      this.joinAt(at)
+      return
+    }
     if (edit.adding) edit.adding.points.push(at)
     else edit.picked = null
+    this.touchEdit()
+  }
+
+  /** Start joining a neighbour on: the next tap on a paddock picks it. */
+  startJoining() {
+    const edit = this.editing
+    if (!edit) return
+    edit.adding = null
+    edit.picked = null
+    edit.joining = true
+    this.map.getCanvas().style.cursor = "pointer"
+    this.touchEdit()
+  }
+
+  cancelJoining() {
+    const edit = this.editing
+    if (!edit) return
+    edit.joining = false
+    this.map.getCanvas().style.cursor = ""
+    this.touchEdit()
+  }
+
+  /** Join the paddock under a tap onto the one being changed. */
+  private joinAt(at: LngLat) {
+    const edit = this.editing
+    if (!edit) return
+    const other = this.paddocks.find(
+      (paddock) =>
+        paddock.id !== edit.paddock.id &&
+        !edit.absorbed.includes(paddock.id) &&
+        at[0] >= paddock.bbox[0] &&
+        at[0] <= paddock.bbox[2] &&
+        at[1] >= paddock.bbox[1] &&
+        at[1] <= paddock.bbox[3] &&
+        paddock.polygons.some((rings) => pointInPolygon(at, rings)),
+    )
+    if (!other) {
+      this.problem.set("Tap the paddock you want joined onto this one.")
+      return
+    }
+    const now = closeRings(edit.rings)
+    let after: LngLat[][][] | null = null
+    let gap = 0
+    try {
+      gap = gapBetween(now, other.polygons)
+      after = mergeOutlines(now, other.polygons)
+    } catch {
+      after = null
+    }
+    if (!after) {
+      this.problem.set(`${other.name} couldn't be joined on. Try again.`)
+      return
+    }
+    this.rememberEdit()
+    edit.rings = openRings(after)
+    edit.absorbed = [...edit.absorbed, other.id]
+    edit.joining = false
+    this.map.getCanvas().style.cursor = ""
+    if (after.length > 1 && gap > 40)
+      this.problem.set(
+        `${other.name} is ${Math.round(gap)} m away, too far to close the gap: it joins as a second piece of the same paddock.`,
+      )
+    this.drawPaddocks()
     this.touchEdit()
   }
 
@@ -3809,9 +4152,14 @@ export class LiveEngine {
     ]
     const adding = edit.adding
     if (adding) {
-      const color = adding.kind === "hole" ? "#e5484d" : "#22c55e"
+      const split = adding.kind === "split"
+      const color = split
+        ? "#F7DB5C"
+        : adding.kind === "hole"
+          ? "#e5484d"
+          : "#22c55e"
       const points = adding.points
-      if (points.length > 2)
+      if (points.length > 2 && !split)
         features.push({
           type: "Feature",
           properties: { kind: "newfill", color },
@@ -3823,12 +4171,13 @@ export class LiveEngine {
           properties: { kind: "new", color },
           geometry: {
             type: "LineString",
-            coordinates: points.length > 2 ? [...points, points[0]] : points,
+            coordinates:
+              points.length > 2 && !split ? [...points, points[0]] : points,
           },
         })
       for (const at of points)
         features.push(point(at, { kind: "newpoint", color }))
-    } else {
+    } else if (!edit.joining) {
       edit.rings.forEach((polygon, p) =>
         polygon.forEach((ring, r) =>
           ring.forEach((corner, c) => {
@@ -3882,8 +4231,19 @@ export class LiveEngine {
       adding: edit.adding
         ? { kind: edit.adding.kind, points: edit.adding.points.length }
         : null,
+      joining: edit.joining,
+      joined: edit.absorbed.map(
+        (id) => this.paddocks.find((p) => p.id === id)?.name ?? "Paddock",
+      ),
+      apart:
+        edit.apart && polygons.length > 1
+          ? polygons
+              .map((coordinates) => outlineHa([coordinates]))
+              .sort((a, b) => b - a)
+          : null,
       steps: edit.history.length,
-      changed: JSON.stringify(polygons) !== edit.original,
+      changed:
+        JSON.stringify(polygons) !== edit.original || edit.absorbed.length > 0,
       saving: edit.saving,
       polygons,
     })
@@ -3932,9 +4292,10 @@ export class LiveEngine {
   }
 
   /** Start tapping out ground to cut from the paddock, or to add to it. */
-  startAdding(kind: "hole" | "piece") {
+  startAdding(kind: "hole" | "piece" | "split") {
     const edit = this.editing
     if (!edit) return
+    edit.joining = false
     edit.adding = { kind, points: [] }
     edit.picked = null
     this.map.getCanvas().style.cursor = "crosshair"
@@ -3958,12 +4319,14 @@ export class LiveEngine {
   finishAdding() {
     const edit = this.editing
     const adding = edit?.adding
-    if (!edit || !adding || adding.points.length < 3) return false
+    const split = adding?.kind === "split"
+    if (!edit || !adding || adding.points.length < (split ? 2 : 3)) return false
     const now = closeRings(edit.rings)
     let after: LngLat[][][] | null = null
     try {
-      after =
-        adding.kind === "hole"
+      after = split
+        ? splitAlong(now, adding.points)
+        : adding.kind === "hole"
           ? takeOut(now, adding.points)
           : joinOn(now, adding.points)
     } catch {
@@ -3971,14 +4334,17 @@ export class LiveEngine {
     }
     if (!after) {
       this.problem.set(
-        adding.kind === "hole"
-          ? "That isn't over the paddock, so there is nothing to take out."
-          : "That is already inside the paddock.",
+        split
+          ? "The line has to go right across the paddock, from one fence to another."
+          : adding.kind === "hole"
+            ? "That isn't over the paddock, so there is nothing to take out."
+            : "That is already inside the paddock.",
       )
       return false
     }
     this.rememberEdit()
     edit.rings = openRings(after)
+    if (split) edit.apart = true
     this.cancelAdding()
     return true
   }
@@ -3988,8 +4354,12 @@ export class LiveEngine {
     const edit = this.editing
     const before = edit?.history.pop()
     if (!edit || !before) return
-    edit.rings = before
+    const joined = edit.absorbed.length !== before.absorbed.length
+    edit.rings = before.rings
+    edit.absorbed = before.absorbed
+    edit.apart = before.apart
     edit.picked = null
+    if (joined) this.drawPaddocks()
     this.touchEdit()
   }
 
@@ -4000,6 +4370,11 @@ export class LiveEngine {
     this.rememberEdit()
     edit.rings = openRings(edit.paddock.polygons)
     edit.picked = null
+    edit.apart = false
+    if (edit.absorbed.length) {
+      edit.absorbed = []
+      this.drawPaddocks()
+    }
     this.touchEdit()
   }
 
@@ -4011,6 +4386,11 @@ export class LiveEngine {
     this.rememberEdit()
     edit.rings = openRings(prior.polygons)
     edit.picked = null
+    edit.apart = false
+    if (edit.absorbed.length) {
+      edit.absorbed = []
+      this.drawPaddocks()
+    }
     this.touchEdit()
   }
 
@@ -4028,10 +4408,75 @@ export class LiveEngine {
     if (reselect && paddock) this.selectedPaddock.set(paddock)
   }
 
-  async saveEdit() {
+  private listPaddocks(paddocks: Paddock[]) {
+    this.paddocks = paddocks
+    this.paddockList.set(this.paddocks)
+    this.farm.set({
+      paddocks: this.paddocks.length,
+      ha: this.paddocks.reduce((sum, p) => sum + p.ha, 0),
+    })
+    this.drawPaddocks()
+  }
+
+  /** A name no paddock on the map has yet: "Home 2", "Home 3"… */
+  private freeName(base: string, taken: string[]) {
+    const used = new Set(
+      [...this.paddocks.map((p) => p.name), ...taken].map((name) =>
+        name.trim().toLowerCase(),
+      ),
+    )
+    const stem = base.replace(/\s+\d+$/, "").slice(0, 54)
+    for (let n = 2; n < 200; n++)
+      if (!used.has(`${stem} ${n}`.toLowerCase())) return `${stem} ${n}`
+    return `${stem} ${Date.now() % 10000}`
+  }
+
+  /**
+   * Put back what the last save of a boundary did: the outline, and any
+   * paddocks a split made or a join took away.
+   */
+  async undoSaved(saved: BoundarySaved) {
+    try {
+      for (const made of saved.made) {
+        await deletePaddock(made.id)
+        this.listPaddocks(this.paddocks.filter((p) => p.id !== made.id))
+      }
+      if (!(await this.undoBoundary(saved.paddockId))) return false
+      if (saved.gone.length) {
+        const moved = saved.gone.flatMap((paddock) =>
+          paddock.features.map((feature) => feature.id),
+        )
+        if (moved.length) {
+          const features = await changePaddockFeatures(
+            saved.paddockId,
+            [],
+            moved,
+          )
+          this.setPaddock(saved.paddockId, { features })
+        }
+        for (const gone of saved.gone) {
+          const back = await createPaddockLike(
+            this.mapId,
+            gone,
+            gone.name,
+            gone.polygons,
+            gone.ha,
+            gone.features,
+          )
+          this.listPaddocks([...this.paddocks, back])
+        }
+      }
+      return true
+    } catch {
+      this.problem.set("That couldn't all be put back. Check the paddocks.")
+      return false
+    }
+  }
+
+  async saveEdit(): Promise<BoundarySaved | false> {
     const edit = this.editing
     if (!edit || edit.saving) return false
-    const polygons = closeRings(edit.rings)
+    let polygons = closeRings(edit.rings)
     let crossed = false
     try {
       crossed = crossesItself(polygons)
@@ -4046,20 +4491,73 @@ export class LiveEngine {
     }
     edit.saving = true
     this.tellEdit()
+    const saved: BoundarySaved = {
+      paddockId: edit.paddock.id,
+      name: edit.paddock.name,
+      made: [],
+      gone: [],
+    }
     try {
+      // Split with a line: the biggest piece stays this paddock, and each
+      // of the others becomes a paddock of its own.
+      let others: LngLat[][][] = []
+      if (edit.apart && polygons.length > 1) {
+        const bySize = [...polygons].sort(
+          (a, b) => outlineHa([b]) - outlineHa([a]),
+        )
+        polygons = [bySize[0]]
+        others = bySize.slice(1)
+      }
+      const gone = this.paddocks.filter((p) => edit.absorbed.includes(p.id))
       await this.changeBoundary(edit.paddock, polygons)
+      for (const piece of others) {
+        const made = await createPaddockLike(
+          this.mapId,
+          edit.paddock,
+          this.freeName(
+            edit.paddock.name,
+            saved.made.map((p) => p.name),
+          ),
+          [piece],
+          outlineHa([piece]),
+        )
+        saved.made.push(made)
+      }
+      // Joined on: what was kept on the neighbour moves over, then it goes.
+      const carried = gone.flatMap((paddock) => paddock.features)
+      if (carried.length) {
+        const features = await changePaddockFeatures(edit.paddock.id, carried)
+        this.setPaddock(edit.paddock.id, { features })
+      }
+      for (const paddock of gone) {
+        await deletePaddock(paddock.id)
+        saved.gone.push(paddock)
+      }
     } catch {
       edit.saving = false
       this.tellEdit()
       this.problem.set(
         navigator.onLine
-          ? "The boundary didn't save. Try again."
+          ? "The boundary didn't all save. Check the paddock and try again."
           : "No signal: the boundary didn't save.",
       )
+      if (saved.made.length || saved.gone.length)
+        this.listPaddocks([
+          ...this.paddocks.filter(
+            (p) => !saved.gone.some((gone) => gone.id === p.id),
+          ),
+          ...saved.made,
+        ])
       return false
     }
+    const goneIds = new Set(saved.gone.map((p) => p.id))
+    this.paddocks = [
+      ...this.paddocks.filter((p) => !goneIds.has(p.id)),
+      ...saved.made,
+    ]
     this.cancelEdit()
-    return true
+    this.listPaddocks(this.paddocks)
+    return saved
   }
 
   /** Make what has been drawn (an area) into a new paddock. */
@@ -4936,6 +5434,11 @@ export class LiveEngine {
   /** Where the viewer's machine is drawn right now, if it is on the map. */
   myPosition(): LngLat | null {
     return this.mine?.pos ?? null
+  }
+
+  /** Where someone on the crew is right now, if they are on the map. */
+  crewPosition(id: string): LngLat | null {
+    return this.crewById.get(id)?.vehicle?.pos ?? null
   }
 
   // ── Real position ───────────────────────────────────────────────────────

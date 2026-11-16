@@ -101,7 +101,7 @@ function brightness(hex: string) {
 }
 
 /** A pin nobody has given a colour: sky blue, which sits well on any map. */
-export const PIN_DEFAULT = "#38bdf8"
+export const PIN_DEFAULT = "#7dd3fc"
 
 /**
  * The disc a pin sits on. With no colour chosen it is sky blue; with one,

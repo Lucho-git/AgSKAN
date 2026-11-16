@@ -66,6 +66,13 @@ export const GUIDE_AHEAD_SOURCE = "mv-guide-ahead"
 export const LASSO_SOURCE = "mv-lasso"
 /** Areas and lines drawn on the map and attached to a pin. */
 export const DRAWING_SOURCE = "mv-drawings"
+/**
+ * Every trail through one paddock at once: the stretches inside it as they
+ * were laid, the stretches outside it as a dashed line.
+ */
+export const THROUGH_SOURCE = "mv-through"
+/** One drawing (on a pin or kept on a paddock) picked out. */
+export const PICKED_SHAPE_SOURCE = "mv-picked-shape"
 export const DRAWING_LAYERS = [
   "mv-drawing-fill",
   "mv-drawing-hair",
@@ -355,6 +362,26 @@ export function pickTrail(
     map.setPaintProperty(layer, "line-opacity", id ? 0.18 : normal)
 }
 
+/**
+ * Show every trail through a paddock at once: those trails leave the
+ * ordinary layer (they are drawn again, split at the fence) and the rest
+ * fade back. `null` puts every trail back to normal.
+ */
+export function showThrough(
+  map: MapboxMap,
+  ids: string[] | null,
+  look: BaseLook,
+) {
+  const normal = trailOpacity(look)
+  map.setPaintProperty(
+    "mv-history",
+    "line-opacity",
+    ids ? ["case", ["in", ["get", "id"], ["literal", ids]], 0, 0.1] : normal,
+  )
+  for (const layer of ["mv-trails", "mv-my-trail"])
+    map.setPaintProperty(layer, "line-opacity", ids ? 0.18 : normal)
+}
+
 /** Pick a paddock out (or none). */
 export function pickPaddock(map: MapboxMap, id: string | null) {
   for (const layer of [
@@ -499,6 +526,8 @@ export function buildStyle() {
       [JOB_SOURCE]: { type: "geojson", data: empty },
       [GUIDE_SOURCE]: { type: "geojson", data: empty },
       [EDIT_SOURCE]: { type: "geojson", data: empty },
+      [THROUGH_SOURCE]: { type: "geojson", data: empty },
+      [PICKED_SHAPE_SOURCE]: { type: "geojson", data: empty },
       [GUIDE_AHEAD_SOURCE]: { type: "geojson", data: empty },
       [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
     },
@@ -799,6 +828,43 @@ export function buildStyle() {
       pauseLayer("mv-history-pause", HISTORY_SOURCE),
       trailLayer("mv-trails", TRAIL_SOURCE),
       trailLayer("mv-my-trail", MY_TRAIL_SOURCE),
+      // All the trails through one paddock: inside it they are drawn as
+      // laid; outside it each carries on as a dashed line, the way the
+      // record page shows a full GPS trail.
+      {
+        ...trailLayer("mv-through", THROUGH_SOURCE),
+        filter: ["==", ["get", "part"], "in"],
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": trailWidth,
+          "line-opacity": 0.62,
+        },
+      },
+      {
+        id: "mv-through-out-case",
+        type: "line",
+        source: THROUGH_SOURCE,
+        filter: ["==", ["get", "part"], "out"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#000000",
+          "line-width": 5.5,
+          "line-opacity": 0.55,
+        },
+      },
+      {
+        id: "mv-through-out",
+        type: "line",
+        source: THROUGH_SOURCE,
+        filter: ["==", ["get", "part"], "out"],
+        layout: { "line-join": "round", "line-cap": "butt" },
+        paint: {
+          "line-color": ["get", "color"],
+          "line-width": 2.6,
+          "line-opacity": 0.95,
+          "line-dasharray": [3, 2],
+        },
+      },
       // Direction marks over every trail: off unless switched on in Layers.
       centreLayer("mv-history-centre", HISTORY_SOURCE, NOT_PAUSED),
       centreLayer("mv-trails-centre", TRAIL_SOURCE, NOT_PAUSED),
@@ -1053,6 +1119,40 @@ export function buildStyle() {
         filter: ["!=", ["geometry-type"], "Point"],
         layout: { "line-join": "round", "line-cap": "round" },
         paint: { "line-color": "#F7DB5C", "line-width": 3.5 },
+      },
+      // A drawing picked out from a menu or on the map: a white halo.
+      {
+        id: "mv-picked-shape-fill",
+        type: "fill",
+        source: PICKED_SHAPE_SOURCE,
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: { "fill-color": "#ffffff", "fill-opacity": 0.2 },
+      },
+      {
+        id: "mv-picked-shape-glow",
+        type: "line",
+        source: PICKED_SHAPE_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": 11,
+          "line-blur": 6,
+          "line-opacity": 0.6,
+        },
+      },
+      {
+        id: "mv-picked-shape-edge",
+        type: "line",
+        source: PICKED_SHAPE_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 6.5 },
+      },
+      {
+        id: "mv-picked-shape-line",
+        type: "line",
+        source: PICKED_SHAPE_SOURCE,
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": 3.5 },
       },
       // Following a trail: the whole path as a thin line, the stretch just
       // ahead picked out, a dashed line back to it when you are off it, and

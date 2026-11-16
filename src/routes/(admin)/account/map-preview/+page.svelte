@@ -19,18 +19,10 @@
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
     LoaderCircle,
-    ClipboardList,
     LocateFixed,
     MessageCircle,
     Navigation,
-    Pause,
-    Play,
-    RotateCcw,
-    Route,
-    SkipBack,
-    SkipForward,
     Check,
-    PencilRuler,
     Trash2,
     Users,
     X,
@@ -55,7 +47,6 @@
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { IMAGERY, type BaseLook } from "$lib/components/mapnext/mapStyle"
   import { machineFor } from "$lib/components/mapnext/machines"
-  import { drawColour } from "$lib/components/mapnext/palette"
   import { distanceM } from "$lib/components/mapnext/geo"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
   import {
@@ -82,6 +73,7 @@
     type ReplayState,
     type Guide,
     type BoundaryEdit,
+    type PickedShape,
     type ToolView,
   } from "./liveEngine"
   import {
@@ -118,11 +110,13 @@
   import MachineCard from "./MachineCard.svelte"
   import GuideBar from "./GuideBar.svelte"
   import BoundaryCard from "./BoundaryCard.svelte"
-  import PlaceArt, { PLACES, type PlaceBook } from "./PlaceArt.svelte"
+  import { PLACES, type PlaceBook } from "./PlaceArt.svelte"
   import PaddockCard from "./PaddockCard.svelte"
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
-  import JobThumb from "./JobThumb.svelte"
+  import TrailCard from "./TrailCard.svelte"
+  import JobBuilder, { type JobDraft } from "./JobBuilder.svelte"
+  import JobBar from "./JobBar.svelte"
   import { JobBoard } from "./jobBoard"
   import { Messenger, type Conversation } from "./messenger"
   import { layerVisibilityStore } from "$lib/stores/layerVisibilityStore"
@@ -298,7 +292,6 @@
   let now = Date.now()
   /** The driver chooser was opened to change driver, not to start a trail. */
   let driverOnly = false
-  let deleteAsk = false
   let roadAsk = false
   let selectedCrewId: string | null = null
   let trails: TrailInfo[] = []
@@ -324,6 +317,10 @@
   // ── Paddocks ──
   let paddockTrails: TrailInfo[] = []
   let pickedFeature: string | null = null
+  /** The drawing on the picked pin that is picked out. */
+  let pickedDrawing: PickedShape | null = null
+  /** The paddock whose trails are all on show at once. */
+  let through: string | null = null
 
   // ── Jobs ──
   let board: JobBoard | null = null
@@ -332,13 +329,7 @@
    * A job being put together. It has one step or several; taps on the map
    * add places to the step being worked on (`current`).
    */
-  let jobDraft: {
-    to: string | null
-    title: string
-    note: string
-    steps: { title: string; items: JobItem[] }[]
-    current: number
-  } | null = null
+  let jobDraft: JobDraft | null = null
   /** The job whose places are being shown on the map. */
   let shownJob: Job | null = null
 
@@ -461,7 +452,6 @@
       created.selectedPaddock.subscribe((v) => (selectedPaddock = v)),
       created.selectedTrail.subscribe((v) => {
         selectedTrail = v
-        deleteAsk = false
         if (!v) trailScope = null
       }),
       created.crewTrail.subscribe((v) => (crewTrail = v)),
@@ -483,6 +473,8 @@
       created.lasso.subscribe((v) => (lasso = v)),
       created.paddockTrails.subscribe((v) => (paddockTrails = v)),
       created.pickedFeature.subscribe((v) => (pickedFeature = v)),
+      created.pickedDrawing.subscribe((v) => (pickedDrawing = v)),
+      created.through.subscribe((v) => (through = v)),
       created.grabbed.subscribe((item) => {
         if (!item || !jobDraft) return
         // Tapping something already on the step takes it off again.
@@ -1058,23 +1050,18 @@
       addToStep({ type: "spot", id: null, label: "Where I was", at: mine })
   }
 
-  function addStep() {
-    if (!jobDraft || jobDraft.steps.length >= 8) return
-    jobDraft = {
-      ...jobDraft,
-      steps: [...jobDraft.steps, { title: "", items: [] }],
-      current: jobDraft.steps.length,
-    }
-  }
-
-  function removeStep(index: number) {
-    if (!jobDraft || jobDraft.steps.length < 2) return
-    const steps = jobDraft.steps.filter((_, i) => i !== index)
-    jobDraft = {
-      ...jobDraft,
-      steps,
-      current: Math.min(jobDraft.current, steps.length - 1),
-    }
+  // Where someone on the crew is right now, as a place for the step.
+  function addCrewSpot(id: string) {
+    const at = engine?.crewPosition(id)
+    const person = crew.find((row) => row.id === id)
+    if (at && person)
+      addToStep({
+        type: "spot",
+        id: null,
+        label: `Where ${person.name.split(/\s+/)[0]} was`,
+        at,
+      })
+    else say("They aren't on the map right now.")
   }
 
   // A line to follow or an area to work, drawn for the step being added to.
@@ -1542,7 +1529,6 @@
     operatorAsk ||
     !!sprayCard ||
     (trailFound && !foundDismissed) ||
-    !!selectedPin ||
     !!selectedCrew ||
     !!selectedPaddock ||
     !!selectedTrail ||
@@ -1598,17 +1584,35 @@
   })
   async function saveBoundary() {
     const edit = boundaryEdit
-    if (edit && (await engine?.saveEdit()))
-      say(
-        `${edit.name}'s boundary saved`,
-        offerBoundaryUndo(edit.paddockId, edit.name),
-      )
+    const saved = edit ? await engine?.saveEdit() : false
+    if (!edit || !saved) return
+    const made = saved.made.map((paddock) => paddock.name)
+    const gone = saved.gone.map((paddock) => paddock.name)
+    say(
+      made.length
+        ? `${edit.name} split: ${[edit.name, ...made].join(" and ")}`
+        : gone.length
+          ? `${gone.join(" and ")} joined onto ${edit.name}`
+          : `${edit.name}'s boundary saved`,
+      made.length || gone.length
+        ? {
+            label: "Undo",
+            run: async () => {
+              snack = null
+              if (await engine?.undoSaved(saved))
+                say(
+                  made.length
+                    ? `${edit.name} is one paddock again`
+                    : `${gone.join(" and ")} put back`,
+                )
+            },
+          }
+        : offerBoundaryUndo(edit.paddockId, edit.name),
+    )
   }
 
   function trailFacts(trail: TrailInfo) {
-    const facts = [trail.operator || "No operator"]
-    if (trail.machine) facts.push(machineFor(trail.machine).label)
-    facts.push(`${trail.width} m wide`)
+    const facts = [`${trail.width} m wide`]
     if (trail.ha !== null) facts.push(`${formatHa(trail.ha)} ha`)
     if (trail.distance)
       facts.push(
@@ -1657,7 +1661,6 @@
   }
 
   async function deleteTrail() {
-    deleteAsk = false
     if (await engine?.deletePickedTrail()) say("Trail deleted")
   }
 
@@ -1783,6 +1786,19 @@
             <X size={16} />
           </button>
         </p>
+      {/if}
+      {#if jobDraft && !measure}
+        <JobBar
+          step={jobDraft.current + 1}
+          steps={jobDraft.steps.length}
+          count={jobDraft.steps[jobDraft.current]?.items.length ?? 0}
+          hasFix={readout.hasFix}
+          crew={crew.filter((row) => row.placed && !row.me)}
+          on:line={() => drawForJob("line")}
+          on:area={() => drawForJob("polygon")}
+          on:me={addWhereIAm}
+          on:crew={(e) => addCrewSpot(e.detail)}
+        />
       {/if}
       {#if guide}
         <GuideBar
@@ -2017,6 +2033,8 @@
           priorAt={paddocks.find((p) => p.id === boundaryEdit?.paddockId)?.prior
             ?.t ?? null}
           on:add={(e) => engine?.startAdding(e.detail)}
+          on:join={() => engine?.startJoining()}
+          on:cancelJoin={() => engine?.cancelJoining()}
           on:undoPoint={() => engine?.undoAdding()}
           on:cancelAdd={() => engine?.cancelAdding()}
           on:doneAdd={() => engine?.finishAdding()}
@@ -2031,150 +2049,16 @@
       </div>
     {:else if jobDraft && !measure}
       <!-- ── Putting a job together ── -->
-      {@const stepped = jobDraft.steps.length > 1}
-      <div class="mn-card mn-menu" in:rise>
-        <div class="mn-card-head">
-          <p class="lp-eyebrow">New job</p>
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={endJob}
-          >
-            <X size={22} />
-          </button>
-        </div>
-        <div class="mn-job-build">
-          <JobThumb
-            items={jobDraft.steps.flatMap((step) => step.items)}
-            {paddocks}
-            {drawings}
-          />
-          <div class="mn-fields">
-            <input
-              type="text"
-              bind:value={jobDraft.title}
-              maxlength="80"
-              placeholder="What needs doing"
-              aria-label="What needs doing"
-            />
-            <input
-              type="text"
-              bind:value={jobDraft.note}
-              maxlength="300"
-              placeholder="Anything they should know (optional)"
-              aria-label="Notes"
-            />
-          </div>
-        </div>
-
-        <div class="mn-steps">
-          {#each jobDraft.steps as step, index}
-            <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-            <div
-              class="mn-step"
-              class:current={stepped && jobDraft.current === index}
-              on:click={() => jobDraft && (jobDraft.current = index)}
-            >
-              {#if stepped}
-                <span class="n">{index + 1}</span>
-                <input
-                  type="text"
-                  bind:value={step.title}
-                  maxlength="80"
-                  placeholder={index === 0
-                    ? "First: get the sprayer from the shed"
-                    : "Then…"}
-                  aria-label="Step {index + 1}"
-                  on:focus={() => jobDraft && (jobDraft.current = index)}
-                />
-                <button
-                  type="button"
-                  class="mn-icon-button"
-                  aria-label="Remove step {index + 1}"
-                  on:click|stopPropagation={() => removeStep(index)}
-                >
-                  <X size={18} />
-                </button>
-              {/if}
-              <div class="mn-job-items">
-                {#each step.items as item, i}
-                  <span>
-                    <PlaceArt
-                      type={item.type}
-                      id={item.id}
-                      points={item.points ?? null}
-                      size={20}
-                    />
-                    {item.label}
-                    <button
-                      type="button"
-                      aria-label="Take {item.label} off"
-                      on:click|stopPropagation={() =>
-                        setStepItems(
-                          index,
-                          step.items.filter((_, at) => at !== i),
-                        )}
-                    >
-                      <X size={15} />
-                    </button>
-                  </span>
-                {/each}
-              </div>
-            </div>
-          {/each}
-        </div>
-
-        <p class="mn-note">
-          Tap a paddock or a pin on the map to add it{stepped
-            ? ` to step ${jobDraft.current + 1}`
-            : ""}; tap it again to take it off. Or add:
-        </p>
-        <div class="mn-job-tools">
-          <button type="button" on:click={() => drawForJob("line")}>
-            <Navigation size={15} /> A line to follow
-          </button>
-          <button type="button" on:click={() => drawForJob("polygon")}>
-            <PencilRuler size={15} /> An area
-          </button>
-          {#if readout.hasFix}
-            <button type="button" on:click={addWhereIAm}>
-              <LocateFixed size={15} /> Where I am
-            </button>
-          {/if}
-          {#if jobDraft.steps.length < 8}
-            <button type="button" on:click={addStep}>
-              <ClipboardList size={15} />
-              {stepped ? "Another step" : "Make it steps"}
-            </button>
-          {/if}
-        </div>
-
-        <div class="mn-fields">
-          <label>
-            <span class="lp-eyebrow">For</span>
-            <select bind:value={jobDraft.to}>
-              <option value={null}>Anyone on the crew</option>
-              {#each jobCrew as person (person.id)}
-                <option value={person.id}>{person.name}</option>
-              {/each}
-            </select>
-          </label>
-        </div>
-        <div class="mn-card-actions">
-          <button type="button" class="lp-btn lp-btn-ghost" on:click={endJob}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="lp-btn lp-btn-primary"
-            disabled={giving || !jobDraft.title.trim() || !jobPlaces}
-            on:click={giveJob}
-          >
-            <ClipboardList size={18} />
-            {jobDraft.to ? "Give job" : "Post job"}
-          </button>
-        </div>
+      <div in:rise>
+        <JobBuilder
+          bind:draft={jobDraft}
+          {paddocks}
+          {drawings}
+          crew={jobCrew}
+          {giving}
+          on:close={endJob}
+          on:post={giveJob}
+        />
       </div>
     {:else if lasso}
       <!-- ── Rounding up pins to remove ── -->
@@ -2543,177 +2427,41 @@
       </div>
     {:else if selectedTrail}
       <!-- ── A trail, picked out: what it was, and a replay of it ── -->
-      <div class="mn-card mn-trail-card" in:rise>
-        <div class="head">
-          <span
-            class="swatch"
-            style="background: {drawColour(selectedTrail.colour)}"
-          ></span>
-          <div class="about">
-            <p class="lp-eyebrow">
-              Trail{trailIndex >= 0
-                ? ` ${stepList.length - trailIndex} of ${stepList.length}`
-                : ""}{trailScope ? ` through ${trailScope.name}` : ""}
-            </p>
-            <h2>{day(selectedTrail.start)} · {clock(selectedTrail.start)}</h2>
-          </div>
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={() => engine?.pickTrail(null)}
-          >
-            <X size={22} />
-          </button>
-        </div>
-        <p class="facts">{trailFacts(selectedTrail).join(" · ")}</p>
-
-        <div class="mn-replay">
-          <button
-            type="button"
-            class="step"
-            aria-label="Older trail"
-            disabled={stepList.length < 2}
-            on:click={() => stepTrail(1)}
-          >
-            <SkipBack size={20} fill="currentColor" />
-          </button>
-          <button
-            type="button"
-            class="play"
-            aria-label={replay?.phase === "playing"
-              ? "Pause the replay"
-              : replay?.phase === "done"
-                ? "Replay again"
-                : "Replay this trail"}
-            disabled={replay?.phase === "loading"}
-            on:click={() =>
-              replay?.phase === "playing"
-                ? engine?.pauseReplay()
-                : engine?.playReplay()}
-          >
-            {#if replay?.phase === "loading"}
-              <span class="mn-spin"><LoaderCircle size={24} /></span>
-            {:else if replay?.phase === "playing"}
-              <Pause size={24} fill="currentColor" />
-            {:else if replay?.phase === "done"}
-              <RotateCcw size={24} />
-            {:else}
-              <Play size={24} fill="currentColor" />
-            {/if}
-          </button>
-          <button
-            type="button"
-            class="step"
-            aria-label="Newer trail"
-            disabled={stepList.length < 2}
-            on:click={() => stepTrail(-1)}
-          >
-            <SkipForward size={20} fill="currentColor" />
-          </button>
-          {#if replay && replay.phase !== "loading"}
-            <span class="clock">
-              <b>{clock(replay.time)}</b>
-              <span>{replay.timed ? "as it happened" : "even pace"}</span>
-            </span>
-            <button
-              type="button"
-              class="rate"
-              aria-label="Replay speed: {replay.rate} times"
-              on:click={nextRate}
-            >
-              {replay.rate}×
-            </button>
-          {:else}
-            <span class="clock">
-              <span>Watch it being laid</span>
-            </span>
-          {/if}
-        </div>
-        {#if replay && replay.phase !== "loading"}
-          <input
-            class="mn-scrub"
-            type="range"
-            min="0"
-            max="1"
-            step="0.001"
-            value={replay.progress}
-            aria-label="Position in the replay"
-            style="--done: {(replay.progress * 100).toFixed(1)}%"
-            on:input={(e) => engine?.seekReplay(Number(e.currentTarget.value))}
-          />
-        {/if}
-
-        <div class="mn-marks" role="group" aria-label="Show on this trail">
-          <button
-            type="button"
-            aria-pressed={trailMarks.centre}
-            on:click={() => toggleMark("centre")}
-          >
-            <span class="line" aria-hidden="true"></span> Centre line
-          </button>
-          <button
-            type="button"
-            aria-pressed={trailMarks.arrows}
-            on:click={() => toggleMark("arrows")}
-          >
-            <Navigation size={15} fill="currentColor" /> Arrows
-          </button>
-        </div>
-        <!-- Drive it again: the trail becomes a line to steer along. -->
-        <button
-          type="button"
-          class="mn-follow-trail"
-          disabled={guide?.phase === "loading"}
-          on:click={() => selectedTrail && followTrail(selectedTrail)}
-        >
-          <Route size={18} />
-          <span>
-            <strong>Follow this trail</strong>
-            <span>Steer along it, with the next turn and what is left</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          class="mn-text-button"
-          disabled={guide?.phase === "loading"}
-          on:click={() => selectedTrail && followTrail(selectedTrail, true)}
-        >
-          <Play size={15} fill="currentColor" /> Not there? Watch a demo run of it
-        </button>
-
-        {#if !guest}
-          {#if deleteAsk}
-            <p class="mn-warning">
-              Delete this trail for good? It comes off the map and out of the
-              farm's records, and can't be brought back.
-            </p>
-            <div class="mn-card-actions">
-              <button
-                type="button"
-                class="lp-btn lp-btn-ghost"
-                on:click={() => (deleteAsk = false)}
-              >
-                Keep it
-              </button>
-              <button
-                type="button"
-                class="mn-remove solid"
-                on:click={deleteTrail}
-              >
-                <Trash2 size={17} /> Delete
-              </button>
-            </div>
-          {:else}
-            <button
-              type="button"
-              class="mn-text-button danger"
-              on:click={() => (deleteAsk = true)}
-            >
-              Delete this trail
-            </button>
-          {/if}
-        {/if}
+      <div in:rise>
+        <TrailCard
+          trail={selectedTrail}
+          list={stepList}
+          scope={trailScope?.name ?? ""}
+          who={[
+            selectedTrail.operator || "No operator",
+            ...(selectedTrail.machine
+              ? [machineFor(selectedTrail.machine).label]
+              : []),
+          ].join(" · ")}
+          facts={trailFacts(selectedTrail)}
+          {replay}
+          marks={trailMarks}
+          busy={guide?.phase === "loading"}
+          {guest}
+          on:close={() => engine?.pickTrail(null)}
+          on:pick={(e) => {
+            const scope = trailScope
+            const playing = !!replay
+            if (pickTrail(e.detail)) {
+              trailScope = scope
+              if (playing) engine?.playReplay()
+            }
+          }}
+          on:step={(e) => stepTrail(e.detail)}
+          on:play={() => engine?.playReplay()}
+          on:pause={() => engine?.pauseReplay()}
+          on:seek={(e) => engine?.seekReplay(e.detail)}
+          on:rate={nextRate}
+          on:mark={(e) => toggleMark(e.detail)}
+          on:follow={(e) =>
+            selectedTrail && followTrail(selectedTrail, e.detail)}
+          on:remove={deleteTrail}
+        />
       </div>
     {:else if placing}
       <!-- ── Placing the pin that goes with a drawing ── -->
@@ -3043,28 +2791,37 @@
           </div>
         {/if}
       </div>
-    {:else if selectedPin}
-      <!-- ── A pin ── -->
-      <div in:rise>
+    {:else if selectedPin && engine}
+      <!-- ── A pin: its menu opens on the map, beside it ── -->
+      {#key selectedPin.id}
         <PinCard
           pin={selectedPin}
-          look={engine?.pinLook(selectedPin) ?? {
-            iconClass: selectedPin.iconClass,
-          }}
+          look={engine.pinLook(selectedPin)}
           distance={pinDistance}
           {guest}
           choices={pinChoices}
           {choiceLook}
           moving={movingPin === selectedPin.id}
           drawings={pinDrawings}
+          picked={pickedDrawing}
           {photoLinks}
           {uploading}
+          map={engine.map}
+          place={() =>
+            selectedPin ? (engine?.pinPlace(selectedPin.id) ?? null) : null}
+          insets={{ left: wide ? 352 : 0, bottom: wide ? 0 : 76 }}
           on:place={() => {
             if (engine?.placePin()) say("Pin moved")
           }}
           on:draw={(e) =>
             selectedPin &&
             engine?.startDrawing(selectedPin.id, e.detail, drawColourNow)}
+          on:drawing={(e) => engine?.pickDrawing(e.detail)}
+          on:room={(e) => {
+            // (Not while the map is following a machine: it would fight.)
+            if (follow === "free" && !following)
+              engine?.map.easeTo({ center: e.detail, duration: 500 })
+          }}
           on:removeDrawing={async (e) => {
             if (await engine?.removeDrawing(e.detail)) say("Drawing removed")
           }}
@@ -3080,7 +2837,7 @@
             engine?.movePin(e.detail && selectedPin ? selectedPin.id : null)}
           on:remove={removeSelectedPin}
         />
-      </div>
+      {/key}
     {:else if mineSelected}
       <!-- ── Your own machine ── -->
       <div in:rise>
@@ -3195,6 +2952,14 @@
           trails={paddockTrails}
           operation={operation?.name ?? ""}
           {pickedFeature}
+          allTrails={through === selectedPaddock.id}
+          on:allTrails={(e) =>
+            engine?.showThrough(
+              e.detail ? (selectedPaddock?.id ?? null) : null,
+            )}
+          on:feature={(e) =>
+            selectedPaddock &&
+            engine?.pickFeature(selectedPaddock.id, e.detail)}
           on:draw={() => {
             startMeasuring()
             drawOnPaddock = true
@@ -3228,8 +2993,6 @@
           on:change={(e) =>
             selectedPaddock &&
             engine?.updatePaddock(selectedPaddock.id, e.detail)}
-          on:look={() =>
-            selectedPaddock && engine?.lookAtPaddock(selectedPaddock.id)}
           on:remove={async () => {
             const gone = selectedPaddock
             if (gone && (await engine?.removePaddock(gone.id)))
