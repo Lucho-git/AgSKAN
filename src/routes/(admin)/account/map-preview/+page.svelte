@@ -12,7 +12,8 @@
    * `liveData.ts` talks to the server, `liveEngine.ts` draws, `recorder.ts`
    * records the trail. This file is the chrome and the flow.
    */
-  import { onDestroy, onMount } from "svelte"
+  import { onDestroy, onMount, setContext } from "svelte"
+  import { writable } from "svelte/store"
   import { fly } from "svelte/transition"
   import { goto } from "$app/navigation"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
@@ -80,6 +81,7 @@
     type Readout,
     type ReplayState,
     type Guide,
+    type BoundaryEdit,
     type ToolView,
   } from "./liveEngine"
   import {
@@ -115,6 +117,8 @@
   import PinCard from "./PinCard.svelte"
   import MachineCard from "./MachineCard.svelte"
   import GuideBar from "./GuideBar.svelte"
+  import BoundaryCard from "./BoundaryCard.svelte"
+  import PlaceArt, { PLACES, type PlaceBook } from "./PlaceArt.svelte"
   import PaddockCard from "./PaddockCard.svelte"
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
@@ -279,6 +283,11 @@
   // The trail being followed, and which one it is in words.
   let guide: Guide | null = null
   let guideLabel = ""
+  // The paddock whose boundary is being changed.
+  let boundaryEdit: BoundaryEdit | null = null
+  // Drawing was started from a paddock's own menu: what is drawn stays on
+  // that paddock (or on a pin), and its boundary is left alone.
+  let drawOnPaddock = false
   let paddocks: Paddock[] = []
   let farmNames: FarmName[] = []
   let measure: Measure | null = null
@@ -459,9 +468,13 @@
       created.placing.subscribe((v) => (placing = v)),
       created.replay.subscribe((v) => (replay = v)),
       created.guide.subscribe((v) => (guide = v)),
+      created.boundary.subscribe((v) => (boundaryEdit = v)),
       created.paddockList.subscribe((v) => (paddocks = v)),
       created.farmNames.subscribe((v) => (farmNames = v)),
-      created.measure.subscribe((v) => (measure = v)),
+      created.measure.subscribe((v) => {
+        measure = v
+        if (!v) drawOnPaddock = false
+      }),
       created.movingPin.subscribe((v) => (movingPin = v)),
       created.drawings.subscribe((v) => (drawings = v)),
       created.self.subscribe((v) => (self = v)),
@@ -1319,9 +1332,12 @@
         ? "#15261C"
         : markerColor(key, "circle-fill").dark
   async function cutOut() {
-    const name = measure?.paddock?.name
-    if (await engine?.cutFromPaddock())
-      say(`Cut out of ${name ?? "the paddock"}`)
+    const paddock = measure?.paddock
+    if (paddock && (await engine?.cutFromPaddock()))
+      say(
+        `Cut out of ${paddock.name}`,
+        offerBoundaryUndo(paddock.id, paddock.name),
+      )
   }
 
   // ── What is attached to the picked pin ──
@@ -1515,6 +1531,7 @@
 
   $: cardOpen =
     !!driverOffer ||
+    !!boundaryEdit ||
     !!placing ||
     !!jobDraft ||
     !!lasso ||
@@ -1546,9 +1563,46 @@
     return `${Math.floor(minutes / 60)} h${rest ? ` ${rest} min` : ""}`
   }
   // Follow a trail that has already been driven, as a line to steer by.
-  function followTrail(trail: TrailInfo) {
+  // (`demo`: a made-up machine drives it, to see the guide from anywhere.)
+  function followTrail(trail: TrailInfo, demo = false) {
     guideLabel = [day(trail.start), trail.operator].filter(Boolean).join(" · ")
-    engine?.startGuide(trail)
+    engine?.startGuide(trail, demo)
+  }
+
+  // ── Places as pictures ──
+  // A paddock or a pin named in a message, a job or a list is drawn as the
+  // thing itself; the parts that draw them look it up here.
+  const placePaddocks = writable(new Map<string, Paddock>())
+  const placePins = writable(new Map<string, LivePin>())
+  const placeLook = writable<(pin: LivePin) => { iconClass: string }>(
+    (pin) => ({ iconClass: pin.iconClass }),
+  )
+  setContext<PlaceBook>(PLACES, {
+    paddocks: placePaddocks,
+    pins: placePins,
+    look: placeLook,
+  })
+  $: placePaddocks.set(
+    new Map(paddocks.map((paddock) => [paddock.id, paddock])),
+  )
+  $: placePins.set(new Map(pins.map((pin) => [pin.id, pin])))
+  $: if (engine) placeLook.set(engine.pinLook)
+
+  // ── A paddock's boundary ──
+  const offerBoundaryUndo = (id: string, name: string) => ({
+    label: "Undo",
+    run: async () => {
+      snack = null
+      if (await engine?.undoBoundary(id)) say(`${name}'s boundary put back`)
+    },
+  })
+  async function saveBoundary() {
+    const edit = boundaryEdit
+    if (edit && (await engine?.saveEdit()))
+      say(
+        `${edit.name}'s boundary saved`,
+        offerBoundaryUndo(edit.paddockId, edit.name),
+      )
   }
 
   function trailFacts(trail: TrailInfo) {
@@ -1737,6 +1791,7 @@
           on:stop={() => engine?.stopGuide()}
           on:round={() => engine?.turnGuideRound()}
           on:start={(e) => engine?.setGuideStart(e.detail)}
+          on:rate={(e) => engine?.setGuideRate(e.detail)}
         />
       {:else if readout.paddock}
         <p class="mn-place">
@@ -1952,6 +2007,28 @@
           </button>
         </div>
       </div>
+    {:else if boundaryEdit}
+      <!-- ── Changing a paddock's boundary ── -->
+      <div in:rise>
+        <BoundaryCard
+          edit={boundaryEdit}
+          colour={paddocks.find((p) => p.id === boundaryEdit?.paddockId)
+            ?.colour ?? null}
+          priorAt={paddocks.find((p) => p.id === boundaryEdit?.paddockId)?.prior
+            ?.t ?? null}
+          on:add={(e) => engine?.startAdding(e.detail)}
+          on:undoPoint={() => engine?.undoAdding()}
+          on:cancelAdd={() => engine?.cancelAdding()}
+          on:doneAdd={() => engine?.finishAdding()}
+          on:removeCorner={() => engine?.removeEditCorner()}
+          on:removeRing={() => engine?.removeEditRing()}
+          on:undo={() => engine?.undoEdit()}
+          on:reset={() => engine?.resetEdit()}
+          on:prior={() => engine?.usePriorBoundary()}
+          on:cancel={() => engine?.cancelEdit()}
+          on:save={saveBoundary}
+        />
+      </div>
     {:else if jobDraft && !measure}
       <!-- ── Putting a job together ── -->
       {@const stepped = jobDraft.steps.length > 1}
@@ -2023,6 +2100,12 @@
               <div class="mn-job-items">
                 {#each step.items as item, i}
                   <span>
+                    <PlaceArt
+                      type={item.type}
+                      id={item.id}
+                      points={item.points ?? null}
+                      size={20}
+                    />
                     {item.label}
                     <button
                       type="button"
@@ -2590,6 +2673,14 @@
             <span>Steer along it, with the next turn and what is left</span>
           </span>
         </button>
+        <button
+          type="button"
+          class="mn-text-button"
+          disabled={guide?.phase === "loading"}
+          on:click={() => selectedTrail && followTrail(selectedTrail, true)}
+        >
+          <Play size={15} fill="currentColor" /> Not there? Watch a demo run of it
+        </button>
 
         {#if !guest}
           {#if deleteAsk}
@@ -2796,10 +2887,10 @@
             />
           </div>
           {#if cutAsk}
-            <p class="mn-warning">
-              Cut this out of {measure.paddock?.name}? The paddock's boundary
-              and hectares change for everyone, and this screen can't put it
-              back.
+            <p class="mn-note">
+              Cut this out of {measure.paddock?.name}? This changes the
+              paddock's boundary itself, and its hectares with it. You can put
+              it back with Undo, or later from the paddock's Draw menu.
             </p>
             <div class="mn-card-actions">
               <button
@@ -2811,7 +2902,7 @@
               </button>
               <button
                 type="button"
-                class="mn-remove solid"
+                class="lp-btn lp-btn-primary"
                 disabled={measure.keeping}
                 on:click={cutOut}
               >
@@ -2820,22 +2911,24 @@
             </div>
           {:else}
             <div class="mn-keep">
-              <button
-                type="button"
-                disabled={!measure.paddock || measure.keeping}
-                on:click={keepOnPaddock}
-              >
-                <strong>
-                  {measure.paddock
-                    ? `Keep it on ${measure.paddock.name}`
-                    : "Keep it on a paddock"}
-                </strong>
-                <span>
-                  {measure.paddock
-                    ? "It shows on the paddock with its name and size."
-                    : "Start it inside a paddock to keep it there."}
-                </span>
-              </button>
+              {#if measure.paddock || drawOnPaddock}
+                <button
+                  type="button"
+                  disabled={!measure.paddock || measure.keeping}
+                  on:click={keepOnPaddock}
+                >
+                  <strong>
+                    {measure.paddock
+                      ? `Keep it on ${measure.paddock.name}`
+                      : "Keep it on the paddock"}
+                  </strong>
+                  <span>
+                    {measure.paddock
+                      ? "It shows on the paddock with its name and size."
+                      : "Start it inside the paddock to keep it there."}
+                  </span>
+                </button>
+              {/if}
               <button
                 type="button"
                 disabled={measure.keeping}
@@ -2847,7 +2940,10 @@
                   Shows in the current viewer too.
                 </span>
               </button>
-              {#if !line}
+              <!-- Ground that is already a paddock can't become another
+                   one; and drawing begun from a paddock's menu is only ever
+                   kept on it (its boundary has its own editor). -->
+              {#if !line && !measure.overPaddock && !drawOnPaddock}
                 <button
                   type="button"
                   disabled={measure.keeping}
@@ -2859,17 +2955,16 @@
                   </span>
                 </button>
               {/if}
-              {#if !line && measure.paddock}
+              {#if !line && measure.paddock && !drawOnPaddock}
                 <button
                   type="button"
-                  class="danger"
                   disabled={measure.keeping}
                   on:click={() => (cutAsk = true)}
                 >
                   <strong>Cut it out of {measure.paddock.name}</strong>
                   <span>
-                    For ground that is never worked: changes the paddock's
-                    boundary and hectares for good.
+                    Changes the paddock's boundary itself, and its hectares. It
+                    can be undone.
                   </span>
                 </button>
               {/if}
@@ -3100,7 +3195,20 @@
           trails={paddockTrails}
           operation={operation?.name ?? ""}
           {pickedFeature}
-          on:draw={startMeasuring}
+          on:draw={() => {
+            startMeasuring()
+            drawOnPaddock = true
+          }}
+          on:boundary={() =>
+            selectedPaddock && engine?.editBoundary(selectedPaddock.id)}
+          on:putBack={async () => {
+            const paddock = selectedPaddock
+            if (paddock && (await engine?.undoBoundary(paddock.id)))
+              say(
+                `${paddock.name}'s boundary put back`,
+                offerBoundaryUndo(paddock.id, paddock.name),
+              )
+          }}
           on:removeFeature={async (e) => {
             if (
               selectedPaddock &&

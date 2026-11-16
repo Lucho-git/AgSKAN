@@ -6,8 +6,9 @@
    * it; whoever posted it can withdraw it.
    */
   import { createEventDispatcher } from "svelte"
-  import { Check, MapPin } from "lucide-svelte"
+  import { Check } from "lucide-svelte"
   import JobThumb from "./JobThumb.svelte"
+  import PlaceArt from "./PlaceArt.svelte"
   import type { Job, Paddock, PinDrawing } from "./liveData"
 
   export let job: Job
@@ -81,7 +82,19 @@
     </p>
     <strong>{job.title}</strong>
     {#if places.length && !stepped}
-      <span class="places"><MapPin size={13} /> {places.join(", ")}</span>
+      <span class="places">
+        {#each job.items as item}
+          <span class="item">
+            <PlaceArt
+              type={item.type}
+              id={item.id}
+              points={item.points ?? null}
+              size={18}
+            />
+            {item.label}
+          </span>
+        {/each}
+      </span>
     {/if}
     {#if job.note}<span class="note">{job.note}</span>{/if}
     {#if who}<span class="who">{who}</span>{/if}
@@ -107,7 +120,19 @@
           <span>
             {step.title || `Step ${index + 1}`}
             {#if step.items.length}
-              <small>{step.items.map((item) => item.label).join(", ")}</small>
+              <small class="places">
+                {#each step.items as item}
+                  <span class="item">
+                    <PlaceArt
+                      type={item.type}
+                      id={item.id}
+                      points={item.points ?? null}
+                      size={18}
+                    />
+                    {item.label}
+                  </span>
+                {/each}
+              </small>
             {/if}
           </span>
         </li>

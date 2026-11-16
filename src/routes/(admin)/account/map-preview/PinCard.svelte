@@ -24,6 +24,7 @@
     X,
   } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
+  import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import {
     isGrainBinIcon,
     markerColor,
@@ -120,6 +121,11 @@
   $: if (viewing && !pin.photos.some((photo) => photo.id === viewing?.id))
     viewing = null
   $: attached = pin.photos.length + drawings.length
+
+  const ringsOf = (drawing: PinDrawing) =>
+    drawing.geometry.coordinates as LngLat[][]
+  const lineOf = (drawing: PinDrawing) =>
+    drawing.geometry.coordinates as LngLat[]
 
   // How big a drawing is: hectares inside an area, metres along a line.
   function size(drawing: PinDrawing) {
@@ -234,7 +240,19 @@
       <ul class="mn-drawn">
         {#each drawings as drawing (drawing.id)}
           <li>
-            <span class="swatch" style="background: {drawing.colour}"></span>
+            {#if drawing.kind === "line"}
+              <ShapeArt
+                line={lineOf(drawing)}
+                colour={drawing.colour}
+                size={30}
+              />
+            {:else}
+              <ShapeArt
+                polygons={[ringsOf(drawing)]}
+                colour={drawing.colour}
+                size={30}
+              />
+            {/if}
             <span class="what">{size(drawing)}</span>
             {#if !guest}
               <button

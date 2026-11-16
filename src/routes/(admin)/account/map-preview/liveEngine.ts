@@ -34,6 +34,7 @@ import {
   JOB_SOURCE,
   GUIDE_SOURCE,
   GUIDE_AHEAD_SOURCE,
+  EDIT_SOURCE,
   LASSO_SOURCE,
   DRAWING_LAYERS,
   DRAWING_SOURCE,
@@ -90,7 +91,13 @@ import {
   watchDrawings,
   addPaddockFeature,
   removePaddockFeature,
-  cutPaddock,
+  takeOut,
+  joinOn,
+  crossesItself,
+  haAfter,
+  outlineHa,
+  saveBoundary,
+  bboxOf,
   createPaddock,
   type JobItem,
   createDrawing,
@@ -211,6 +218,8 @@ export type Measure = {
   colour?: string
   /** Being drawn for the job that is being put together. */
   forJob?: boolean
+  /** Some of it sits on a paddock (so it can't become one itself). */
+  overPaddock?: boolean
   /** Set when what is being tapped out will be attached to a pin. */
   drawing?: {
     pinId: string
@@ -313,7 +322,73 @@ export type Guide = {
   against: boolean
   /** How good the position is, in metres, when the device says. */
   accuracy: number | null
+  /** A made-up machine is driving it, to show how the guide looks. */
+  demo: boolean
+  /** How many times faster than a working pace the demo runs. */
+  rate: number
 }
+
+/** A paddock's boundary while it is being changed. */
+export type BoundaryEdit = {
+  paddockId: string
+  name: string
+  /** Hectares inside the outline as it stands, and as it was to begin with. */
+  ha: number
+  was: number
+  pieces: number
+  holes: number
+  /** A corner is picked out: what can be done with it. */
+  picked: {
+    hole: boolean
+    canRemoveCorner: boolean
+    canRemoveRing: boolean
+  } | null
+  /** Ground being tapped out: a hole to cut, or a piece to add. */
+  adding: { kind: "hole" | "piece"; points: number } | null
+  /** Changes that can be stepped back through. */
+  steps: number
+  changed: boolean
+  saving: boolean
+  /** The outline as it stands, for a picture of it. */
+  polygons: LngLat[][][]
+}
+
+type Editing = {
+  paddock: Paddock
+  /** Each piece's rings, outer first, without the corner that closes them. */
+  rings: LngLat[][][]
+  original: string
+  history: LngLat[][][][]
+  /** Piece, ring, corner. */
+  picked: [number, number, number] | null
+  adding: { kind: "hole" | "piece"; points: LngLat[] } | null
+  drag: {
+    at: [number, number, number]
+    from: [number, number]
+    moved: boolean
+  } | null
+  was: number
+  dirty: boolean
+  told: number
+  /** A press that ended on a corner is not also a tap on the map. */
+  quietUntil: number
+  saving: boolean
+  stop: () => void
+}
+
+const openRing = (ring: LngLat[]): LngLat[] => {
+  const last = ring[ring.length - 1]
+  const closed =
+    ring.length > 1 && ring[0][0] === last[0] && ring[0][1] === last[1]
+  return (closed ? ring.slice(0, -1) : ring).map((c) => [c[0], c[1]])
+}
+const openRings = (polygons: LngLat[][][]) =>
+  polygons.map((polygon) => polygon.map(openRing))
+const closeRings = (rings: LngLat[][][]): LngLat[][][] =>
+  rings.map((polygon) => polygon.map((ring) => [...ring, ring[0]]))
+
+/** The pace the demo machine works at, km/h. */
+const SIM_KMH = 14
 
 type GuidePath = {
   info: TrailInfo
@@ -646,6 +721,17 @@ export class LiveEngine {
   /** The trail being followed, if one is. */
   readonly guide: Writable<Guide | null> = writable(null)
   private guiding: GuidePath | null = null
+  /** The made-up machine of a demo run. */
+  private sim: {
+    vehicle: Vehicle
+    along: number
+    index: number
+    rate: number
+    wander: number
+  } | null = null
+  /** The paddock whose boundary is being changed, if one is. */
+  readonly boundary: Writable<BoundaryEdit | null> = writable(null)
+  private editing: Editing | null = null
   readonly placing: Writable<{ iconClass: string; colour: string } | null> =
     writable(null)
   private draft: LivePin | null = null
@@ -804,6 +890,10 @@ export class LiveEngine {
         point: { x: number; y: number }
         lngLat: { lng: number; lat: number }
       }) => {
+        if (this.editing) {
+          this.editTap([e.lngLat.lng, e.lngLat.lat])
+          return
+        }
         // A pin being dragged into place takes no taps.
         if (this.move) return
         if (get(this.measure)) {
@@ -1058,6 +1148,8 @@ export class LiveEngine {
     const features: unknown[] = []
     const labels: unknown[] = []
     for (const paddock of this.paddocks) {
+      // The one whose boundary is being changed is drawn by the editor.
+      if (this.editing?.paddock.id === paddock.id) continue
       // On the dark map a paddock with no colour takes its block's.
       const glow = paddock.colour ?? blockColour(paddock.farmId ?? this.mapId)
       features.push({
@@ -3320,6 +3412,7 @@ export class LiveEngine {
     forJob = false,
   ) {
     if (this.draft) this.endPlacing()
+    if (on && this.editing) this.cancelEdit(false)
     this.measured = []
     this.clearSelection()
     this.armPin(null)
@@ -3455,8 +3548,43 @@ export class LiveEngine {
   }
 
   /**
-   * Cut the drawn area out of the paddock it sits in, for good: the
-   * paddock's boundary and hectares change.
+   * Give a paddock a new boundary. The one it replaces is kept with it, so
+   * the change can be put back.
+   */
+  private async changeBoundary(paddock: Paddock, polygons: LngLat[][][]) {
+    const ha = haAfter(paddock, polygons)
+    const prior = await saveBoundary(paddock, polygons, ha)
+    this.setPaddock(paddock.id, {
+      polygons,
+      ha,
+      prior,
+      bbox: bboxOf(polygons),
+    })
+  }
+
+  /** Put a paddock's boundary back to what it was before its last change. */
+  async undoBoundary(id: string) {
+    const paddock = this.paddocks.find((p) => p.id === id)
+    const back = paddock?.prior
+    if (!paddock || !back) return false
+    try {
+      const prior = await saveBoundary(paddock, back.polygons, back.ha)
+      this.setPaddock(id, {
+        polygons: back.polygons,
+        ha: back.ha,
+        prior,
+        bbox: bboxOf(back.polygons),
+      })
+      return true
+    } catch {
+      this.problem.set("The boundary couldn't be put back. Try again.")
+      return false
+    }
+  }
+
+  /**
+   * Cut the drawn area out of the paddock it sits in: the paddock's own
+   * boundary changes (and its hectares with it). It can be put back.
    */
   cutFromPaddock() {
     const drawn = this.drawn()
@@ -3464,10 +3592,474 @@ export class LiveEngine {
     if (!drawn || !paddock || drawn.state.kind !== "polygon")
       return Promise.resolve(false)
     return this.keep(async () => {
-      const cut = await cutPaddock(paddock, drawn.points)
-      if (!cut) throw new Error("Nothing to cut")
-      this.setPaddock(paddock.id, { polygons: cut.polygons, ha: cut.ha })
+      const polygons = takeOut(paddock.polygons, drawn.points)
+      if (!polygons) throw new Error("Nothing to cut")
+      await this.changeBoundary(paddock, polygons)
     }, "that couldn't be cut out. Try again.")
+  }
+
+  // ── Changing a paddock's boundary ───────────────────────────────────────
+  // Corners are dragged; a small dot between two corners is dragged out
+  // into a new one; a corner that is tapped can be taken away. Ground is
+  // tapped out to cut a hole (or a bite off the edge), or to add a piece.
+  // Nothing is saved until Save, and every step can be stepped back.
+
+  editBoundary(id: string) {
+    const paddock = this.paddocks.find((p) => p.id === id)
+    if (!paddock) return false
+    this.cancelEdit(false)
+    if (get(this.measure)) this.setMeasuring(false)
+    if (this.draft) this.endPlacing()
+    this.clearSelection()
+    this.armPin(null)
+
+    const container = this.map.getContainer() as HTMLElement
+    const pointOf = (e: MouseEvent | TouchEvent): [number, number] | null => {
+      const touch = "touches" in e ? (e.touches[0] ?? e.changedTouches[0]) : e
+      if (!touch) return null
+      const box = container.getBoundingClientRect()
+      return [touch.clientX - box.left, touch.clientY - box.top]
+    }
+    const down = (e: MouseEvent | TouchEvent) => {
+      const edit = this.editing
+      const at = pointOf(e)
+      if (!edit || edit.adding || edit.saving || !at) return
+      if ("touches" in e && e.touches.length > 1) return
+      // A finger is wider than a mouse pointer.
+      const reach = "touches" in e ? 30 : 22
+      let corner: { at: [number, number, number]; d: number } | null = null
+      let mid: { at: [number, number, number]; d: number } | null = null
+      edit.rings.forEach((polygon, p) =>
+        polygon.forEach((ring, r) =>
+          ring.forEach((point, c) => {
+            const a = this.map.project(point)
+            const d = Math.hypot(a.x - at[0], a.y - at[1])
+            if (d < reach && (!corner || d < corner.d))
+              corner = { at: [p, r, c], d }
+            const b = this.map.project(ring[(c + 1) % ring.length])
+            if (Math.hypot(a.x - b.x, a.y - b.y) < 44) return
+            const m = Math.hypot(
+              (a.x + b.x) / 2 - at[0],
+              (a.y + b.y) / 2 - at[1],
+            )
+            if (m < reach - 4 && (!mid || m < mid.d))
+              mid = { at: [p, r, c], d: m }
+          }),
+        ),
+      )
+      const onCorner = corner as { at: [number, number, number] } | null
+      const onMid = mid as { at: [number, number, number] } | null
+      if (onCorner) {
+        edit.drag = { at: onCorner.at, from: at, moved: false }
+      } else if (onMid) {
+        // Pressing the dot between two corners makes a corner there.
+        this.rememberEdit()
+        const [p, r, c] = onMid.at
+        const here = this.map.unproject(at)
+        edit.rings[p][r].splice(c + 1, 0, [here.lng, here.lat])
+        edit.drag = { at: [p, r, c + 1], from: at, moved: true }
+        edit.picked = [p, r, c + 1]
+        edit.dirty = true
+      } else return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    const drag = (e: MouseEvent | TouchEvent) => {
+      const edit = this.editing
+      const at = pointOf(e)
+      const held = edit?.drag
+      if (!edit || !held || !at) return
+      if (e.cancelable) e.preventDefault()
+      if (!held.moved) {
+        if (Math.hypot(at[0] - held.from[0], at[1] - held.from[1]) < 5) return
+        this.rememberEdit()
+        held.moved = true
+      }
+      const here = this.map.unproject(at)
+      edit.rings[held.at[0]][held.at[1]][held.at[2]] = [here.lng, here.lat]
+      edit.picked = held.at
+      edit.dirty = true
+    }
+    const up = () => {
+      const edit = this.editing
+      const held = edit?.drag
+      if (!edit || !held) return
+      edit.drag = null
+      if (!held.moved) {
+        // A tap on a corner picks it out; a second tap lets it go.
+        const same =
+          !!edit.picked && edit.picked.every((v, i) => v === held.at[i])
+        edit.picked = same ? null : held.at
+      } else {
+        // Once it has been put down, a dragged corner is let go.
+        edit.picked = null
+      }
+      edit.quietUntil = performance.now() + 350
+      edit.dirty = true
+      edit.told = 0
+    }
+    container.addEventListener("mousedown", down, true)
+    container.addEventListener("touchstart", down, {
+      capture: true,
+      passive: false,
+    })
+    window.addEventListener("mousemove", drag)
+    window.addEventListener("touchmove", drag, { passive: false })
+    window.addEventListener("mouseup", up)
+    window.addEventListener("touchend", up)
+    window.addEventListener("touchcancel", up)
+
+    this.editing = {
+      paddock,
+      rings: openRings(paddock.polygons),
+      original: JSON.stringify(closeRings(openRings(paddock.polygons))),
+      history: [],
+      picked: null,
+      adding: null,
+      drag: null,
+      was: outlineHa(paddock.polygons),
+      dirty: false,
+      told: 0,
+      quietUntil: 0,
+      saving: false,
+      stop: () => {
+        container.removeEventListener("mousedown", down, true)
+        container.removeEventListener("touchstart", down, true)
+        window.removeEventListener("mousemove", drag)
+        window.removeEventListener("touchmove", drag)
+        window.removeEventListener("mouseup", up)
+        window.removeEventListener("touchend", up)
+        window.removeEventListener("touchcancel", up)
+      },
+    }
+    this.setFollow("free")
+    this.followCrew(null)
+    this.map.fitBounds(
+      [
+        [paddock.bbox[0], paddock.bbox[1]],
+        [paddock.bbox[2], paddock.bbox[3]],
+      ],
+      {
+        // The editor's card takes the lower half of the map.
+        padding: {
+          top: 90,
+          right: 70,
+          bottom: Math.max(
+            250 + this.insets.bottom,
+            Math.round(container.clientHeight * 0.52),
+          ),
+          left: 70 + this.insets.left,
+        },
+        maxZoom: 17.5,
+        duration: 700,
+      },
+    )
+    this.drawPaddocks()
+    this.drawEdit()
+    this.tellEdit()
+    return true
+  }
+
+  /** Keep the outline as it stands, so the next change can be stepped back. */
+  private rememberEdit() {
+    const edit = this.editing
+    if (!edit) return
+    edit.history.push(
+      edit.rings.map((polygon) =>
+        polygon.map((ring) => ring.map((c) => [c[0], c[1]] as LngLat)),
+      ),
+    )
+    if (edit.history.length > 80) edit.history.shift()
+  }
+
+  private touchEdit() {
+    const edit = this.editing
+    if (!edit) return
+    edit.dirty = true
+    edit.told = 0
+  }
+
+  private editTap(at: LngLat) {
+    const edit = this.editing
+    if (!edit || edit.saving || performance.now() < edit.quietUntil) return
+    if (edit.adding) edit.adding.points.push(at)
+    else edit.picked = null
+    this.touchEdit()
+  }
+
+  private drawEdit() {
+    const source = this.map.getSource(EDIT_SOURCE)
+    if (!source) return
+    const edit = this.editing
+    if (!edit) {
+      source.setData(collection([]))
+      return
+    }
+    const point = (at: LngLat, properties: Record<string, unknown>) => ({
+      type: "Feature",
+      properties,
+      geometry: { type: "Point", coordinates: at },
+    })
+    const features: unknown[] = [
+      {
+        type: "Feature",
+        properties: { kind: "shape" },
+        geometry: { type: "MultiPolygon", coordinates: closeRings(edit.rings) },
+      },
+    ]
+    const adding = edit.adding
+    if (adding) {
+      const color = adding.kind === "hole" ? "#e5484d" : "#22c55e"
+      const points = adding.points
+      if (points.length > 2)
+        features.push({
+          type: "Feature",
+          properties: { kind: "newfill", color },
+          geometry: { type: "Polygon", coordinates: [[...points, points[0]]] },
+        })
+      if (points.length > 1)
+        features.push({
+          type: "Feature",
+          properties: { kind: "new", color },
+          geometry: {
+            type: "LineString",
+            coordinates: points.length > 2 ? [...points, points[0]] : points,
+          },
+        })
+      for (const at of points)
+        features.push(point(at, { kind: "newpoint", color }))
+    } else {
+      edit.rings.forEach((polygon, p) =>
+        polygon.forEach((ring, r) =>
+          ring.forEach((corner, c) => {
+            const picked =
+              !!edit.picked &&
+              edit.picked[0] === p &&
+              edit.picked[1] === r &&
+              edit.picked[2] === c
+            features.push(point(corner, { kind: "corner", picked }))
+            // A dot between corners far enough apart to press between.
+            const next = ring[(c + 1) % ring.length]
+            const a = this.map.project(corner)
+            const b = this.map.project(next)
+            if (Math.hypot(a.x - b.x, a.y - b.y) >= 44)
+              features.push(
+                point([(corner[0] + next[0]) / 2, (corner[1] + next[1]) / 2], {
+                  kind: "mid",
+                }),
+              )
+          }),
+        ),
+      )
+    }
+    source.setData(collection(features))
+  }
+
+  private tellEdit() {
+    const edit = this.editing
+    if (!edit) {
+      this.boundary.set(null)
+      return
+    }
+    const polygons = closeRings(edit.rings)
+    const picked = edit.picked
+    const ring = picked ? edit.rings[picked[0]]?.[picked[1]] : null
+    this.boundary.set({
+      paddockId: edit.paddock.id,
+      name: edit.paddock.name,
+      ha: outlineHa(polygons),
+      was: edit.was,
+      pieces: edit.rings.length,
+      holes: edit.rings.reduce((sum, polygon) => sum + polygon.length - 1, 0),
+      picked:
+        picked && ring
+          ? {
+              hole: picked[1] > 0,
+              canRemoveCorner: ring.length > 3,
+              canRemoveRing: picked[1] > 0 || edit.rings.length > 1,
+            }
+          : null,
+      adding: edit.adding
+        ? { kind: edit.adding.kind, points: edit.adding.points.length }
+        : null,
+      steps: edit.history.length,
+      changed: JSON.stringify(polygons) !== edit.original,
+      saving: edit.saving,
+      polygons,
+    })
+  }
+
+  /** Redraw the boundary being changed when it has moved. */
+  private stepEdit(now: number) {
+    const edit = this.editing
+    if (!edit?.dirty) return
+    edit.dirty = false
+    this.drawEdit()
+    // The figures follow a drag a few times a second, not every frame.
+    if (!edit.drag || now - edit.told > 150) {
+      edit.told = now
+      this.tellEdit()
+    }
+  }
+
+  /** Take the picked corner away. */
+  removeEditCorner() {
+    const edit = this.editing
+    const picked = edit?.picked
+    if (!edit || !picked) return
+    const ring = edit.rings[picked[0]][picked[1]]
+    if (ring.length <= 3) return
+    this.rememberEdit()
+    ring.splice(picked[2], 1)
+    edit.picked = null
+    this.touchEdit()
+  }
+
+  /** Take away the hole, or the whole piece, the picked corner belongs to. */
+  removeEditRing() {
+    const edit = this.editing
+    const picked = edit?.picked
+    if (!edit || !picked) return
+    if (picked[1] > 0) {
+      this.rememberEdit()
+      edit.rings[picked[0]].splice(picked[1], 1)
+    } else if (edit.rings.length > 1) {
+      this.rememberEdit()
+      edit.rings.splice(picked[0], 1)
+    } else return
+    edit.picked = null
+    this.touchEdit()
+  }
+
+  /** Start tapping out ground to cut from the paddock, or to add to it. */
+  startAdding(kind: "hole" | "piece") {
+    const edit = this.editing
+    if (!edit) return
+    edit.adding = { kind, points: [] }
+    edit.picked = null
+    this.map.getCanvas().style.cursor = "crosshair"
+    this.touchEdit()
+  }
+
+  undoAdding() {
+    this.editing?.adding?.points.pop()
+    this.touchEdit()
+  }
+
+  cancelAdding() {
+    const edit = this.editing
+    if (!edit) return
+    edit.adding = null
+    this.map.getCanvas().style.cursor = ""
+    this.touchEdit()
+  }
+
+  /** Cut what was tapped out from the paddock, or join it on. */
+  finishAdding() {
+    const edit = this.editing
+    const adding = edit?.adding
+    if (!edit || !adding || adding.points.length < 3) return false
+    const now = closeRings(edit.rings)
+    let after: LngLat[][][] | null = null
+    try {
+      after =
+        adding.kind === "hole"
+          ? takeOut(now, adding.points)
+          : joinOn(now, adding.points)
+    } catch {
+      after = null
+    }
+    if (!after) {
+      this.problem.set(
+        adding.kind === "hole"
+          ? "That isn't over the paddock, so there is nothing to take out."
+          : "That is already inside the paddock.",
+      )
+      return false
+    }
+    this.rememberEdit()
+    edit.rings = openRings(after)
+    this.cancelAdding()
+    return true
+  }
+
+  /** Step back one change. */
+  undoEdit() {
+    const edit = this.editing
+    const before = edit?.history.pop()
+    if (!edit || !before) return
+    edit.rings = before
+    edit.picked = null
+    this.touchEdit()
+  }
+
+  /** Back to the boundary as it was when editing began. */
+  resetEdit() {
+    const edit = this.editing
+    if (!edit) return
+    this.rememberEdit()
+    edit.rings = openRings(edit.paddock.polygons)
+    edit.picked = null
+    this.touchEdit()
+  }
+
+  /** Bring in the boundary the paddock had before its last saved change. */
+  usePriorBoundary() {
+    const edit = this.editing
+    const prior = edit?.paddock.prior
+    if (!edit || !prior) return
+    this.rememberEdit()
+    edit.rings = openRings(prior.polygons)
+    edit.picked = null
+    this.touchEdit()
+  }
+
+  /** Leave the editor without saving. */
+  cancelEdit(reselect = true) {
+    const edit = this.editing
+    if (!edit) return
+    edit.stop()
+    this.editing = null
+    this.boundary.set(null)
+    this.map.getCanvas().style.cursor = ""
+    this.drawEdit()
+    this.drawPaddocks()
+    const paddock = this.paddocks.find((p) => p.id === edit.paddock.id)
+    if (reselect && paddock) this.selectedPaddock.set(paddock)
+  }
+
+  async saveEdit() {
+    const edit = this.editing
+    if (!edit || edit.saving) return false
+    const polygons = closeRings(edit.rings)
+    let crossed = false
+    try {
+      crossed = crossesItself(polygons)
+    } catch {
+      crossed = false
+    }
+    if (crossed) {
+      this.problem.set(
+        "The boundary crosses over itself. Move a corner so it doesn't.",
+      )
+      return false
+    }
+    edit.saving = true
+    this.tellEdit()
+    try {
+      await this.changeBoundary(edit.paddock, polygons)
+    } catch {
+      edit.saving = false
+      this.tellEdit()
+      this.problem.set(
+        navigator.onLine
+          ? "The boundary didn't save. Try again."
+          : "No signal: the boundary didn't save.",
+      )
+      return false
+    }
+    this.cancelEdit()
+    return true
   }
 
   /** Make what has been drawn (an area) into a new paddock. */
@@ -3747,6 +4339,7 @@ export class LiveEngine {
             distance,
             ha,
             paddock: under ? { id: under.id, name: under.name } : null,
+            overPaddock: points.some((at) => !!this.paddockAt(at)),
           }
         : m,
     )
@@ -3798,7 +4391,7 @@ export class LiveEngine {
    * what is left. A phone's position is good to a few metres, so this is
    * for keeping to a path, not for steering to the centimetre.
    */
-  async startGuide(info: TrailInfo) {
+  async startGuide(info: TrailInfo, demo = false) {
     this.stopGuide()
     this.stopReplay()
     this.guide.set({
@@ -3813,6 +4406,8 @@ export class LiveEngine {
       reversed: false,
       against: false,
       accuracy: null,
+      demo,
+      rate: 4,
     })
     const timeline = await loadTrailTimeline(info).catch(() => null)
     // They stopped, or picked another, while it loaded.
@@ -3827,6 +4422,10 @@ export class LiveEngine {
     }
     this.layGuide(info, raw, false, false)
     this.pickTrail(null)
+    if (demo) {
+      this.startSim()
+      return true
+    }
     if (this.mine) {
       if (get(this.follow) === "cab")
         this.map.easeTo({
@@ -3985,17 +4584,137 @@ export class LiveEngine {
     this.map.getSource(GUIDE_AHEAD_SOURCE)?.setData(collection([]))
   }
 
+  /**
+   * A demo run: a made-up machine (the viewer's own, by its look) drives
+   * the trail from its start, wandering a little off the line as a real
+   * one does, so the guide can be seen working from anywhere.
+   */
+  private startSim() {
+    const g = this.guiding
+    if (!g) return
+    const at = g.flat.toLngLat([g.x[0], g.y[0]])
+    const vehicle = this.mountVehicle(
+      machineFor(this.me.type).type,
+      drawColour(this.me.bodyColor),
+      "Demo",
+      at,
+      false,
+    )
+    vehicle.marker.getElement().style.zIndex = "5"
+    vehicle.heading =
+      ((Math.atan2(g.x[1] - g.x[0], g.y[1] - g.y[0]) * 180) / Math.PI + 360) %
+      360
+    vehicle.view.$set({ speed: SIM_KMH })
+    this.sim = { vehicle, along: 0, index: 0, rate: 4, wander: 0 }
+    this.setFollow("free")
+    this.followCrew(null)
+    this.followPausedUntil = performance.now() + 700
+    this.map.easeTo({
+      center: at,
+      zoom: Math.max(this.map.getZoom(), 17),
+      bearing: vehicle.heading,
+      offset: this.followOffset("cab"),
+      duration: 700,
+    })
+    this.onZoom()
+  }
+
+  /** How fast the demo runs: so many times a working pace. */
+  setGuideRate(rate: number) {
+    if (this.sim) this.sim.rate = rate
+  }
+
+  /** Move the demo machine on by one frame, and keep the camera on it. */
+  private stepSim(dt: number, now: number) {
+    const sim = this.sim
+    const g = this.guiding
+    if (!sim || !g) return
+    const last = g.x.length - 1
+    const total = g.along[last]
+    sim.along = Math.min(total, sim.along + (SIM_KMH / 3.6) * sim.rate * dt)
+    while (sim.index < last - 1 && g.along[sim.index + 1] < sim.along)
+      sim.index++
+    const i = sim.index
+    const f = clamp(
+      (sim.along - g.along[i]) / (g.along[i + 1] - g.along[i] || 1),
+      0,
+      1,
+    )
+    const dx = g.x[i + 1] - g.x[i]
+    const dy = g.y[i + 1] - g.y[i]
+    const length = Math.hypot(dx, dy) || 1
+    // It drifts a few metres either side of the line on the straights, and
+    // holds the line through a turn and at the very end.
+    const turning = g.turns.some(
+      (t) => sim.along > t.at - 30 && sim.along < t.at + 70,
+    )
+    const aim =
+      turning || total - sim.along < 20
+        ? 0
+        : 3.2 * Math.sin(sim.along / 60) + 1.6 * Math.sin(sim.along / 21 + 1)
+    sim.wander = lerp(sim.wander, aim, 1 - Math.exp(-dt * sim.rate * 0.6))
+    const pos = g.flat.toLngLat([
+      lerp(g.x[i], g.x[i + 1], f) + (dy / length) * sim.wander,
+      lerp(g.y[i], g.y[i + 1], f) - (dx / length) * sim.wander,
+    ])
+    const vehicle = sim.vehicle
+    vehicle.pos = pos
+    vehicle.marker.setLngLat(pos)
+    vehicle.heading = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
+    const bearing = this.map.getBearing()
+    vehicle.eased = Number.isNaN(vehicle.eased)
+      ? vehicle.heading
+      : easeHeading(
+          vehicle.eased,
+          vehicle.heading,
+          1 - Math.exp(-dt * 5 * Math.max(1, sim.rate / 3)),
+        )
+    this.turnTo(vehicle, vehicle.eased - bearing)
+    // The camera rides with it until the map is dragged; the "where am I"
+    // button goes back to the viewer's own machine as usual.
+    if (
+      get(this.follow) === "free" &&
+      now > this.followPausedUntil &&
+      !this.touching
+    )
+      this.map.easeTo({
+        center: pos,
+        // Run faster, it turns faster, so the way ahead stays up the screen.
+        bearing:
+          bearing +
+          turn(bearing, vehicle.eased) *
+            (1 - Math.exp(-dt * 3 * Math.max(1, sim.rate / 2))),
+        offset: this.followOffset("cab"),
+        duration: 0,
+      })
+  }
+
   /** Follow it the other way round. */
   turnGuideRound() {
     const g = this.guiding
     if (!g) return
+    const total = g.along[g.along.length - 1]
     this.layGuide(g.info, [...g.raw].reverse(), !g.reversed, g.toStart)
+    if (this.sim) {
+      this.sim.along = Math.max(0, total - this.sim.along)
+      this.sim.index = 0
+      this.sim.vehicle.eased = NaN
+    }
   }
 
   /** Head for the start of the trail, or for the nearest point on it. */
   setGuideStart(toStart: boolean) {
     const g = this.guiding
     if (!g) return
+    // A demo simply begins again.
+    if (this.sim) {
+      this.sim.along = 0
+      this.sim.index = 0
+      this.sim.wander = 0
+      g.index = 0
+      g.joined = false
+      return
+    }
     g.toStart = toStart
     g.joined = false
     g.index = 0
@@ -4005,6 +4724,12 @@ export class LiveEngine {
 
   stopGuide() {
     if (!this.guiding && !get(this.guide)) return
+    if (this.sim) {
+      this.sim.vehicle.view.$destroy()
+      this.sim.vehicle.marker.remove()
+      this.sim = null
+      this.map.easeTo({ bearing: 0, duration: 500 })
+    }
     this.guiding = null
     this.guide.set(null)
     this.map.getSource(GUIDE_SOURCE)?.setData(collection([]))
@@ -4061,9 +4786,12 @@ export class LiveEngine {
       toStart: g.toStart,
       reversed: g.reversed,
       against: false,
-      accuracy: this.lastFix?.accuracy ?? null,
+      accuracy: this.sim ? null : (this.lastFix?.accuracy ?? null),
+      demo: !!this.sim,
+      rate: this.sim?.rate ?? 1,
     }
-    const mine = this.mine
+    // In a demo the made-up machine stands in for the viewer's own.
+    const mine = this.sim ? this.sim.vehicle : this.mine
     if (!mine) {
       this.guide.set({ ...base, phase: "waiting" })
       return
@@ -4162,7 +4890,7 @@ export class LiveEngine {
       ) *
         180) /
       Math.PI
-    const moving = this.headingKnown && this.speedKmh >= 2
+    const moving = !!this.sim || (this.headingKnown && this.speedKmh >= 2)
     const facing = moving ? mine.heading : pathHeading
     const rad = (facing * Math.PI) / 180
     // Metres to the right of the way it faces.
@@ -4214,6 +4942,9 @@ export class LiveEngine {
 
   /** Ask the browser for the viewer's position and keep watching it. */
   startGps() {
+    // Asked for after the map was closed (the answer to "may I?" can come
+    // late): there is nothing left to show a position on.
+    if (this.destroyed) return
     if (!("geolocation" in navigator) || !window.isSecureContext) {
       this.gps.set("unavailable")
       return
@@ -4313,6 +5044,7 @@ export class LiveEngine {
   }
 
   private onFix(fix: Fix) {
+    if (this.destroyed) return
     // A fix this vague would put the machine in the wrong paddock.
     if (fix.accuracy !== null && fix.accuracy > 100 && this.mine) return
     const previous = this.lastFix
@@ -4562,7 +5294,9 @@ export class LiveEngine {
 
     this.stepReplay(dt, now)
     this.stepMove(dt)
+    this.stepSim(dt, now)
     this.stepGuide(now)
+    this.stepEdit(now)
 
     // Whatever is picked out breathes: its glow swells and settles.
     if (this.marching) {
@@ -4648,6 +5382,9 @@ export class LiveEngine {
       if (entry.vehicle) resize(entry.vehicle)
     if (this.mine) resize(this.mine)
     if (this.replaying) resize(this.replaying.vehicle)
+    if (this.sim) resize(this.sim.vehicle)
+    // The dots between a boundary's corners come and go with the zoom.
+    if (this.editing) this.editing.dirty = true
   }
 
   destroy() {
@@ -4666,6 +5403,8 @@ export class LiveEngine {
     this.mine?.view.$destroy()
     this.picked?.view.$destroy()
     this.replaying?.vehicle.view.$destroy()
+    this.sim?.vehicle.view.$destroy()
+    this.editing?.stop()
     this.map.remove()
   }
 }

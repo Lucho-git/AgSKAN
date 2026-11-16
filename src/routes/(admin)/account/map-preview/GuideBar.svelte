@@ -29,7 +29,13 @@
     stop: void
     round: void
     start: boolean
+    /** How fast a demo run goes. */
+    rate: number
   }>()
+
+  const RATES = [1, 4, 12]
+  const nextRate = () =>
+    dispatch("rate", RATES[(RATES.indexOf(guide.rate) + 1) % RATES.length])
 
   /** Within this of the line counts as on it: a phone can't say better. */
   const ON = 2
@@ -78,6 +84,7 @@
   // The choices show without asking while there is something to decide.
   $: choices =
     open ||
+    (guide.demo && guide.phase === "done") ||
     guide.against ||
     guide.phase === "away" ||
     guide.phase === "waiting" ||
@@ -93,9 +100,9 @@
       on:click={() => (open = !open)}
     >
       <span class="lp-eyebrow">
-        Following{label ? ` · ${label}` : ""}{guide.reversed
-          ? " · other way"
-          : ""}
+        {guide.demo ? "Demo run" : "Following"}{label
+          ? ` · ${label}`
+          : ""}{guide.reversed ? " · other way" : ""}
       </span>
       <span class="head">
         {#if guide.phase === "away" && guide.away}
@@ -111,6 +118,16 @@
         <span class="more" class:open={choices}><ChevronDown size={18} /></span>
       </span>
     </button>
+    {#if guide.demo}
+      <button
+        type="button"
+        class="rate"
+        aria-label="Demo speed: {guide.rate} times. Tap to change"
+        on:click={nextRate}
+      >
+        {guide.rate}×
+      </button>
+    {/if}
     <button
       type="button"
       class="mn-icon-button"
@@ -157,14 +174,23 @@
       </button>
       <button type="button" on:click={() => dispatch("start", !guide.toStart)}>
         <Flag size={16} />
-        {guide.toStart ? "From the nearest point" : "From the start"}
+        {guide.demo
+          ? "Start again"
+          : guide.toStart
+            ? "From the nearest point"
+            : "From the start"}
       </button>
     </div>
     <p class="fine">
-      {guide.accuracy !== null
-        ? `Position good to about ${Math.max(1, Math.round(guide.accuracy))} m. `
-        : ""}A guide for keeping to the path, not for steering to the
-      centimetre.
+      {#if guide.demo}
+        A made-up machine is driving this trail, drifting off the line now and
+        then, so you can see the guide without being there.
+      {:else}
+        {guide.accuracy !== null
+          ? `Position good to about ${Math.max(1, Math.round(guide.accuracy))} m. `
+          : ""}A guide for keeping to the path, not for steering to the
+        centimetre.
+      {/if}
     </p>
   {/if}
 </div>

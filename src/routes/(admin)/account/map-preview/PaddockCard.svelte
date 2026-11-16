@@ -8,13 +8,15 @@
    */
   import { createEventDispatcher } from "svelte"
   import {
+    ArrowLeft,
     Check,
-    LandPlot,
+    History,
     LocateFixed,
     PencilRuler,
     Trash2,
     X,
   } from "lucide-svelte"
+  import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import { formatHa } from "$lib/components/mapnext/format"
   import { drawColour } from "$lib/components/mapnext/palette"
   import { sizeOf } from "./liveEngine"
@@ -44,6 +46,10 @@
     remove: void
     /** Start drawing something to keep on it. */
     draw: void
+    /** Open the editor that changes its boundary. */
+    boundary: void
+    /** Put its boundary back to what it was before the last change. */
+    putBack: void
     removeFeature: string
     /** Pick one of its trails out. */
     trail: string
@@ -72,6 +78,8 @@
   let variety = paddock.variety
   let last = paddock.id
   let deleting = false
+  /** Asked to draw: something on it, or its own boundary? */
+  let drawAsk = false
   /** Which of the two is being typed in, for the suggestions under them. */
   let typing: "crop" | "variety" | null = null
   $: if (paddock.id !== last) {
@@ -80,6 +88,7 @@
     crop = paddock.crop
     variety = paddock.variety
     deleting = false
+    drawAsk = false
     typing = null
   }
   const starts = (option: string, typed: string) =>
@@ -115,7 +124,9 @@
 
 <div class="mn-card mn-menu">
   <div class="head">
-    <span class="art"><LandPlot size={28} /></span>
+    <span class="art">
+      <ShapeArt polygons={paddock.polygons} colour={paddock.colour} size={46} />
+    </span>
     <div class="about">
       <h2>{paddock.name}</h2>
       <p>
@@ -160,6 +171,41 @@
         <Trash2 size={17} /> Delete
       </button>
     </div>
+  {:else if drawAsk}
+    <!-- ── Draw: something on the paddock, or the paddock itself ── -->
+    <button
+      type="button"
+      class="mn-text-button"
+      on:click={() => (drawAsk = false)}
+    >
+      <ArrowLeft size={16} /> Back to the paddock
+    </button>
+    <div class="mn-keep">
+      <button type="button" on:click={() => dispatch("draw")}>
+        <strong>Draw something on it</strong>
+        <span>
+          A wet patch, a drain, a rock heap. It is kept on the paddock, or on a
+          pin you drop with it.
+        </span>
+      </button>
+      <button type="button" on:click={() => dispatch("boundary")}>
+        <strong>Change its boundary</strong>
+        <span>
+          Move its corners, cut ground out of it, or add a piece. This changes
+          the paddock itself.
+        </span>
+      </button>
+    </div>
+    {#if paddock.prior}
+      <button
+        type="button"
+        class="mn-text-button"
+        on:click={() => dispatch("putBack")}
+      >
+        <History size={16} /> Put back the boundary from before
+        {when(paddock.prior.t)}
+      </button>
+    {/if}
   {:else}
     {#if !guest}
       <div
@@ -270,7 +316,19 @@
       <ul class="mn-drawn">
         {#each paddock.features as feature (feature.id)}
           <li class:picked={pickedFeature === feature.id}>
-            <span class="swatch" style="background: {feature.colour}"></span>
+            {#if feature.kind === "line"}
+              <ShapeArt
+                line={feature.coordinates}
+                colour={feature.colour}
+                size={30}
+              />
+            {:else}
+              <ShapeArt
+                polygons={[[[...feature.coordinates, feature.coordinates[0]]]]}
+                colour={feature.colour}
+                size={30}
+              />
+            {/if}
             <span class="what">
               {feature.label || (feature.kind === "line" ? "Line" : "Area")}
               <small>{sizeOf(feature.kind, feature.coordinates)}</small>
@@ -314,8 +372,8 @@
         <LocateFixed size={18} /> Show it all
       </button>
       {#if !guest}
-        <button type="button" on:click={() => dispatch("draw")}>
-          <PencilRuler size={18} /> Draw on it
+        <button type="button" on:click={() => (drawAsk = true)}>
+          <PencilRuler size={18} /> Draw
         </button>
       {/if}
       {#if !guest}

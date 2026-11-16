@@ -12,7 +12,7 @@
 // @ts-expect-error -- no type declarations for uuid in this repo
 import { v4 as uuidv4 } from "uuid"
 import { supabase } from "$lib/supabaseClient"
-import { area as turfArea, difference } from "@turf/turf"
+import { area as turfArea, difference, kinks, union } from "@turf/turf"
 import { fileApi } from "$lib/api/fileApi"
 import { mapApi } from "$lib/api/mapApi"
 import { farmApi } from "$lib/api/farmApi"
@@ -84,6 +84,16 @@ export type Paddock = {
   bbox: [number, number, number, number]
   /** Areas and lines kept on it, each with a name. */
   features: PaddockFeature[]
+  /** The boundary it had before the last change to it, if it was changed. */
+  prior: PriorBoundary | null
+}
+
+/** A boundary a paddock used to have, kept so a change can be put back. */
+export type PriorBoundary = {
+  polygons: LngLat[][][]
+  ha: number
+  /** When it was replaced (ms). */
+  t: number
 }
 
 /** An area or a line kept on a paddock: a wet patch, a drain, a rock heap. */
@@ -122,6 +132,38 @@ function polygonsOf(boundary: Row | null): LngLat[][][] {
   if (boundary.type === "Polygon") return [boundary.coordinates]
   if (boundary.type === "MultiPolygon") return boundary.coordinates
   return []
+}
+
+const geometryOf = (polygons: LngLat[][][]) =>
+  polygons.length === 1
+    ? { type: "Polygon", coordinates: polygons[0] }
+    : { type: "MultiPolygon", coordinates: polygons }
+
+function priorOf(properties: Row | null | undefined): PriorBoundary | null {
+  const before = properties?.agskan_boundary_before as Row | undefined
+  const polygons = polygonsOf(before?.boundary ?? null)
+  if (!polygons.length) return null
+  return {
+    polygons,
+    ha: Number(before?.area) || 0,
+    t: before?.at ? Date.parse(before.at) : 0,
+  }
+}
+
+/** The box a paddock's outline sits in: west, south, east, north. */
+export function bboxOf(polygons: LngLat[][][]): Paddock["bbox"] {
+  let w = Infinity
+  let s = Infinity
+  let e = -Infinity
+  let n = -Infinity
+  for (const polygon of polygons)
+    for (const [lng, lat] of polygon[0] ?? []) {
+      if (lng < w) w = lng
+      if (lng > e) e = lng
+      if (lat < s) s = lat
+      if (lat > n) n = lat
+    }
+  return [w, s, e, n]
 }
 
 export type FarmName = { id: string; name: string }
@@ -184,18 +226,8 @@ function paddockFromField(
 ): Paddock | null {
   const polygons = polygonsOf(field.boundary)
   if (!polygons.length) return null
-  let w = Infinity
-  let s = Infinity
-  let e = -Infinity
-  let n = -Infinity
-  for (const polygon of polygons)
-    for (const [lng, lat] of polygon[0] ?? []) {
-      if (lng < w) w = lng
-      if (lng > e) e = lng
-      if (lat < s) s = lat
-      if (lat > n) n = lat
-    }
-  if (!Number.isFinite(w)) return null
+  const bbox = bboxOf(polygons)
+  if (!Number.isFinite(bbox[0])) return null
   const colour =
     typeof field.color === "string" && /^#[0-9a-f]{3,8}$/i.test(field.color)
       ? field.color
@@ -213,8 +245,9 @@ function paddockFromField(
     variety: String(field.properties?.agskan_variety ?? ""),
     colour,
     polygons,
-    bbox: [w, s, e, n],
+    bbox,
     features: featuresOf(field.properties),
+    prior: priorOf(field.properties),
   }
 }
 
@@ -1880,61 +1913,127 @@ export function removePaddockFeature(paddockId: string, featureId: string) {
 
 const HA = 10_000
 
+/** Hectares inside an outline, measured from the outline itself. */
+export const outlineHa = (polygons: LngLat[][][]) =>
+  polygons.length
+    ? turfArea({ type: "MultiPolygon", coordinates: polygons } as never) / HA
+    : 0
+
+const asFeature = (polygons: LngLat[][][]) => ({
+  type: "Feature" as const,
+  properties: {},
+  geometry: { type: "MultiPolygon" as const, coordinates: polygons },
+})
+const ringFeature = (area: LngLat[]) => ({
+  type: "Feature" as const,
+  properties: {},
+  geometry: { type: "Polygon" as const, coordinates: [[...area, area[0]]] },
+})
+const polygonsFrom = (shape: Row | null): LngLat[][][] | null =>
+  !shape
+    ? null
+    : ((shape.geometry.type === "Polygon"
+        ? [shape.geometry.coordinates]
+        : shape.geometry.coordinates) as LngLat[][][])
+
 /**
- * Cut an area out of a paddock for good: its boundary gets a hole (or loses
- * a bite from its edge) and its hectares come down to match. Resolves with
- * the new shape, or null if the area doesn't touch the paddock.
+ * An outline with an area taken out of it: a hole where the area sits
+ * inside, a bite where it crosses the edge. Null when nothing comes off.
  */
-export async function cutPaddock(
-  paddock: Paddock,
+export function takeOut(
+  polygons: LngLat[][][],
   area: LngLat[],
-): Promise<{ polygons: LngLat[][][]; ha: number } | null> {
-  const before = {
-    type: "Feature" as const,
-    properties: {},
-    geometry: { type: "MultiPolygon" as const, coordinates: paddock.polygons },
-  }
-  const bite = {
-    type: "Feature" as const,
-    properties: {},
-    geometry: {
-      type: "Polygon" as const,
-      coordinates: [[...area, area[0]]],
-    },
-  }
-  const after = difference({
-    type: "FeatureCollection",
-    features: [before, bite],
-  } as never)
+): LngLat[][][] | null {
+  const after = polygonsFrom(
+    difference({
+      type: "FeatureCollection",
+      features: [asFeature(polygons), ringFeature(area)],
+    } as never) as Row | null,
+  )
   if (!after) return null
-  const polygons = (
-    after.geometry.type === "Polygon"
-      ? [after.geometry.coordinates]
-      : after.geometry.coordinates
-  ) as LngLat[][][]
+  if (!(outlineHa(polygons) - outlineHa(after) > 0.0001)) return null
+  // A cut across the edge can leave a scrap of a few square metres on the
+  // far side of it. Nobody means to keep those as pieces of the paddock.
+  if (after.length > polygons.length) {
+    const kept = after.filter(
+      (coordinates) =>
+        turfArea({ type: "Polygon", coordinates } as never) / HA >= 0.05,
+    )
+    if (kept.length) return kept
+  }
+  return after
+}
+
+/**
+ * An outline with an area added to it: joined on where they touch, a
+ * separate piece where they don't. Null when nothing is added.
+ */
+export function joinOn(
+  polygons: LngLat[][][],
+  area: LngLat[],
+): LngLat[][][] | null {
+  const after = polygonsFrom(
+    union({
+      type: "FeatureCollection",
+      features: [asFeature(polygons), ringFeature(area)],
+    } as never) as Row | null,
+  )
+  if (!after) return null
+  return outlineHa(after) - outlineHa(polygons) > 0.0001 ? after : null
+}
+
+/** Whether an outline crosses over itself anywhere. */
+export const crossesItself = (polygons: LngLat[][][]) =>
+  (kinks(asFeature(polygons) as never) as Row).features.length > 0
+
+/**
+ * The hectares a paddock should carry after its outline changes. The
+ * farm's own figure moves by what was gained or lost, rather than being
+ * replaced by a measurement of the outline; a paddock in several pieces is
+ * the sum of its pieces.
+ */
+export function haAfter(paddock: Paddock, polygons: LngLat[][][]) {
+  const measured = outlineHa(polygons)
+  if (polygons.length > 1 || !(paddock.ha > 0)) return measured
+  return Math.max(0, paddock.ha + measured - outlineHa(paddock.polygons))
+}
+
+/**
+ * Give a paddock a new boundary. The one it replaces is kept with the
+ * paddock, so the change can be put back (from any screen, later on).
+ */
+export async function saveBoundary(
+  paddock: Paddock,
+  polygons: LngLat[][][],
+  ha: number,
+): Promise<PriorBoundary> {
+  const { data, error } = await supabase
+    .from("fields")
+    .select("properties")
+    .eq("field_id", paddock.id)
+    .single()
+  if (error) throw new Error(error.message)
+  const at = new Date().toISOString()
   const parts = polygons.map(
     (coordinates) => turfArea({ type: "Polygon", coordinates } as never) / HA,
   )
-  const measured = parts.reduce((sum, part) => sum + part, 0)
-  // Nothing came off: the area was drawn outside the paddock.
-  const was = turfArea(before as never) / HA
-  const off = was - measured
-  if (!(off > 0.0001)) return null
-  // The farm's own figure for the paddock comes down by what was cut,
-  // rather than being replaced by a measurement of its outline.
-  const ha = polygons.length > 1 ? measured : Math.max(0, paddock.ha - off)
   const result = (await fileApi.updateField(paddock.id, {
-    boundary:
-      polygons.length === 1
-        ? { type: "Polygon", coordinates: polygons[0] }
-        : { type: "MultiPolygon", coordinates: polygons },
+    boundary: geometryOf(polygons),
     area: ha,
     polygonAreas:
       polygons.length > 1 ? { individual_areas: parts, total_area: ha } : null,
+    properties: {
+      ...(((data as Row | null)?.properties ?? {}) as Row),
+      agskan_boundary_before: {
+        boundary: geometryOf(paddock.polygons),
+        area: paddock.ha,
+        at,
+      },
+    },
   })) as Row
   if (result?.error || result?.success === false)
     throw new Error(result.message || result.error || "Couldn't save")
-  return { polygons, ha }
+  return { polygons: paddock.polygons, ha: paddock.ha, t: Date.parse(at) }
 }
 
 // ── Who is on the map: inviting and removing ────────────────────────────

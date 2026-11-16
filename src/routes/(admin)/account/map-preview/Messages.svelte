@@ -18,6 +18,7 @@
   } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import JobBlock from "./JobBlock.svelte"
+  import PlaceArt from "./PlaceArt.svelte"
   import type { CrewRow } from "./liveEngine"
   import type {
     Job,
@@ -218,7 +219,11 @@
             class="place"
             on:click={() => message.place && dispatch("show", message.place)}
           >
-            <MapPin size={17} />
+            <PlaceArt
+              type={message.place.refType}
+              id={message.place.refId}
+              size={24}
+            />
             <span>{message.place.label}</span>
             <b>Show</b>
           </button>
@@ -250,7 +255,11 @@
               choosing = false
             }}
           >
-            <MapPin size={17} />
+            <PlaceArt
+              type={option.place.refType}
+              id={option.place.refId}
+              size={24}
+            />
             {option.label}
           </button>
         {:else}
@@ -263,7 +272,11 @@
     {/if}
     {#if attached}
       <p class="mn-attached">
-        <MapPin size={16} />
+        <PlaceArt
+          type={attached.place.refType}
+          id={attached.place.refId}
+          size={22}
+        />
         <span>{attached.label}</span>
         <button
           type="button"

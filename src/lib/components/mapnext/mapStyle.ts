@@ -56,6 +56,8 @@ export const FEATURE_SOURCE = "mv-paddock-features"
 export const FEATURE_LAYERS = ["mv-feature-fill", "mv-feature-line"]
 /** The places, lines and areas of the job being put together or shown. */
 export const JOB_SOURCE = "mv-job"
+/** A paddock's boundary while it is being changed, with its handles. */
+export const EDIT_SOURCE = "mv-edit"
 /** The trail being followed: its whole path, drawn once. */
 export const GUIDE_SOURCE = "mv-guide"
 /** The stretch of it just ahead, the next turn, and the way back to it. */
@@ -496,6 +498,7 @@ export function buildStyle() {
       [LASSO_SOURCE]: { type: "geojson", data: empty },
       [JOB_SOURCE]: { type: "geojson", data: empty },
       [GUIDE_SOURCE]: { type: "geojson", data: empty },
+      [EDIT_SOURCE]: { type: "geojson", data: empty },
       [GUIDE_AHEAD_SOURCE]: { type: "geojson", data: empty },
       [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
     },
@@ -1147,6 +1150,84 @@ export function buildStyle() {
           "circle-radius": 6,
           "circle-color": ["coalesce", ["get", "color"], "#F7DB5C"],
           "circle-stroke-color": INK,
+          "circle-stroke-width": 2,
+        },
+      },
+      // Changing a paddock's boundary: the outline as it stands, a handle
+      // on every corner, a small dot between corners (drag it for a new
+      // corner), and the ground being tapped out to cut or to add.
+      {
+        id: "mv-edit-fill",
+        type: "fill",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "shape"],
+        paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.2 },
+      },
+      {
+        id: "mv-edit-case",
+        type: "line",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "shape"],
+        layout: { "line-join": "round" },
+        paint: { "line-color": INK, "line-opacity": 0.75, "line-width": 5.5 },
+      },
+      {
+        id: "mv-edit-line",
+        type: "line",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "shape"],
+        layout: { "line-join": "round" },
+        paint: { "line-color": "#F7DB5C", "line-width": 2.5 },
+      },
+      {
+        id: "mv-edit-new-fill",
+        type: "fill",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "newfill"],
+        paint: { "fill-color": ["get", "color"], "fill-opacity": 0.35 },
+      },
+      {
+        id: "mv-edit-new",
+        type: "line",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "new"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": ["get", "color"], "line-width": 3.5 },
+      },
+      {
+        id: "mv-edit-mid",
+        type: "circle",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "mid"],
+        paint: {
+          "circle-radius": 5,
+          "circle-color": "#ffffff",
+          "circle-opacity": 0.8,
+          "circle-stroke-color": INK,
+          "circle-stroke-width": 1.5,
+        },
+      },
+      {
+        id: "mv-edit-corner",
+        type: "circle",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "corner"],
+        paint: {
+          "circle-radius": ["case", ["get", "picked"], 10.5, 7.5],
+          "circle-color": ["case", ["get", "picked"], "#F7DB5C", "#ffffff"],
+          "circle-stroke-color": INK,
+          "circle-stroke-width": 2.5,
+        },
+      },
+      {
+        id: "mv-edit-new-point",
+        type: "circle",
+        source: EDIT_SOURCE,
+        filter: ["==", ["get", "kind"], "newpoint"],
+        paint: {
+          "circle-radius": 6.5,
+          "circle-color": ["get", "color"],
+          "circle-stroke-color": "#ffffff",
           "circle-stroke-width": 2,
         },
       },

@@ -37,6 +37,7 @@
   import CrewRows from "./CrewRows.svelte"
   import PinsTool from "./PinsTool.svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
+  import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
   import { formatHa } from "$lib/components/mapnext/format"
@@ -759,10 +760,11 @@
                 class:selected={pickedPaddock === paddock.id}
                 on:click={() => dispatch("lookPaddock", paddock.id)}
               >
-                <span
-                  class="swatch block"
-                  style="background: {paddock.colour ?? 'var(--lp-paper-2)'}"
-                ></span>
+                <ShapeArt
+                  polygons={paddock.polygons}
+                  colour={paddock.colour}
+                  size={34}
+                />
                 <span class="text">
                   <strong>{paddock.name}</strong>
                   {#if paddock.crop}<span>{paddock.crop}</span>{/if}

@@ -1988,3 +1988,55 @@
   line-height: 1.25;
   opacity: 0.8;
 }
+
+/* A paddock in a list, and in its own menu, is drawn as its own shape. */
+.mn-tool > .mn-shape {
+  margin: -2px 0;
+}
+.mn-drawn > li > .mn-shape {
+  flex: none;
+}
+/* Places named in a job or a message, each with its picture. */
+.mn-job .places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+}
+.mn-job .places .item,
+.mn-job-items > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mn-bubble .place > .mn-shape,
+.mn-bubble .place > .mn-pin-art,
+.mn-places button > .mn-shape,
+.mn-places button > .mn-pin-art {
+  flex: none;
+}
+/* Changing a boundary: the card's headline sits over the paddock's name. */
+.mn-boundary .about .lp-eyebrow {
+  margin: 0 0 2px;
+}
+.mn-boundary .mn-keep strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The demo run's speed, beside the guide's close button. */
+.mn-guide .rate {
+  flex: none;
+  min-width: 44px;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--lp-ink);
+  color: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.mn-boundary .mn-keep {
+  grid-template-columns: 1fr 1fr;
+}
