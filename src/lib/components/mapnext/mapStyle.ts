@@ -71,6 +71,8 @@ export const DRAWING_SOURCE = "mv-drawings"
  * were laid, the stretches outside it as a dashed line.
  */
 export const THROUGH_SOURCE = "mv-through"
+/** Everything but that paddock, to dim it. */
+export const THROUGH_MASK_SOURCE = "mv-through-mask"
 /** One drawing (on a pin or kept on a paddock) picked out. */
 export const PICKED_SHAPE_SOURCE = "mv-picked-shape"
 export const DRAWING_LAYERS = [
@@ -373,11 +375,7 @@ export function showThrough(
   look: BaseLook,
 ) {
   const normal = trailOpacity(look)
-  map.setPaintProperty(
-    "mv-history",
-    "line-opacity",
-    ids ? ["case", ["in", ["get", "id"], ["literal", ids]], 0, 0.1] : normal,
-  )
+  map.setPaintProperty("mv-history", "line-opacity", ids ? 0 : normal)
   for (const layer of ["mv-trails", "mv-my-trail"])
     map.setPaintProperty(layer, "line-opacity", ids ? 0.18 : normal)
 }
@@ -527,6 +525,7 @@ export function buildStyle() {
       [GUIDE_SOURCE]: { type: "geojson", data: empty },
       [EDIT_SOURCE]: { type: "geojson", data: empty },
       [THROUGH_SOURCE]: { type: "geojson", data: empty },
+      [THROUGH_MASK_SOURCE]: { type: "geojson", data: empty },
       [PICKED_SHAPE_SOURCE]: { type: "geojson", data: empty },
       [GUIDE_AHEAD_SOURCE]: { type: "geojson", data: empty },
       [PICKED_ARROW_SOURCE]: { type: "geojson", data: empty },
@@ -828,6 +827,14 @@ export function buildStyle() {
       pauseLayer("mv-history-pause", HISTORY_SOURCE),
       trailLayer("mv-trails", TRAIL_SOURCE),
       trailLayer("mv-my-trail", MY_TRAIL_SOURCE),
+      // While one paddock's trails are all on show, the rest of the map
+      // is dimmed so the paddock stands out.
+      {
+        id: "mv-through-mask",
+        type: "fill",
+        source: THROUGH_MASK_SOURCE,
+        paint: { "fill-color": "#0a140e", "fill-opacity": 0.58 },
+      },
       // All the trails through one paddock: inside it they are drawn as
       // laid; outside it each carries on as a dashed line, the way the
       // record page shows a full GPS trail.
@@ -837,7 +844,7 @@ export function buildStyle() {
         paint: {
           "line-color": ["get", "color"],
           "line-width": trailWidth,
-          "line-opacity": 0.62,
+          "line-opacity": 0.78,
         },
       },
       {

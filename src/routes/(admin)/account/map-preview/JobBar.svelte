@@ -1,18 +1,19 @@
 <script lang="ts">
   /**
-   * Across the top of the map while a job is being put together: what a tap
-   * on the map does right now (and to which step), and the other things a
-   * step can point at, a button each: a line to follow, an area, where you
-   * are, where someone on the crew is.
+   * Across the top of the map while a job is being put together: one line
+   * saying what a tap on the map does right now (and to which step), and
+   * one button that opens the other things a step can point at: a line to
+   * follow, an area, where you are, where someone on the crew is.
    */
   import { createEventDispatcher } from "svelte"
   import {
+    ChevronDown,
     LocateFixed,
     Pentagon,
+    Plus,
     Pointer,
     Spline,
     Users,
-    X,
   } from "lucide-svelte"
 
   /** The step being added to (from 1), and how many there are. */
@@ -31,63 +32,69 @@
     me: void
     crew: string
   }>()
-  let choosing = false
+  let open = false
+  function pick(what: "line" | "area" | "me") {
+    open = false
+    dispatch(what)
+  }
 </script>
 
-<div class="mn-jobbar">
+<svelte:window
+  on:keydown={(e) => e.key === "Escape" && (open = false)}
+  on:click={() => (open = false)}
+/>
+
+<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+<div class="mn-jobbar" on:click|stopPropagation>
+  <span class="tap"><Pointer size={18} /></span>
   <p>
-    <span class="tap"><Pointer size={20} /></span>
-    <span>
-      <b>Tap a paddock or a pin</b>
-      to add it{steps > 1 ? ` to step ${step}` : " to the job"}.
-      <small
-        >{count
-          ? `${count} added. Tap one again to take it off.`
-          : "Tap it again to take it off."}</small
-      >
-    </span>
+    <b>Tap a paddock or a pin</b>
+    to add it{steps > 1 ? ` to step ${step}` : ""}{count
+      ? ` · ${count} added`
+      : ""}
   </p>
-  {#if choosing}
-    <div class="adds">
-      <span>Whose spot?</span>
-      {#each crew as person (person.id)}
-        <button
-          type="button"
-          on:click={() => {
-            choosing = false
-            dispatch("crew", person.id)
-          }}
-        >
-          {person.name}
-        </button>
-      {/each}
-      <button
-        type="button"
-        class="quiet"
-        aria-label="Back"
-        on:click={() => (choosing = false)}
-      >
-        <X size={16} />
+  <button
+    type="button"
+    class="other"
+    aria-haspopup="menu"
+    aria-expanded={open}
+    on:click={() => (open = !open)}
+  >
+    <Plus size={16} strokeWidth={3} /> Other <ChevronDown size={15} />
+  </button>
+  {#if open}
+    <div class="menu" role="menu">
+      <button type="button" role="menuitem" on:click={() => pick("line")}>
+        <Spline size={18} /> A line to follow
       </button>
-    </div>
-  {:else}
-    <div class="adds">
-      <span>Or add</span>
-      <button type="button" on:click={() => dispatch("line")}>
-        <Spline size={16} /> A line to follow
-      </button>
-      <button type="button" on:click={() => dispatch("area")}>
-        <Pentagon size={16} /> An area
+      <button type="button" role="menuitem" on:click={() => pick("area")}>
+        <Pentagon size={18} /> An area
       </button>
       {#if hasFix}
-        <button type="button" on:click={() => dispatch("me")}>
-          <LocateFixed size={16} /> Where I am
+        <button type="button" role="menuitem" on:click={() => pick("me")}>
+          <LocateFixed size={18} /> Where I am
         </button>
       {/if}
       {#if crew.length}
-        <button type="button" on:click={() => (choosing = true)}>
-          <Users size={16} /> Where someone is
-        </button>
+        <label>
+          <Users size={18} /> Where someone is
+          <ChevronDown size={15} />
+          <select
+            aria-label="Whose spot to add"
+            value=""
+            on:change={(e) => {
+              const id = e.currentTarget.value
+              e.currentTarget.value = ""
+              open = false
+              if (id) dispatch("crew", id)
+            }}
+          >
+            <option value="" disabled>Whose spot?</option>
+            {#each crew as person (person.id)}
+              <option value={person.id}>{person.name}</option>
+            {/each}
+          </select>
+        </label>
       {/if}
     </div>
   {/if}
@@ -95,11 +102,13 @@
 
 <style>
   .mn-jobbar {
-    display: grid;
-    gap: 8px;
-    max-width: min(36rem, calc(100vw - 2 * var(--mn-gap, 12px)));
-    padding: 10px 12px;
-    border-radius: 18px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(34rem, calc(100vw - 2 * var(--mn-gap, 12px)));
+    padding: 7px 8px 7px 9px;
+    border-radius: 99px;
     background: #15261c;
     box-shadow:
       0 0 0 2px #f7db5c,
@@ -107,28 +116,22 @@
     color: #f4f1e6;
   }
   p {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.98rem;
-    line-height: 1.3;
+    flex: 1;
+    min-width: 0;
+    font-size: 0.92rem;
+    line-height: 1.25;
   }
   p b {
     font-weight: 800;
     color: #f7db5c;
-  }
-  p small {
-    display: block;
-    font-size: 0.78rem;
-    color: rgba(244, 241, 230, 0.7);
   }
   .tap {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 38px;
-    height: 38px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     background: #f7db5c;
     color: #15261c;
@@ -140,42 +143,72 @@
       box-shadow: 0 0 0 0 rgba(247, 219, 92, 0.6);
     }
     50% {
-      box-shadow: 0 0 0 9px rgba(247, 219, 92, 0);
+      box-shadow: 0 0 0 8px rgba(247, 219, 92, 0);
       transform: scale(0.92);
     }
   }
-  .adds {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-  }
-  .adds > span {
-    font-family: var(--lp-mono);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: rgba(244, 241, 230, 0.6);
-    text-transform: uppercase;
-  }
-  .adds button {
+  .other {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     min-height: 38px;
-    padding: 0 12px;
-    border: 1.5px solid rgba(244, 241, 230, 0.35);
+    padding: 0 11px;
+    border: 1.5px solid rgba(244, 241, 230, 0.4);
     border-radius: 99px;
     font-size: 0.86rem;
     font-weight: 700;
     color: #f4f1e6;
   }
-  .adds button:hover {
+  .other[aria-expanded="true"],
+  .other:hover {
     border-color: #f7db5c;
     color: #f7db5c;
   }
-  .adds .quiet {
-    padding: 0 10px;
+  .menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 2;
+    display: grid;
+    min-width: 230px;
+    padding: 6px;
+    border-radius: 16px;
+    background: #15261c;
+    box-shadow:
+      0 0 0 1.5px rgba(244, 241, 230, 0.25),
+      0 18px 34px -12px rgba(0, 0, 0, 0.75);
+  }
+  .menu button,
+  .menu label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 12px;
+    border-radius: 11px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #f4f1e6;
+    text-align: left;
+    cursor: pointer;
+  }
+  .menu label :global(svg:last-of-type) {
+    margin-left: auto;
+  }
+  .menu button:hover,
+  .menu label:hover {
+    background: rgba(244, 241, 230, 0.1);
+  }
+  .menu select {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    font-size: 1rem;
+    opacity: 0;
+    cursor: pointer;
   }
   @media (prefers-reduced-motion: reduce) {
     .tap {

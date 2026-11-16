@@ -18,10 +18,11 @@
    * job is a numbered list of steps, each with the places it points at.
    * One step is being added to at a time (the bar across the top of the map
    * says which, and offers the other things a step can point at). Who it is
-   * for and the Post button stay in view at the bottom.
+   * for is one line with the crew in a list behind it, and the Post button
+   * stays in view at the bottom.
    */
   import { createEventDispatcher } from "svelte"
-  import { ClipboardList, MapPin, Plus, X } from "lucide-svelte"
+  import { ChevronDown, ClipboardList, MapPin, Plus, X } from "lucide-svelte"
   import JobThumb from "./JobThumb.svelte"
   import PlaceArt from "./PlaceArt.svelte"
   import type { Paddock, PinDrawing } from "./liveData"
@@ -185,28 +186,26 @@
     {/if}
   </ol>
 
-  <!-- ── Who it is for ── -->
-  <div class="for">
-    <p class="lp-eyebrow">For</p>
-    <div class="mn-chips" role="group" aria-label="Who the job is for">
-      <button
-        type="button"
-        aria-pressed={draft.to === null}
-        on:click={() => (draft = { ...draft, to: null })}
-      >
-        Anyone on the crew
-      </button>
+  <!-- ── Who it is for: one line, the crew in a list behind it ── -->
+  <label class="mn-drop">
+    <span class="lp-eyebrow">For</span>
+    <strong>
+      {crew.find((person) => person.id === draft.to)?.name ??
+        "Anyone on the crew"}
+    </strong>
+    <ChevronDown size={18} />
+    <select
+      aria-label="Who the job is for"
+      value={draft.to ?? ""}
+      on:change={(e) =>
+        (draft = { ...draft, to: e.currentTarget.value || null })}
+    >
+      <option value="">Anyone on the crew</option>
       {#each crew as person (person.id)}
-        <button
-          type="button"
-          aria-pressed={draft.to === person.id}
-          on:click={() => (draft = { ...draft, to: person.id })}
-        >
-          {person.name}
-        </button>
+        <option value={person.id}>{person.name}</option>
       {/each}
-    </div>
-  </div>
+    </select>
+  </label>
 
   <div class="mn-card-actions">
     <button
@@ -382,9 +381,5 @@
     margin: 0;
     border: 1.5px dashed var(--lp-ink-soft);
     background: none;
-  }
-  .for {
-    display: grid;
-    gap: 6px;
   }
 </style>

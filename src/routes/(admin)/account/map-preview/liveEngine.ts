@@ -36,6 +36,7 @@ import {
   GUIDE_AHEAD_SOURCE,
   EDIT_SOURCE,
   THROUGH_SOURCE,
+  THROUGH_MASK_SOURCE,
   PICKED_SHAPE_SOURCE,
   showThrough,
   LASSO_SOURCE,
@@ -118,6 +119,7 @@ import {
   patchPaddock,
   deletePaddock,
   loadFarmNames,
+  createFarm,
   type FarmName,
   type PaddockPatch,
   flashLabel,
@@ -344,6 +346,22 @@ export type BoundarySaved = {
   made: Paddock[]
   /** Paddocks that were joined on, and so are gone. */
   gone: Paddock[]
+}
+
+/** What every trail through one paddock adds up to, inside its fence. */
+export type ThroughStats = {
+  trails: number
+  /** Kilometres driven inside the paddock. */
+  km: number
+  /** Hectares of it that a trail has been over (overlaps counted once). */
+  ha: number
+  /** The paddock's own hectares. */
+  of: number
+  /** Who drove them. */
+  drivers: string[]
+  /** First and last, ms. */
+  from: number
+  to: number
 }
 
 /** A drawing picked out: one on a pin, or one kept on a paddock. */
@@ -760,6 +778,8 @@ export class LiveEngine {
   readonly pickedDrawing: Writable<PickedShape | null> = writable(null)
   /** The paddock whose trails are all being shown at once, if one is. */
   readonly through: Writable<string | null> = writable(null)
+  /** What those trails add up to inside it. */
+  readonly throughStats: Writable<ThroughStats | null> = writable(null)
   private throughIds: string[] = []
   /**
    * A pin being placed by hand before it exists (the one dropped with a
@@ -2946,16 +2966,58 @@ export class LiveEngine {
       ? this.paddocks.find((p) => p.id === paddockId)
       : null
     const source = this.map.getSource(THROUGH_SOURCE)
+    const mask = this.map.getSource(THROUGH_MASK_SOURCE)
     if (!paddock) {
       if (!get(this.through)) return
       this.through.set(null)
+      this.throughStats.set(null)
       this.throughIds = []
       source?.setData(collection([]))
+      mask?.setData(collection([]))
       this.paintPicked()
       return
     }
     if (get(this.selectedTrail)) this.pickTrail(null)
-    const ids = new Set(this.trailsIn(paddock).map((trail) => trail.id))
+    const through = this.trailsIn(paddock)
+    const ids = new Set(through.map((trail) => trail.id))
+    // What is inside the fence is measured as it is cut: metres driven,
+    // and the ground covered, on a grid of cells a few metres across so
+    // that two passes over the same ground count once.
+    const flat = projector([paddock.bbox[0], paddock.bbox[1]])
+    const far = flat.toXY([paddock.bbox[2], paddock.bbox[3]])
+    const cell = clamp(Math.sqrt((far[0] * far[1]) / 60000), 3, 14)
+    const cols = Math.max(1, Math.ceil(far[0] / cell))
+    const rows = Math.max(1, Math.ceil(far[1] / cell))
+    const grid = new Uint8Array(cols * rows)
+    let metres = 0
+    const cover = (run: LngLat[], width: number) => {
+      const reach = Math.max(0, Math.round(width / 2 / cell - 0.25))
+      const stamp = (x: number, y: number) => {
+        const cx = Math.floor(x / cell)
+        const cy = Math.floor(y / cell)
+        for (let dy = -reach; dy <= reach; dy++)
+          for (let dx = -reach; dx <= reach; dx++) {
+            if (dx * dx + dy * dy > reach * reach + reach) continue
+            const gx = cx + dx
+            const gy = cy + dy
+            if (gx >= 0 && gy >= 0 && gx < cols && gy < rows)
+              grid[gy * cols + gx] = 1
+          }
+      }
+      let before = flat.toXY(run[0])
+      for (let i = 1; i < run.length; i++) {
+        const now = flat.toXY(run[i])
+        const length = Math.hypot(now[0] - before[0], now[1] - before[1])
+        metres += length
+        const steps = Math.max(1, Math.ceil(length / (cell * 0.7)))
+        for (let step = 0; step <= steps; step++)
+          stamp(
+            before[0] + ((now[0] - before[0]) * step) / steps,
+            before[1] + ((now[1] - before[1]) * step) / steps,
+          )
+        before = now
+      }
+    }
     const [w, s, e, n] = paddock.bbox
     const inside = (at: LngLat) =>
       at[0] >= w &&
@@ -2977,12 +3039,14 @@ export class LiveEngine {
         let run: LngLat[] = []
         let within = false
         const end = () => {
-          if (run.length > 1)
-            features.push({
-              type: "Feature",
-              properties: { ...properties, part: within ? "in" : "out" },
-              geometry: { type: "LineString", coordinates: run },
-            })
+          if (run.length < 2) return
+          features.push({
+            type: "Feature",
+            properties: { ...properties, part: within ? "in" : "out" },
+            geometry: { type: "LineString", coordinates: run },
+          })
+          if (within)
+            cover(run, Number((properties as { width?: number }).width) || 0)
         }
         part.forEach((at, i) => {
           const here = inside(at)
@@ -3000,6 +3064,55 @@ export class LiveEngine {
     }
     this.throughIds = [...ids]
     source?.setData(collection(features))
+    // Everything but the paddock dims.
+    mask?.setData(
+      collection([
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [-180, -85],
+                [180, -85],
+                [180, 85],
+                [-180, 85],
+                [-180, -85],
+              ],
+              ...paddock.polygons.map((polygon) => polygon[0]),
+            ],
+          },
+        },
+      ]),
+    )
+    // The cells a trail went over that are really inside the fence.
+    const rings = paddock.polygons.map((polygon) =>
+      polygon.map((ring) => ring.map((at) => flat.toXY(at))),
+    )
+    let covered = 0
+    for (let gy = 0; gy < rows; gy++)
+      for (let gx = 0; gx < cols; gx++) {
+        if (!grid[gy * cols + gx]) continue
+        const at: [number, number] = [(gx + 0.5) * cell, (gy + 0.5) * cell]
+        if (rings.some((polygon) => pointInPolygon(at, polygon))) covered++
+      }
+    const whole = paddock.ha > 0 ? paddock.ha : outlineHa(paddock.polygons)
+    this.throughStats.set({
+      trails: through.length,
+      km: metres / 1000,
+      ha: Math.min(whole, (covered * cell * cell) / 10000),
+      of: whole,
+      drivers: [
+        ...new Set(
+          through
+            .map((trail) => (trail.operator ?? "").trim().split(/\s+/)[0])
+            .filter(Boolean),
+        ),
+      ],
+      from: Math.min(...through.map((trail) => trail.start)),
+      to: Math.max(...through.map((trail) => trail.end ?? trail.start)),
+    })
     this.through.set(paddock.id)
     this.paintPicked()
   }
@@ -3124,7 +3237,7 @@ export class LiveEngine {
     const vehicle = this.mountVehicle(
       spec.type,
       drawColour(info.colour),
-      "Replay",
+      (info.operator ?? "").trim().split(/\s+/)[0] || "Replay",
       points[0].at,
       false,
     )
@@ -4560,20 +4673,48 @@ export class LiveEngine {
     return saved
   }
 
+  /** Add a farm (a block of paddocks) to this map. */
+  async addFarm(name: string) {
+    const wanted = name.trim().slice(0, 60)
+    if (!wanted) return null
+    try {
+      const farm = await createFarm(this.mapId, wanted)
+      this.farmNames.update((farms) =>
+        [...farms, farm].sort((a, b) => a.name.localeCompare(b.name)),
+      )
+      return farm
+    } catch (error) {
+      this.problem.set(
+        error instanceof Error && /exist|duplicate/i.test(error.message)
+          ? `There is already a farm called ${wanted}.`
+          : "That farm couldn't be added. Try again.",
+      )
+      return null
+    }
+  }
+
   /** Make what has been drawn (an area) into a new paddock. */
-  keepAsPaddock(name: string) {
+  keepAsPaddock(name: string, farmId: string | null = null) {
     const drawn = this.drawn()
     if (!drawn || drawn.state.kind !== "polygon") return Promise.resolve(false)
     return this.keep(async () => {
-      // On a map with one farm the paddock joins it; with several it is
-      // left for the owner to file.
+      // It goes in the farm it was started from; failing that, on a map
+      // with one farm it joins it, and with several it is left to be filed.
       const farms = get(this.farmNames)
-      const paddock = await createPaddock(
+      const farm =
+        farms.find((f) => f.id === farmId) ??
+        (farms.length === 1 ? farms[0] : null)
+      const made = await createPaddock(
         this.mapId,
         name.trim().slice(0, 60) || "New paddock",
         drawn.points,
-        farms.length === 1 ? farms[0].id : null,
+        farm?.id ?? null,
       )
+      const paddock = {
+        ...made,
+        farmId: farm?.id ?? made.farmId,
+        farm: farms.length > 1 ? (farm?.name ?? null) : null,
+      }
       this.paddocks = [...this.paddocks, paddock]
       this.paddockList.set(this.paddocks)
       this.farm.set({

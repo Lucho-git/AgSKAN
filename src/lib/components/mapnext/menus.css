@@ -2163,3 +2163,202 @@
 .mn-drawn li.picked .pick {
   color: #15261c;
 }
+
+/* ── Sixth pass ─────────────────────────────────────────────────────────── */
+/* A paddock's trails: one row, however many there are. */
+.mn-ptrails {
+  display: grid;
+  gap: 7px;
+}
+.mn-ptrails .row {
+  display: flex;
+  gap: 6px;
+}
+.mn-ptrails .all,
+.mn-ptrails .one {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-ptrails .all {
+  flex: 1;
+  min-width: 0;
+}
+.mn-ptrails .all[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+/* A dropdown that looks like the button beside it. */
+.mn-ptrails .one,
+.mn-drop {
+  position: relative;
+  cursor: pointer;
+}
+.mn-ptrails .one select,
+.mn-drop select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 1rem;
+  opacity: 0;
+  cursor: pointer;
+}
+.mn-drop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 12px 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+}
+.mn-drop .lp-eyebrow {
+  flex-shrink: 0;
+}
+.mn-drop strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-drop:focus-within {
+  border-color: var(--lp-ink);
+}
+/* Figures side by side: the number big, what it is small under it. */
+.mn-stats {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-paper);
+}
+.mn-stats > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.mn-stats > div + div {
+  border-left: 1.5px solid var(--lp-line);
+}
+.mn-stats strong {
+  font-family: var(--lp-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.mn-stats span {
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two sides of one section: a pair of tabs where its heading was. */
+.mn-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+}
+.mn-tabs button {
+  min-height: 32px;
+  padding: 0 13px;
+  border-radius: 99px;
+  font-family: var(--lp-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mn-tabs button[aria-selected="true"] {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+/* A farm in the paddock list: its heading folds its paddocks away. */
+.mn-farm-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mn-farm-head .fold {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px 0 10px;
+  border-radius: 12px;
+  background: var(--lp-paper-2);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-farm-head .fold svg {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.mn-farm-head .fold[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+.mn-farm-head .fold strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-farm-head .fold span {
+  flex-shrink: 0;
+  font-family: var(--lp-mono);
+  font-size: 0.74rem;
+  color: var(--lp-ink-soft);
+}
+.mn-farm-head .mn-icon-button {
+  color: var(--lp-ink);
+}
+.mn-newfarm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mn-newfarm input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-ink);
+  border-radius: 12px;
+  background: var(--lp-card);
+  font-size: 1rem;
+  color: var(--lp-ink);
+}
+.mn-newfarm .lp-btn {
+  min-height: 46px;
+  padding-inline: 16px;
+}

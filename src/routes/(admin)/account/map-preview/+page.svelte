@@ -74,6 +74,7 @@
     type Guide,
     type BoundaryEdit,
     type PickedShape,
+    type ThroughStats,
     type ToolView,
   } from "./liveEngine"
   import {
@@ -321,6 +322,12 @@
   let pickedDrawing: PickedShape | null = null
   /** The paddock whose trails are all on show at once. */
   let through: string | null = null
+  let throughStats: ThroughStats | null = null
+  /**
+   * A new paddock is being drawn: the farm it is for ("" for none in
+   * particular). `null` when the draw tool is being used for anything else.
+   */
+  let paddockFor: string | null = null
 
   // ── Jobs ──
   let board: JobBoard | null = null
@@ -475,6 +482,7 @@
       created.pickedFeature.subscribe((v) => (pickedFeature = v)),
       created.pickedDrawing.subscribe((v) => (pickedDrawing = v)),
       created.through.subscribe((v) => (through = v)),
+      created.throughStats.subscribe((v) => (throughStats = v)),
       created.grabbed.subscribe((item) => {
         if (!item || !jobDraft) return
         // Tapping something already on the step takes it off again.
@@ -1276,6 +1284,7 @@
     keepStep = false
     cutAsk = false
     keepLabel = ""
+    paddockFor = null
   }
   $: canKeep =
     !!measure &&
@@ -1297,7 +1306,7 @@
   }
   async function keepAsPaddock() {
     const name = keepLabel.trim()
-    if (await engine?.keepAsPaddock(name))
+    if (await engine?.keepAsPaddock(name, paddockFor || null))
       say(`${name || "New paddock"} is now a paddock`)
   }
   const PIN_COLOURS = [
@@ -1612,17 +1621,29 @@
   }
 
   function trailFacts(trail: TrailInfo) {
-    const facts = [`${trail.width} m wide`]
-    if (trail.ha !== null) facts.push(`${formatHa(trail.ha)} ha`)
+    const facts: { value: string; label: string }[] = []
+    if (trail.ha !== null)
+      facts.push({ value: `${formatHa(trail.ha)} ha`, label: "covered" })
     if (trail.distance)
-      facts.push(
-        trail.distance >= 1000
-          ? `${(trail.distance / 1000).toFixed(1)} km`
-          : `${Math.round(trail.distance)} m`,
-      )
-    if (trail.end) facts.push(duration(trail.end - trail.start))
-    if (trail.overlap !== null && trail.overlap !== undefined)
-      facts.push(`${Math.round(trail.overlap)}% overlap`)
+      facts.push({
+        value:
+          trail.distance >= 1000
+            ? `${(trail.distance / 1000).toFixed(1)} km`
+            : `${Math.round(trail.distance)} m`,
+        label: "driven",
+      })
+    if (trail.end)
+      facts.push({
+        value: duration(trail.end - trail.start),
+        label: "start to finish",
+      })
+    facts.push({
+      value: `${trail.width} m`,
+      label:
+        trail.overlap !== null && trail.overlap !== undefined
+          ? `wide · ${Math.round(trail.overlap)}% overlap`
+          : "wide",
+    })
     return facts
   }
   // The trails the arrows step through: all of the job's, or just the
@@ -2659,7 +2680,14 @@
             </div>
           {:else}
             <div class="mn-keep">
-              {#if measure.paddock || drawOnPaddock}
+              {#if paddockFor !== null && (line || measure.overPaddock)}
+                <p class="mn-note">
+                  {line
+                    ? "A paddock is an area. Go back and switch to Area."
+                    : "Some of this is already in a paddock. Go back and draw it clear of the others."}
+                </p>
+              {/if}
+              {#if paddockFor === null && (measure.paddock || drawOnPaddock)}
                 <button
                   type="button"
                   disabled={!measure.paddock || measure.keeping}
@@ -2677,17 +2705,19 @@
                   </span>
                 </button>
               {/if}
-              <button
-                type="button"
-                disabled={measure.keeping}
-                on:click={keepAsPin}
-              >
-                <strong>Drop a pin with it</strong>
-                <span>
-                  You drag the pin into place and choose its kind and colour.
-                  Shows in the current viewer too.
-                </span>
-              </button>
+              {#if paddockFor === null}
+                <button
+                  type="button"
+                  disabled={measure.keeping}
+                  on:click={keepAsPin}
+                >
+                  <strong>Drop a pin with it</strong>
+                  <span>
+                    You drag the pin into place and choose its kind and colour.
+                    Shows in the current viewer too.
+                  </span>
+                </button>
+              {/if}
               <!-- Ground that is already a paddock can't become another
                    one; and drawing begun from a paddock's menu is only ever
                    kept on it (its boundary has its own editor). -->
@@ -2697,13 +2727,17 @@
                   disabled={measure.keeping}
                   on:click={keepAsPaddock}
                 >
-                  <strong>Make it a paddock</strong>
+                  <strong>
+                    {paddockFor
+                      ? `Make it a paddock in ${farmNames.find((f) => f.id === paddockFor)?.name ?? "this farm"}`
+                      : "Make it a paddock"}
+                  </strong>
                   <span>
                     A new paddock with this as its boundary, named as above.
                   </span>
                 </button>
               {/if}
-              {#if !line && measure.paddock && !drawOnPaddock}
+              {#if !line && measure.paddock && !drawOnPaddock && paddockFor === null}
                 <button
                   type="button"
                   disabled={measure.keeping}
@@ -2953,6 +2987,7 @@
           operation={operation?.name ?? ""}
           {pickedFeature}
           allTrails={through === selectedPaddock.id}
+          stats={through === selectedPaddock.id ? throughStats : null}
           on:allTrails={(e) =>
             engine?.showThrough(
               e.detail ? (selectedPaddock?.id ?? null) : null,
@@ -3103,6 +3138,22 @@
         }}
         on:lookPaddock={(e) => {
           if (engine?.pickPaddockById(e.detail) && !wide) closePanel()
+        }}
+        farmList={farmNames}
+        mapId={mapId ?? ""}
+        on:newPaddock={(e) => {
+          startMeasuring()
+          engine?.setMeasureKind("polygon")
+          paddockFor = e.detail ?? ""
+        }}
+        on:newFarm={async (e) => {
+          const made = await engine?.addFarm(e.detail)
+          if (made)
+            say(`${made.name} added. Tap + beside it to draw a paddock.`)
+        }}
+        on:lookPlace={(e) => {
+          engine?.showPlace({ at: e.detail })
+          if (!wide) closePanel()
         }}
         on:base={(e) => setBase(e.detail)}
         on:layer={(e) => setLayer(e.detail.key, e.detail.on)}

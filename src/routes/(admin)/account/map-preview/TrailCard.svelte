@@ -1,10 +1,12 @@
 <script lang="ts">
   /**
-   * A trail, picked out. Who drove it and when sit in one quiet line; under
-   * that is a strip of every trail it can be stepped through (the job's, or
-   * just those through one paddock), in the order they were driven, a block
-   * each, as wide as the trail was long, grouped by day. Then the replay,
-   * and one row of buttons for everything else.
+   * A trail, picked out. The head says it is a trail (in its own colour),
+   * who drove it and when, and which one of the set it is. Under that its
+   * figures sit side by side, then a strip of every trail it can be stepped
+   * through (the job's, or just those through one paddock): a block each in
+   * the order they were driven, grouped by day, squeezed to fit the card
+   * however many there are, with the step buttons fixed at either end.
+   * Then the replay, and one row of buttons for everything else.
    */
   import { createEventDispatcher, tick } from "svelte"
   import {
@@ -29,8 +31,8 @@
   export let list: TrailInfo[] = []
   /** The paddock they all go through, when it is only those. */
   export let scope = ""
-  /** Width, hectares, distance, how long: short figures. */
-  export let facts: string[] = []
+  /** Its figures: hectares, distance, how long, how wide. */
+  export let facts: { value: string; label: string }[] = []
   /** Who drove it, and what. */
   export let who = ""
   export let replay: ReplayState | null = null
@@ -63,21 +65,42 @@
       day: "numeric",
       month: "short",
     })
-  const shortDay = (t: number) =>
-    new Date(t).toLocaleDateString(undefined, {
-      day: "numeric",
-      month: "short",
-    })
-
-  let asking = false
-  let last = trail.id
-  let strip: HTMLDivElement | null = null
-  $: if (trail.id !== last) {
-    last = trail.id
-    asking = false
+  // The day of the month first, so a squeezed label still says which day.
+  const shortDay = (t: number) => {
+    const date = new Date(t)
+    return `${date.getDate()} ${date.toLocaleDateString(undefined, { month: "short" })}`
   }
 
-  // The strip: oldest on the left, a block per trail, a label per day.
+  // Deleting asks for a second tap, as a pin's menu does.
+  let armed = false
+  let armedTimer: ReturnType<typeof setTimeout>
+  let last = trail.id
+  $: if (trail.id !== last) {
+    last = trail.id
+    armed = false
+  }
+  function remove() {
+    if (!armed) {
+      armed = true
+      clearTimeout(armedTimer)
+      armedTimer = setTimeout(() => (armed = false), 2500)
+      return
+    }
+    armed = false
+    dispatch("remove")
+  }
+
+  /** Ink or white, whichever reads on the trail's colour. */
+  function onColour(hex: string) {
+    const n = parseInt(hex.replace("#", "").slice(0, 6), 16)
+    if (Number.isNaN(n)) return "#15261c"
+    const bright =
+      (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+    return bright > 0.6 ? "#15261c" : "#ffffff"
+  }
+  $: colour = drawColour(trail.colour)
+
+  // ── The strip: oldest on the left, a block per trail, a label per day ──
   $: ordered = [...list].sort((a, b) => a.start - b.start)
   $: longest = Math.max(1, ...ordered.map((t) => (t.end ?? t.start) - t.start))
   $: days = ordered.reduce<{ label: string; trails: TrailInfo[] }[]>(
@@ -91,21 +114,46 @@
     [],
   )
   $: index = ordered.findIndex((t) => t.id === trail.id)
-  const blockWidth = (t: TrailInfo, most: number) =>
-    Math.round(12 + 44 * Math.sqrt(((t.end ?? t.start) - t.start) / most))
 
-  // The picked block is kept in view as the trails are stepped through.
-  $: if (strip && trail.id)
-    tick().then(() =>
-      strip
-        ?.querySelector<HTMLElement>("[aria-pressed='true']")
-        ?.scrollIntoView({ block: "nearest", inline: "center" }),
-    )
+  // Each block is as wide as its trail was long, then the lot is squeezed
+  // to fit the room there is: many trails make thin blocks, not a wide card.
+  let room = 0
+  const GAP = 2
+  const BETWEEN = 13
+  const natural = (t: TrailInfo, most: number) =>
+    12 + 40 * Math.sqrt(((t.end ?? t.start) - t.start) / most)
+  $: wanted = ordered.reduce((sum, t) => sum + natural(t, longest), 0)
+  $: spare =
+    room -
+    16 -
+    Math.max(0, days.length - 1) * BETWEEN -
+    Math.max(0, ordered.length - days.length) * GAP
+  $: squeeze = room && wanted > spare ? Math.max(0.05, spare / wanted) : 1
+  $: widthOf = (t: TrailInfo) =>
+    Math.max(4, Math.floor(natural(t, longest) * squeeze))
+
+  // Should even the thinnest blocks not fit, the strip scrolls inside
+  // itself; the picked block is kept in view.
+  let strip: HTMLDivElement | null = null
+  // (The element is scrolled through a local name: in Svelte 4, setting a
+  // property on `strip` itself would count as changing it and run this
+  // again, for ever.)
+  function centre(el: HTMLDivElement) {
+    const picked = el.querySelector<HTMLElement>("[aria-pressed='true']")
+    if (picked && el.scrollWidth > el.clientWidth + 1)
+      el.scrollLeft = picked.offsetLeft - el.clientWidth / 2
+  }
+  $: if (strip && trail.id && squeeze) {
+    const el = strip
+    tick().then(() => centre(el))
+  }
 </script>
 
 <div class="mn-card mn-menu mn-trail">
   <div class="head">
-    <span class="dot" style="background: {drawColour(trail.colour)}"></span>
+    <span class="mark" style="background: {colour}; color: {onColour(colour)}">
+      <Route size={24} />
+    </span>
     <div class="about">
       <h2>{who || "Trail"}</h2>
       <p>
@@ -114,6 +162,11 @@
           : ""}
       </p>
     </div>
+    {#if ordered.length > 1}
+      <span class="count" title="Which trail of the set this is">
+        <b>{index + 1}</b> of {ordered.length}
+      </span>
+    {/if}
     <button
       type="button"
       class="mn-icon-button"
@@ -125,17 +178,19 @@
   </div>
 
   {#if facts.length}
-    <div class="figures">
-      {#each facts as fact}<span>{fact}</span>{/each}
+    <div class="mn-stats">
+      {#each facts as fact}
+        <div>
+          <strong>{fact.value}</strong>
+          <span>{fact.label}</span>
+        </div>
+      {/each}
     </div>
   {/if}
 
   {#if ordered.length > 1}
     <!-- ── Where it sits among the others ── -->
     <div class="among">
-      <p class="lp-eyebrow">
-        Trail {index + 1} of {ordered.length}{scope ? ` through ${scope}` : ""}
-      </p>
       <div class="strip-row">
         <button
           type="button"
@@ -143,9 +198,9 @@
           aria-label="Older trail"
           on:click={() => dispatch("step", 1)}
         >
-          <ChevronLeft size={20} />
+          <ChevronLeft size={22} />
         </button>
-        <div class="strip" bind:this={strip}>
+        <div class="strip" bind:this={strip} bind:clientWidth={room}>
           {#each days as group (group.label)}
             <div class="day">
               <span>{group.label}</span>
@@ -156,9 +211,7 @@
                     aria-pressed={t.id === trail.id}
                     aria-label="{t.operator || 'Trail'}, {clock(t.start)}"
                     title="{t.operator || 'Trail'} · {clock(t.start)}"
-                    style="width: {blockWidth(t, longest)}px; --c: {drawColour(
-                      t.colour,
-                    )}"
+                    style="width: {widthOf(t)}px; --c: {drawColour(t.colour)}"
                     on:click={() => t.id !== trail.id && dispatch("pick", t.id)}
                   ></button>
                 {/each}
@@ -172,9 +225,13 @@
           aria-label="Newer trail"
           on:click={() => dispatch("step", -1)}
         >
-          <ChevronRight size={20} />
+          <ChevronRight size={22} />
         </button>
       </div>
+      <p class="set">
+        {ordered.length} trails{scope ? ` through ${scope}` : " in this job"},
+        oldest on the left
+      </p>
     </div>
   {/if}
 
@@ -228,121 +285,110 @@
     {/if}
   </div>
 
-  {#if asking}
-    <p class="mn-warning">
-      Delete this trail for good? It comes off the map and out of the farm's
-      records, and can't be brought back.
-    </p>
-    <div class="mn-card-actions">
-      <button
-        type="button"
-        class="lp-btn lp-btn-ghost"
-        on:click={() => (asking = false)}
-      >
-        Keep it
+  <!-- ── Everything else, one row ── -->
+  <div class="tiles">
+    <button
+      type="button"
+      aria-pressed={marks.centre}
+      on:click={() => dispatch("mark", "centre")}
+    >
+      <span class="line" aria-hidden="true"></span>
+      Centre line
+    </button>
+    <button
+      type="button"
+      aria-pressed={marks.arrows}
+      on:click={() => dispatch("mark", "arrows")}
+    >
+      <Navigation size={19} fill="currentColor" />
+      Arrows
+    </button>
+    <button
+      type="button"
+      class="main"
+      disabled={busy}
+      on:click={() => dispatch("follow", false)}
+    >
+      <Route size={19} />
+      Follow it
+    </button>
+    <button
+      type="button"
+      disabled={busy}
+      on:click={() => dispatch("follow", true)}
+    >
+      <Tv size={19} />
+      Demo run
+    </button>
+    {#if !guest}
+      <button type="button" class="danger" class:armed on:click={remove}>
+        <Trash2 size={19} />
+        {armed ? "Tap again" : "Delete"}
       </button>
-      <button
-        type="button"
-        class="mn-remove solid"
-        on:click={() => dispatch("remove")}
-      >
-        <Trash2 size={17} /> Delete
-      </button>
-    </div>
-  {:else}
-    <!-- ── Everything else, one row ── -->
-    <div class="tiles">
-      <button
-        type="button"
-        aria-pressed={marks.centre}
-        on:click={() => dispatch("mark", "centre")}
-      >
-        <span class="line" aria-hidden="true"></span>
-        Centre line
-      </button>
-      <button
-        type="button"
-        aria-pressed={marks.arrows}
-        on:click={() => dispatch("mark", "arrows")}
-      >
-        <Navigation size={19} fill="currentColor" />
-        Arrows
-      </button>
-      <button
-        type="button"
-        class="main"
-        disabled={busy}
-        on:click={() => dispatch("follow", false)}
-      >
-        <Route size={19} />
-        Follow it
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        on:click={() => dispatch("follow", true)}
-      >
-        <Tv size={19} />
-        Demo run
-      </button>
-      {#if !guest}
-        <button type="button" class="danger" on:click={() => (asking = true)}>
-          <Trash2 size={19} />
-          Delete
-        </button>
-      {/if}
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>
 
 <style>
-  .mn-trail .dot {
+  .mn-trail .mark {
+    display: flex;
     flex-shrink: 0;
-    width: 22px;
-    height: 22px;
-    border-radius: 7px;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: 13px;
     box-shadow: 0 0 0 1.5px var(--lp-ink);
   }
   .mn-trail h2 {
-    font-size: 1.08rem;
+    font-size: 1.1rem;
   }
-  .figures {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
-  .figures span {
-    padding: 3px 9px;
+  .count {
+    flex-shrink: 0;
+    padding: 5px 11px;
     border-radius: 99px;
-    background: var(--lp-paper-2);
+    background: var(--lp-ink);
     font-family: var(--lp-mono);
-    font-size: 0.76rem;
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--lp-ink);
+    color: var(--lp-paper);
+    white-space: nowrap;
+  }
+  .count b {
+    font-weight: 800;
+    color: var(--lp-yellow);
   }
   .among {
     display: grid;
-    gap: 5px;
+    gap: 4px;
+    min-width: 0;
+  }
+  .set {
+    font-size: 0.74rem;
+    color: var(--lp-ink-soft);
+    text-align: center;
   }
   .strip-row {
     display: flex;
     align-items: stretch;
     gap: 4px;
+    min-width: 0;
   }
   .step {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    border: 1.5px solid var(--lp-line);
+    width: 42px;
+    border: 1.5px solid var(--lp-ink);
     border-radius: 11px;
-    color: var(--lp-ink);
+    background: var(--lp-ink);
+    color: var(--lp-paper);
   }
   .strip {
     display: flex;
     flex: 1;
-    gap: 9px;
+    gap: 6px;
     min-width: 0;
     padding: 5px 8px 7px;
     overflow-x: auto;
@@ -359,10 +405,14 @@
     gap: 3px;
   }
   .day + .day {
-    padding-left: 9px;
+    padding-left: 6px;
     border-left: 1.5px dashed var(--lp-line);
   }
+  /* The label never makes its day wider than its blocks. */
   .day > span {
+    width: 0;
+    min-width: 100%;
+    overflow: hidden;
     font-family: var(--lp-mono);
     font-size: 0.66rem;
     font-weight: 700;
@@ -371,29 +421,30 @@
   }
   .day > div {
     display: flex;
-    gap: 3px;
+    gap: 2px;
   }
   .day button {
     flex-shrink: 0;
-    height: 24px;
-    border-radius: 5px;
+    height: 26px;
+    border-radius: 4px;
     background: var(--c);
     box-shadow: inset 0 0 0 1px rgba(21, 38, 28, 0.35);
-    opacity: 0.45;
+    opacity: 0.4;
   }
   .day button:hover {
     opacity: 0.75;
   }
   .day button[aria-pressed="true"] {
     box-shadow:
-      0 0 0 2px var(--lp-card),
-      0 0 0 4px var(--lp-ink);
+      0 0 0 1.5px var(--lp-card),
+      0 0 0 3.5px var(--lp-ink);
     opacity: 1;
   }
   .replay {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-width: 0;
   }
   .replay .play {
     display: flex;
@@ -434,7 +485,7 @@
   }
   .tiles {
     display: grid;
-    grid-auto-columns: 1fr;
+    grid-auto-columns: minmax(0, 1fr);
     grid-auto-flow: column;
     gap: 5px;
   }
@@ -444,6 +495,7 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
+    min-width: 0;
     min-height: 58px;
     padding: 6px 2px;
     border: 1.5px solid var(--lp-line);
@@ -466,6 +518,11 @@
   }
   .tiles .danger {
     color: var(--lp-rust);
+  }
+  .tiles .danger.armed {
+    border-color: var(--lp-rust);
+    background: var(--lp-rust);
+    color: #fff;
   }
   .tiles button:disabled {
     opacity: 0.55;

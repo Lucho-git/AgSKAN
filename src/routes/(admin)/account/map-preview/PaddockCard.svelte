@@ -12,6 +12,7 @@
     ArrowLeft,
     Check,
     History,
+    ChevronDown,
     Layers,
     Pencil,
     PencilRuler,
@@ -20,8 +21,7 @@
   } from "lucide-svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import { formatHa } from "$lib/components/mapnext/format"
-  import { drawColour } from "$lib/components/mapnext/palette"
-  import { sizeOf } from "./liveEngine"
+  import { sizeOf, type ThroughStats } from "./liveEngine"
   import type { FarmName, Paddock, PaddockPatch, TrailInfo } from "./liveData"
 
   export let paddock: Paddock
@@ -37,6 +37,8 @@
   export let pickedFeature: string | null = null
   /** All of its trails are being shown at once. */
   export let allTrails = false
+  /** What they add up to inside its fence, once they are showing. */
+  export let stats: ThroughStats | null = null
   /**
    * What has been written in for other paddocks on this map: each crop, and
    * the varieties entered with it, the most used first.
@@ -96,7 +98,8 @@
     drawAsk = false
   }
 
-  const value = (block: Block) =>
+  // (Reactive, so the blocks follow the paddock when another is picked.)
+  $: value = (block: Block) =>
     block === "name"
       ? paddock.name
       : block === "crop"
@@ -397,39 +400,79 @@
     {/if}
 
     {#if trails.length}
-      <p class="lp-eyebrow">
-        {trails.length}
-        {trails.length === 1 ? "trail" : "trails"} through here{operation
-          ? ` · ${operation}`
-          : ""}
-      </p>
-      <div class="mn-chips mn-through">
-        {#if trails.length > 1}
+      <!-- ── Its trails: all at once, or one picked from a list ── -->
+      <div class="mn-ptrails">
+        <p class="lp-eyebrow">
+          {trails.length}
+          {trails.length === 1 ? "trail" : "trails"} through here{operation
+            ? ` · ${operation}`
+            : ""}
+        </p>
+        <div class="row">
           <button
             type="button"
             class="all"
             aria-pressed={allTrails}
             on:click={() => dispatch("allTrails", !allTrails)}
           >
-            <Layers size={15} /> All {trails.length}
+            <Layers size={17} />
+            {allTrails
+              ? "Showing in this paddock"
+              : trails.length === 1
+                ? "Show it in this paddock"
+                : `Show all ${trails.length} in this paddock`}
           </button>
+          <label class="one">
+            <span>{trails.length === 1 ? "Open it" : "Open one"}</span>
+            <ChevronDown size={16} />
+            <select
+              aria-label="Open one of these trails"
+              value=""
+              on:change={(e) => {
+                const id = e.currentTarget.value
+                e.currentTarget.value = ""
+                if (id) dispatch("trail", id)
+              }}
+            >
+              <option value="" disabled>Open a trail</option>
+              {#each trails as trail (trail.id)}
+                <option value={trail.id}>
+                  {when(trail.start)}{trail.operator
+                    ? ` · ${trail.operator.split(/\s+/)[0]}`
+                    : ""}{trail.ha !== null
+                    ? ` · ${formatHa(trail.ha)} ha`
+                    : ""}
+                </option>
+              {/each}
+            </select>
+          </label>
+        </div>
+        {#if allTrails && stats}
+          <!-- What they add up to, inside the fence only. -->
+          <div class="mn-stats">
+            <div>
+              <strong>{formatHa(stats.ha)} ha</strong>
+              <span>
+                covered{stats.of > 0
+                  ? ` · ${Math.min(100, Math.round((stats.ha / stats.of) * 100))}%`
+                  : ""}
+              </span>
+            </div>
+            <div>
+              <strong>{stats.km.toFixed(stats.km < 10 ? 1 : 0)} km</strong>
+              <span>driven in here</span>
+            </div>
+            <div>
+              <strong>
+                {when(stats.from)}{when(stats.to) !== when(stats.from)
+                  ? ` to ${when(stats.to)}`
+                  : ""}
+              </strong>
+              <span>{stats.drivers.join(", ") || "No operator"}</span>
+            </div>
+          </div>
         {/if}
-        {#each trails.slice(0, 8) as trail (trail.id)}
-          <button type="button" on:click={() => dispatch("trail", trail.id)}>
-            <i style="background: {drawColour(trail.colour)}"></i>
-            {when(trail.start)}{trail.operator
-              ? ` · ${trail.operator.split(/\s+/)[0]}`
-              : ""}
-          </button>
-        {/each}
-        {#if trails.length > 8}<span>+{trails.length - 8} more</span>{/if}
       </div>
-      {#if allTrails}
-        <p class="mn-note">
-          Every trail through {paddock.name} is picked out. Where one carries on
-          past the fence it is drawn dashed.
-        </p>
-      {/if}
     {/if}
 
     {#if !guest}

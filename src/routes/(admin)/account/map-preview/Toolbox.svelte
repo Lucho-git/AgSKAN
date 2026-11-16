@@ -12,7 +12,10 @@
   import { createEventDispatcher } from "svelte"
   import {
     ArrowLeft,
+    ChevronDown,
     ChevronRight,
+    FolderPlus,
+    Plus,
     ClipboardList,
     LandPlot,
     Layers,
@@ -36,6 +39,8 @@
   import MachinePicker from "$lib/components/mapnext/MachinePicker.svelte"
   import CrewRows from "./CrewRows.svelte"
   import PinsTool from "./PinsTool.svelte"
+  import FarmLog from "./FarmLog.svelte"
+  import type { LngLat } from "$lib/components/mapnext/geo"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
@@ -53,6 +58,7 @@
   import {
     flashLabel,
     type FarmChoice,
+    type FarmName,
     type Flash,
     type Paddock,
     type TrailInfo,
@@ -101,6 +107,10 @@
   export let farm: { paddocks: number; ha: number } = { paddocks: 0, ha: 0 }
   export let farms: FarmChoice[] = []
   export let currentFarmId = ""
+  /** The farms (blocks of paddocks) on this map. */
+  export let farmList: FarmName[] = []
+  /** The map itself, for its log. */
+  export let mapId = ""
   /** Messages this person hasn't opened. */
   export let unread = 0
   /** Who the open conversation is with (their name), if one is open. */
@@ -151,7 +161,17 @@
     typeColour: { iconClass: string; colour: string }
     lookPin: string
     lasso: void
+    /** Draw a new paddock, for this farm (or none in particular). */
+    newPaddock: string | null
+    /** Add a farm with this name. */
+    newFarm: string
+    /** Go to a place the log points at. */
+    lookPlace: LngLat
   }>()
+
+  // The crew section has two sides: who is on the map, and what has been
+  // happening on it.
+  let crewTab: "crew" | "log" = "crew"
 
   $: names = Object.fromEntries(crew.map((person) => [person.id, person.name]))
 
@@ -228,20 +248,57 @@
   $: found = wanted
     ? paddocks.filter((p) => p.name.toLowerCase().includes(wanted))
     : paddocks
-  $: paddockGroups = groupByFarm(found)
-  function groupByFarm(list: Paddock[]) {
+  $: paddockGroups = groupByFarm(found, farmList, !!wanted)
+  // A group per farm, by name; a farm with nothing in it yet still shows
+  // (unless a search is on), so paddocks can be added to it.
+  function groupByFarm(list: Paddock[], known: FarmName[], searching: boolean) {
     const groups = new Map<string, Paddock[]>()
+    if (!searching && known.length > 1)
+      for (const one of known) groups.set(one.id, [])
     for (const paddock of list) {
-      const key = paddock.farm ?? ""
+      const key =
+        known.length > 1 &&
+        paddock.farmId &&
+        known.some((f) => f.id === paddock.farmId)
+          ? paddock.farmId
+          : ""
       groups.set(key, [...(groups.get(key) ?? []), paddock])
     }
     return [...groups.entries()]
-      .map(([name, items]) => ({
-        name,
+      .map(([key, items]) => ({
+        key,
+        name: known.find((f) => f.id === key)?.name ?? "",
         items: items.sort((a, b) => a.name.localeCompare(b.name)),
         ha: items.reduce((sum, p) => sum + p.ha, 0),
       }))
-      .sort((a, b) => b.items.length - a.items.length)
+      .sort((a, b) =>
+        !a.name ? 1 : !b.name ? -1 : a.name.localeCompare(b.name),
+      )
+  }
+  /** Farms folded down to their heading. */
+  let folded = new Set<string>()
+  function fold(key: string) {
+    const next = new Set(folded)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    folded = next
+  }
+  $: allFolded =
+    paddockGroups.length > 0 &&
+    paddockGroups.every((group) => folded.has(group.key))
+  function foldAll() {
+    folded = allFolded
+      ? new Set()
+      : new Set(paddockGroups.map((group) => group.key))
+  }
+  let addingFarm = false
+  let newFarmName = ""
+  function addFarm() {
+    const name = newFarmName.trim()
+    if (!name) return
+    dispatch("newFarm", name)
+    newFarmName = ""
+    addingFarm = false
   }
 
   const day = (t: number) =>
@@ -433,9 +490,24 @@
       <!-- The crew, always in view under the tools. -->
       <section class="mn-home-crew" aria-label="Crew">
         <div class="mn-crew-head">
-          <p class="lp-eyebrow">
-            Crew · {online} on now{crew.length ? ` of ${crew.length}` : ""}
-          </p>
+          <div class="mn-tabs" role="tablist" aria-label="Crew and log">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={crewTab === "crew"}
+              on:click={() => (crewTab = "crew")}
+            >
+              Crew · {online} on
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={crewTab === "log"}
+              on:click={() => (crewTab = "log")}
+            >
+              Log
+            </button>
+          </div>
           {#if !guest}
             <button
               type="button"
@@ -447,7 +519,9 @@
             </button>
           {/if}
         </div>
-        {#if crew.length || self || !guest}
+        {#if crewTab === "log" && mapId}
+          <FarmLog {mapId} on:look={(e) => dispatch("lookPlace", e.detail)} />
+        {:else if crew.length || self || !guest}
           <CrewRows
             {crew}
             {self}
@@ -572,9 +646,24 @@
       </section>
     {:else if view === "crew"}
       <div class="mn-crew-head">
-        <p class="lp-eyebrow">
-          {online} on the map now · {crew.length} in all
-        </p>
+        <div class="mn-tabs" role="tablist" aria-label="Crew and log">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={crewTab === "crew"}
+            on:click={() => (crewTab = "crew")}
+          >
+            Crew · {online} on
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={crewTab === "log"}
+            on:click={() => (crewTab = "log")}
+          >
+            Log
+          </button>
+        </div>
         {#if !guest}
           <button
             type="button"
@@ -586,7 +675,9 @@
           </button>
         {/if}
       </div>
-      {#if crew.length || self || !guest}
+      {#if crewTab === "log" && mapId}
+        <FarmLog {mapId} on:look={(e) => dispatch("lookPlace", e.detail)} />
+      {:else if crew.length || self || !guest}
         <CrewRows
           {crew}
           {self}
@@ -739,40 +830,113 @@
           autocomplete="off"
         />
       </label>
-      {#if !found.length}
+      {#if !guest}
+        {#if addingFarm}
+          <form class="mn-newfarm" on:submit|preventDefault={addFarm}>
+            <!-- svelte-ignore a11y-autofocus -->
+            <input
+              type="text"
+              bind:value={newFarmName}
+              maxlength="60"
+              placeholder="Name of the farm"
+              aria-label="Name of the new farm"
+              autofocus
+            />
+            <button
+              type="submit"
+              class="lp-btn lp-btn-primary"
+              disabled={!newFarmName.trim()}
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              class="mn-icon-button"
+              aria-label="Never mind"
+              on:click={() => (addingFarm = false)}
+            >
+              <X size={20} />
+            </button>
+          </form>
+        {:else}
+          <div class="mn-menu-actions">
+            <button type="button" on:click={() => dispatch("newPaddock", null)}>
+              <Plus size={18} /> New paddock
+            </button>
+            <button type="button" on:click={() => (addingFarm = true)}>
+              <FolderPlus size={18} /> New farm
+            </button>
+          </div>
+        {/if}
+      {/if}
+      {#if !found.length && (wanted || !paddockGroups.length)}
         <p class="mn-empty">
           {paddocks.length
             ? "No paddock by that name."
-            : "This farm has no paddocks yet. Add them from the dashboard."}
+            : "This farm has no paddocks yet. Tap New paddock and draw round one."}
         </p>
       {/if}
-      {#each paddockGroups as group (group.name)}
-        <section class="mn-section">
-          <p class="lp-eyebrow">
-            {group.name || (paddockGroups.length > 1 ? "No farm" : "Paddocks")} ·
-            {group.items.length} · {formatHa(group.ha)} ha
-          </p>
-          <div class="mn-tools">
-            {#each group.items as paddock (paddock.id)}
+      {#if paddockGroups.length > 1 && !wanted}
+        <button type="button" class="mn-text-button" on:click={foldAll}>
+          {allFolded ? "Open every farm" : "Close every farm"}
+        </button>
+      {/if}
+      {#each paddockGroups as group (group.key)}
+        {@const open = !!wanted || !folded.has(group.key)}
+        <section class="mn-section mn-farm">
+          <div class="mn-farm-head">
+            <button
+              type="button"
+              class="fold"
+              aria-expanded={open}
+              on:click={() => fold(group.key)}
+            >
+              <ChevronDown size={18} />
+              <strong>
+                {group.name ||
+                  (paddockGroups.length > 1 ? "No farm" : "Paddocks")}
+              </strong>
+              <span>{group.items.length} · {formatHa(group.ha)} ha</span>
+            </button>
+            {#if !guest}
               <button
                 type="button"
-                class="mn-tool"
-                class:selected={pickedPaddock === paddock.id}
-                on:click={() => dispatch("lookPaddock", paddock.id)}
+                class="mn-icon-button"
+                aria-label="New paddock{group.name ? ` in ${group.name}` : ''}"
+                title="New paddock{group.name ? ` in ${group.name}` : ''}"
+                on:click={() => dispatch("newPaddock", group.key || null)}
               >
-                <ShapeArt
-                  polygons={paddock.polygons}
-                  colour={paddock.colour}
-                  size={34}
-                />
-                <span class="text">
-                  <strong>{paddock.name}</strong>
-                  {#if paddock.crop}<span>{paddock.crop}</span>{/if}
-                </span>
-                <span class="figure">{formatHa(paddock.ha)} ha</span>
+                <Plus size={20} />
               </button>
-            {/each}
+            {/if}
           </div>
+          {#if open}
+            {#if group.items.length}
+              <div class="mn-tools">
+                {#each group.items as paddock (paddock.id)}
+                  <button
+                    type="button"
+                    class="mn-tool"
+                    class:selected={pickedPaddock === paddock.id}
+                    on:click={() => dispatch("lookPaddock", paddock.id)}
+                  >
+                    <ShapeArt
+                      polygons={paddock.polygons}
+                      colour={paddock.colour}
+                      size={34}
+                    />
+                    <span class="text">
+                      <strong>{paddock.name}</strong>
+                      {#if paddock.crop}<span>{paddock.crop}</span>{/if}
+                    </span>
+                    <span class="figure">{formatHa(paddock.ha)} ha</span>
+                  </button>
+                {/each}
+              </div>
+            {:else}
+              <p class="mn-empty">No paddocks in this farm yet.</p>
+            {/if}
+          {/if}
         </section>
       {/each}
     {:else if view === "map"}

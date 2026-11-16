@@ -176,6 +176,18 @@ export async function loadFarmNames(mapId: string): Promise<FarmName[]> {
     .sort((a, b) => a.name.localeCompare(b.name))
 }
 
+/** Add a farm to a map, through the call the dashboard makes. */
+export async function createFarm(
+  mapId: string,
+  name: string,
+): Promise<FarmName> {
+  const result = await farmApi.createFarm(mapId, name)
+  if (!result.success || !result.farm)
+    throw new Error(result.message || "Couldn't add the farm")
+  const farm = result.farm as Row
+  return { id: String(farm.id), name: String(farm.name ?? name) }
+}
+
 /** What can be changed about a paddock from its menu. */
 export type PaddockPatch = {
   name?: string
