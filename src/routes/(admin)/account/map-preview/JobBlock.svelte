@@ -100,7 +100,7 @@
     {#if who}<span class="who">{who}</span>{/if}
   </div>
   {#if stepped}
-    <ol class="steps">
+    <ol class="job-steps">
       {#each job.steps as step, index}
         <li class:ticked={!!step.doneAt}>
           <button

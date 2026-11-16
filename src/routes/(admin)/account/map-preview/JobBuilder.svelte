@@ -16,13 +16,23 @@
   /**
    * Putting a job together. What needs doing is the heading; under it the
    * job is a numbered list of steps, each with the places it points at.
-   * One step is being added to at a time (the bar across the top of the map
-   * says which, and offers the other things a step can point at). Who it is
-   * for is one line with the crew in a list behind it, and the Post button
-   * stays in view at the bottom.
+   * One step is being added to at a time, and that step carries a row of
+   * tabs for what a tap on the map adds to it: a place, an area, a line
+   * (the feed at the top of the map says the same), with where you are or
+   * where someone is a tap beside them. Who it is for is one line with the
+   * crew in a list behind it, and the Post button stays in view.
    */
   import { createEventDispatcher } from "svelte"
-  import { ClipboardList, MapPin, Plus, X } from "lucide-svelte"
+  import {
+    ClipboardList,
+    LocateFixed,
+    MapPin,
+    Pentagon,
+    Plus,
+    Spline,
+    Users,
+    X,
+  } from "lucide-svelte"
   import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import JobThumb from "./JobThumb.svelte"
   import PlaceArt from "./PlaceArt.svelte"
@@ -34,8 +44,25 @@
   /** Who a job can be given to. */
   export let crew: { id: string; name: string }[] = []
   export let giving = false
+  /** What a tap on the map adds to the step being worked on. */
+  export let mode: "place" | "area" | "line" = "place"
+  /** The viewer has a position to add. */
+  export let hasFix = false
+  /** Crew whose position is known, to add where one of them is. */
+  export let spots: { id: string; name: string }[] = []
 
-  const dispatch = createEventDispatcher<{ close: void; post: void }>()
+  const dispatch = createEventDispatcher<{
+    close: void
+    post: void
+    mode: "place" | "area" | "line"
+    me: void
+    crew: string
+  }>()
+  const TABS = [
+    { key: "place", label: "Place", icon: MapPin },
+    { key: "area", label: "Area", icon: Pentagon },
+    { key: "line", label: "Line", icon: Spline },
+  ] as const
   const MOST = 8
 
   $: places = draft.steps.reduce((sum, step) => sum + step.items.length, 0)
@@ -166,10 +193,46 @@
                 </span>
               {/each}
             </div>
-          {:else if draft.current === index}
-            <p class="none"><MapPin size={14} /> Tap the map to add a place</p>
-          {:else}
+          {:else if draft.current !== index}
             <p class="none idle">No place yet</p>
+          {/if}
+          {#if draft.current === index}
+            <!-- What a tap on the map adds to this step. -->
+            <div class="adds" role="group" aria-label="Add to this step">
+              {#each TABS as tab (tab.key)}
+                <button
+                  type="button"
+                  class="tab"
+                  aria-pressed={mode === tab.key}
+                  on:click|stopPropagation={() => dispatch("mode", tab.key)}
+                >
+                  <svelte:component this={tab.icon} size={15} />
+                  {tab.label}
+                </button>
+              {/each}
+              {#if hasFix}
+                <button
+                  type="button"
+                  aria-label="Add where I am"
+                  on:click|stopPropagation={() => dispatch("me")}
+                >
+                  <LocateFixed size={15} /> Me
+                </button>
+              {/if}
+              {#if spots.length}
+                <Dropdown
+                  look="pill"
+                  title="Add where someone is"
+                  options={spots.map((person) => ({
+                    value: person.id,
+                    label: person.name,
+                  }))}
+                  on:change={(e) => dispatch("crew", e.detail)}
+                >
+                  <Users size={15} /> Crew
+                </Dropdown>
+              {/if}
+            </div>
           {/if}
         </div>
         {#if draft.current === index && draft.steps.length > 1}
@@ -330,6 +393,34 @@
     font-size: 0.86rem;
     font-weight: 700;
     color: #92400e;
+  }
+  /* The tabs on the step being added to: what a tap on the map adds. */
+  .adds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .adds > button,
+  .adds :global(.mn-dd.pill) {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 36px;
+    padding: 0 11px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 99px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+    white-space: nowrap;
+  }
+  .adds > button:hover {
+    border-color: var(--lp-ink);
+  }
+  .adds .tab[aria-pressed="true"] {
+    border-color: var(--lp-ink);
+    background: var(--lp-ink);
+    color: var(--lp-paper);
   }
   .none.idle {
     font-weight: 500;

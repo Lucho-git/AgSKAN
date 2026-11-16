@@ -1523,12 +1523,12 @@
 
 /* ── Fourth pass ────────────────────────────────────────────────────────── */
 /* A job's steps: a numbered list, each ticked off by whoever has the job. */
-.mn-job .steps {
+.mn-job .job-steps {
   display: grid;
   grid-column: 1 / -1;
   gap: 5px;
 }
-.mn-job .steps li {
+.mn-job .job-steps li {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1536,18 +1536,18 @@
   font-weight: 700;
   line-height: 1.25;
 }
-.mn-job .steps li.ticked > span {
+.mn-job .job-steps li.ticked > span {
   color: var(--lp-ink-faint);
   text-decoration: line-through;
 }
-.mn-job .steps small {
+.mn-job .job-steps small {
   display: block;
   font-size: 0.78rem;
   font-weight: 500;
   color: var(--lp-ink-soft);
   text-decoration: none;
 }
-.mn-job .steps .tick {
+.mn-job .job-steps .tick {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -1560,12 +1560,12 @@
   font-size: 0.8rem;
   font-weight: 700;
 }
-.mn-job .steps .ticked .tick {
+.mn-job .job-steps .ticked .tick {
   background: #1f8a4c;
   border-color: #1f8a4c;
   color: #fff;
 }
-.mn-job .steps .tick:disabled {
+.mn-job .job-steps .tick:disabled {
   opacity: 1;
   cursor: default;
 }
@@ -2938,4 +2938,33 @@
   flex-shrink: 0;
   width: 20px;
   height: 20px;
+}
+
+/* ── Eleventh pass ──────────────────────────────────────────────────────── */
+/* A posted job's steps: two across, as many rows as it takes; the list
+   never scrolls sideways. */
+.mn-job .job-steps {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+.mn-job .job-steps li {
+  align-items: flex-start;
+  min-width: 0;
+}
+.mn-job .job-steps li > span {
+  min-width: 0;
+  padding-top: 5px;
+  overflow-wrap: anywhere;
+}
+/* The feed for a job being put together: top centre of the map. */
+.mn-feedwrap {
+  position: absolute;
+  top: var(--mn-top);
+  left: calc(var(--mn-rail) + (100% - var(--mn-rail)) / 2);
+  z-index: 11;
+  transform: translateX(-50%);
+}
+.mn:not(.wide) .mn-feedwrap {
+  /* (Under the status chip and the Tools button on a phone.) */
+  top: calc(var(--mn-top) + 52px);
 }

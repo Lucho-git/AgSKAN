@@ -1,192 +1,151 @@
 <script lang="ts">
   /**
-   * Across the top of the map while a job is being put together: one line
-   * saying what a tap on the map does right now (and to which step), and
-   * one button that opens the other things a step can point at: a line to
-   * follow, an area, where you are, where someone on the crew is.
+   * The feed at the top centre of the map while a job is being put
+   * together: what a tap on the map does right now, to match the tab that
+   * is chosen on the step in the job's card below. Tapping places, it says
+   * so; drawing an area or a line, it counts the points and offers Undo
+   * and Add.
    */
   import { createEventDispatcher } from "svelte"
-  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
-  import {
-    ChevronDown,
-    LocateFixed,
-    Pentagon,
-    Plus,
-    Pointer,
-    Spline,
-    Users,
-  } from "lucide-svelte"
+  import { Check, Pentagon, Pointer, Spline, Undo2 } from "lucide-svelte"
 
   /** The step being added to (from 1), and how many there are. */
   export let step = 1
   export let steps = 1
-  /** The viewer has a position. */
-  export let hasFix = false
-  /** Crew whose position is known. */
-  export let crew: { id: string; name: string }[] = []
+  /** What a tap does: adds a place, or a corner of an area or a line. */
+  export let mode: "place" | "area" | "line" = "place"
+  /** While drawing: how many points are down, and how big it is so far. */
+  export let points = 0
+  export let size = ""
+  /** There is enough drawn to add. */
+  export let ready = false
 
-  const dispatch = createEventDispatcher<{
-    line: void
-    area: void
-    me: void
-    crew: string
-  }>()
-  let open = false
-  function pick(what: "line" | "area" | "me") {
-    open = false
-    dispatch(what)
-  }
+  const dispatch = createEventDispatcher<{ undo: void; add: void }>()
+
+  $: target = steps > 1 ? `step ${step}` : "the job"
 </script>
 
-<svelte:window
-  on:keydown={(e) => e.key === "Escape" && (open = false)}
-  on:click={() => (open = false)}
-/>
-
-<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
-<div class="mn-jobbar" on:click|stopPropagation>
-  <span class="tap"><Pointer size={18} /></span>
+<div class="mn-feed" role="status">
+  <span class="tap">
+    {#if mode === "area"}
+      <Pentagon size={18} />
+    {:else if mode === "line"}
+      <Spline size={18} />
+    {:else}
+      <Pointer size={18} />
+    {/if}
+  </span>
   <p>
-    <b>Tap a paddock or a pin</b>
-    to add it{steps > 1 ? ` to step ${step}` : ""}
+    {#if mode === "place"}
+      <b>Tap a paddock or a pin</b>
+      <small>It is added to {target}</small>
+    {:else}
+      <b>
+        {mode === "area" ? "Tap round the area" : "Tap along the line"}
+      </b>
+      <small>
+        {points
+          ? `${points} ${points === 1 ? "point" : "points"}${size ? ` · ${size}` : ""}`
+          : `For ${target}`}
+      </small>
+    {/if}
   </p>
-  <button
-    type="button"
-    class="other"
-    aria-haspopup="menu"
-    aria-expanded={open}
-    on:click={() => (open = !open)}
-  >
-    <Plus size={16} strokeWidth={3} /> Other <ChevronDown size={15} />
-  </button>
-  {#if open}
-    <div class="menu" role="menu">
-      <button type="button" role="menuitem" on:click={() => pick("line")}>
-        <Spline size={18} /> A line to follow
-      </button>
-      <button type="button" role="menuitem" on:click={() => pick("area")}>
-        <Pentagon size={18} /> An area
-      </button>
-      {#if hasFix}
-        <button type="button" role="menuitem" on:click={() => pick("me")}>
-          <LocateFixed size={18} /> Where I am
-        </button>
-      {/if}
-      {#if crew.length}
-        <Dropdown
-          look="item"
-          title="Whose spot?"
-          options={crew.map((person) => ({
-            value: person.id,
-            label: person.name,
-          }))}
-          on:change={(e) => {
-            open = false
-            dispatch("crew", e.detail)
-          }}
-        >
-          <Users size={18} /> Where someone is
-        </Dropdown>
-      {/if}
-    </div>
+  {#if mode !== "place"}
+    <button
+      type="button"
+      aria-label="Take the last point back"
+      disabled={!points}
+      on:click={() => dispatch("undo")}
+    >
+      <Undo2 size={17} />
+    </button>
+    <button
+      type="button"
+      class="go"
+      disabled={!ready}
+      on:click={() => dispatch("add")}
+    >
+      <Check size={17} strokeWidth={3} /> Add
+    </button>
   {/if}
 </div>
 
 <style>
-  .mn-jobbar {
-    position: relative;
+  /* Drawn like the job's card below it, so the two read as one thing. */
+  .mn-feed {
     display: flex;
     align-items: center;
     gap: 10px;
-    max-width: min(34rem, calc(100vw - 2 * var(--mn-gap, 12px)));
-    padding: 7px 8px 7px 9px;
+    max-width: calc(100vw - 24px);
+    padding: 7px 8px;
     border-radius: 99px;
-    background: #15261c;
+    background: var(--lp-card);
     box-shadow:
-      0 0 0 2px #f7db5c,
-      0 14px 30px -14px rgba(0, 0, 0, 0.7);
-    color: #f4f1e6;
-  }
-  p {
-    flex: 1;
-    min-width: 0;
-    font-size: 0.92rem;
-    line-height: 1.25;
-  }
-  p b {
-    font-weight: 800;
-    color: #f7db5c;
+      0 0 0 1.5px var(--lp-ink),
+      0 12px 26px -12px rgba(10, 25, 15, 0.7);
+    color: var(--lp-ink);
   }
   .tap {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: #f7db5c;
+    background: var(--lp-yellow);
     color: #15261c;
     animation: tap 1.6s ease-in-out infinite;
   }
   @keyframes tap {
     0%,
     100% {
-      box-shadow: 0 0 0 0 rgba(247, 219, 92, 0.6);
+      box-shadow: 0 0 0 0 rgba(247, 219, 92, 0.7);
     }
     50% {
       box-shadow: 0 0 0 8px rgba(247, 219, 92, 0);
-      transform: scale(0.92);
+      transform: scale(0.93);
     }
   }
-  .other {
+  p {
+    display: grid;
+    min-width: 0;
+    padding-right: 8px;
+    line-height: 1.2;
+  }
+  p b {
+    font-size: 0.95rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  p small {
+    font-size: 0.74rem;
+    color: var(--lp-ink-soft);
+    white-space: nowrap;
+  }
+  button {
     display: inline-flex;
     flex-shrink: 0;
     align-items: center;
+    justify-content: center;
     gap: 5px;
-    min-height: 38px;
-    padding: 0 11px;
-    border: 1.5px solid rgba(244, 241, 230, 0.4);
+    min-width: 40px;
+    height: 40px;
+    padding: 0 10px;
+    border: 1.5px solid var(--lp-line);
     border-radius: 99px;
-    font-size: 0.86rem;
-    font-weight: 700;
-    color: #f4f1e6;
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: var(--lp-ink);
   }
-  .other[aria-expanded="true"],
-  .other:hover {
-    border-color: #f7db5c;
-    color: #f7db5c;
+  button.go {
+    padding: 0 14px;
+    border-color: var(--lp-ink);
+    background: var(--lp-yellow);
+    color: #15261c;
   }
-  .menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    z-index: 2;
-    display: grid;
-    min-width: 230px;
-    padding: 6px;
-    border-radius: 16px;
-    background: #15261c;
-    box-shadow:
-      0 0 0 1.5px rgba(244, 241, 230, 0.25),
-      0 18px 34px -12px rgba(0, 0, 0, 0.75);
-  }
-  .menu button {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 46px;
-    padding: 0 12px;
-    border-radius: 11px;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: #f4f1e6;
-    text-align: left;
-    cursor: pointer;
-  }
-  .menu button:hover {
-    background: rgba(244, 241, 230, 0.1);
+  button:disabled {
+    opacity: 0.45;
   }
   @media (prefers-reduced-motion: reduce) {
     .tap {

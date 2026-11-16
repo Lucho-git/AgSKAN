@@ -1315,6 +1315,19 @@
     engine?.setMeasureColour("#F7DB5C")
   }
 
+  // What a tap adds to the step being worked on, as chosen on that step:
+  // a place, or the next corner of an area or a line being drawn for it.
+  $: jobMode = (
+    measure?.forJob ? (measure.kind === "line" ? "line" : "area") : "place"
+  ) as "place" | "area" | "line"
+  function setJobMode(mode: "place" | "area" | "line") {
+    if (mode === jobMode) return
+    if (mode === "place") engine?.cancelDrawing()
+    else if (measure?.forJob)
+      engine?.setMeasureKind(mode === "line" ? "line" : "polygon")
+    else drawForJob(mode === "line" ? "line" : "polygon")
+  }
+
   function addDrawnToJob() {
     const drawn = engine?.takeDrawn()
     if (!drawn) return
@@ -2067,18 +2080,6 @@
           <button type="button" on:click={endPlacePick}>Cancel</button>
         </div>
       {/if}
-      {#if jobDraft && !measure}
-        <JobBar
-          step={jobDraft.current + 1}
-          steps={jobDraft.steps.length}
-          hasFix={readout.hasFix}
-          crew={crew.filter((row) => row.placed && !row.me)}
-          on:line={() => drawForJob("line")}
-          on:area={() => drawForJob("polygon")}
-          on:me={addWhereIAm}
-          on:crew={(e) => addCrewSpot(e.detail)}
-        />
-      {/if}
       {#if guide}
         <GuideBar
           {guide}
@@ -2434,15 +2435,21 @@
           on:save={saveBoundary}
         />
       </div>
-    {:else if jobDraft && !measure}
+    {:else if jobDraft && (!measure || measure.forJob)}
       <!-- ── Putting a job together ── -->
-      <div in:rise>
+      <div>
         <JobBuilder
           bind:draft={jobDraft}
           {paddocks}
           {drawings}
           crew={jobCrew}
           {giving}
+          mode={jobMode}
+          hasFix={readout.hasFix}
+          spots={crew.filter((row) => row.placed && !row.me)}
+          on:mode={(e) => setJobMode(e.detail)}
+          on:me={addWhereIAm}
+          on:crew={(e) => addCrewSpot(e.detail)}
           on:close={endJob}
           on:post={giveJob}
         />
@@ -3464,6 +3471,30 @@
             >{snack.action.label}</button
           >
         {/if}
+      </div>
+    {/if}
+
+    {#if jobDraft && (!measure || measure.forJob)}
+      <!-- The feed: what a tap on the map does for the job right now. -->
+      <div class="mn-feedwrap">
+        <JobBar
+          step={jobDraft.current + 1}
+          steps={jobDraft.steps.length}
+          mode={jobMode}
+          points={measure?.points ?? 0}
+          size={measure
+            ? measure.kind === "line"
+              ? measure.points > 1
+                ? formatDistance(measure.distance)
+                : ""
+              : measure.points > 2
+                ? `${formatHa(measure.ha)} ha`
+                : ""
+            : ""}
+          ready={canKeep}
+          on:undo={() => engine?.undoMeasure()}
+          on:add={addDrawnToJob}
+        />
       </div>
     {/if}
 

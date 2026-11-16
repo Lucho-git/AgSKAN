@@ -4563,16 +4563,15 @@ export class LiveEngine {
                   }
                 : { type: "LineString", coordinates: item.points },
           })
-        // A lone step needs no number: only the drawn shapes are marked.
-        if (many || item.points)
-          features.push({
-            type: "Feature",
-            properties: { n: many ? String(index + 1) : "" },
-            geometry: {
-              type: "Point",
-              coordinates: item.points ? item.points[0] : item.at,
-            },
-          })
+        // Every place gets its dot (a lone step's carry no number).
+        features.push({
+          type: "Feature",
+          properties: { n: many ? String(index + 1) : "" },
+          geometry: {
+            type: "Point",
+            coordinates: item.points ? item.points[0] : item.at,
+          },
+        })
       }
     })
     this.map.getSource(JOB_SOURCE)?.setData(collection(features))
