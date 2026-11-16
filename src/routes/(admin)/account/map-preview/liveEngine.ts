@@ -920,8 +920,13 @@ export class LiveEngine {
     since: number
     metres: number
     ha: number
+    /** The colour it is being laid in, ready to draw. */
+    colour: string
+    /** Picked out on the map (it can be switched off, see below). */
+    lit: boolean
   } | null> = writable(null)
   private crewTrailDrawn = ""
+  private crewTrailLit = true
   private historyDrawnAt = 0
   private arrowsStale = false
   /** Something is picked out with marching dashes: keep them moving. */
@@ -1273,6 +1278,8 @@ export class LiveEngine {
       for (const [crewId, entry] of this.crewById)
         entry.vehicle?.view.$set({ selected: crewId === id })
       this.mine?.view.$set({ selected: id === ME })
+      // (Each machine picked starts with its trail picked out.)
+      this.crewTrailLit = true
       this.showCrewTrail()
     })
     this.selectedPaddock.subscribe((paddock) => {
@@ -2418,11 +2425,14 @@ export class LiveEngine {
       info = live?.info ?? null
       coords = live?.points.map((p) => p.at) ?? []
     }
-    const drawn = info ? `${info.id}|${coords.length}` : ""
+    const drawn = info
+      ? `${info.id}|${coords.length}|${this.crewTrailLit ? 1 : 0}`
+      : ""
     if (drawn === this.crewTrailDrawn) return
     this.crewTrailDrawn = drawn
     if (!get(this.ready)) return
-    const showing = !!info && coords.length > 1
+    const laying = !!info && coords.length > 1
+    const showing = laying && this.crewTrailLit
     this.map
       .getSource(PICKED_TRAIL_SOURCE)
       ?.setData(
@@ -2433,15 +2443,26 @@ export class LiveEngine {
         ),
       )
     this.pickedArrows(showing ? [coords] : [], info?.colour)
-    if (showing && info) {
+    if (laying && info) {
       const metres = lengthM(coords)
       this.crewTrail.set({
         since: info.start,
         metres,
         ha: (metres * info.width) / 10000,
+        colour: drawColour(info.colour),
+        lit: this.crewTrailLit,
       })
     } else this.crewTrail.set(null)
     this.keepMarching()
+  }
+
+  /**
+   * Take the highlight off the trail the picked machine is laying (its
+   * figures stay on the card), or put it back.
+   */
+  lightCrewTrail(on: boolean) {
+    this.crewTrailLit = on
+    this.showCrewTrail()
   }
 
   /** Bring a paddock into view. */

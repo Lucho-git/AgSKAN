@@ -17,8 +17,9 @@
    * the current viewer tells it: a pin as it was and as it became, a
    * machine with the trail it laid, one machine swapped for another.
    *
-   * A row that has a place on the map goes there when tapped. What a pin
-   * row did can be undone from the row.
+   * A row that has a place on the map goes there when tapped. A trail
+   * still being laid picks the machine laying it; a finished one opens that
+   * trail. What a pin row did can be undone from the row.
    */
   import { onDestroy, onMount } from "svelte"
   import { createEventDispatcher } from "svelte"
@@ -54,7 +55,13 @@
   /** Undo one row; resolves true when it worked. */
   export let undo: (what: LogUndo) => Promise<boolean> = async () => false
 
-  const dispatch = createEventDispatcher<{ look: LngLat }>()
+  const dispatch = createEventDispatcher<{
+    look: LngLat
+    /** The machine (by account) laying a trail that has just started. */
+    crew: string
+    /** A finished trail, and the job it was laid for. */
+    trail: { id: string; operation: string }
+  }>()
 
   const PINS = [
     "marker.placed",
@@ -196,6 +203,28 @@
       ? [Number(d.lng), Number(d.lat)]
       : null
   }
+  /** Whose machine a trail row is about. */
+  const machineId = (entry: MapLogEntry) =>
+    String(entry.details?.vehicle_id ?? entry.actor_id ?? "")
+  /** Where tapping a row leads, if anywhere. */
+  function leadsTo(entry: MapLogEntry) {
+    if (entry.action === "trail.started")
+      return machineId(entry) ? ("crew" as const) : null
+    if (entry.action === "trail.closed")
+      return entry.entity_id ? ("trail" as const) : null
+    return placeOf(entry) ? ("place" as const) : null
+  }
+  function follow(entry: MapLogEntry) {
+    const to = leadsTo(entry)
+    const place = placeOf(entry)
+    if (to === "crew") dispatch("crew", machineId(entry))
+    else if (to === "trail")
+      dispatch("trail", {
+        id: entry.entity_id,
+        operation: String(entry.details?.operation_name ?? ""),
+      })
+    else if (place) dispatch("look", place)
+  }
   const pinLook = (icon: unknown, colour: unknown) => ({
     iconClass: String(icon || "default"),
     colour: colour ? String(colour) : null,
@@ -279,7 +308,7 @@
       {#each days as group (group.day)}
         <p class="day">{group.day}</p>
         {#each group.entries as entry (entry.id)}
-          {@const place = placeOf(entry)}
+          {@const to = leadsTo(entry)}
           {@const d = entry.details ?? {}}
           {@const machine = machineOf(d.vehicle_type)}
           {@const before = machineOf(d.from_vehicle_type)}
@@ -287,8 +316,15 @@
           <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
           <div
             class="row"
-            class:goes={!!place}
-            on:click={() => place && dispatch("look", place)}
+            class:goes={!!to}
+            title={to === "crew"
+              ? "Show this machine"
+              : to === "trail"
+                ? "Open this trail"
+                : to
+                  ? "Show where"
+                  : undefined}
+            on:click={() => follow(entry)}
           >
             <!-- What happened, in pictures. -->
             <span class="art">
@@ -387,7 +423,11 @@
               <span class="top">
                 <strong>{entry.actor_name || "Someone"}</strong>
                 <small>
-                  {#if place}<MapPin size={11} />{/if}
+                  {#if to === "place"}
+                    <MapPin size={11} />
+                  {:else if to}
+                    <Route size={11} />
+                  {/if}
                   {ago(entry.occurred_at)}
                 </small>
               </span>

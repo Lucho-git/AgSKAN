@@ -175,6 +175,10 @@
     quickDefault: string
     /** Go to a place the log points at. */
     lookPlace: LngLat
+    /** Pick the machine (by account) a log row is about. */
+    logCrew: string
+    /** Open a finished trail from the log. */
+    logTrail: { id: string; operation: string }
   }>()
 
   // The crew section has two sides: who is on the map, and what has been
@@ -528,6 +532,8 @@
             {guest}
             undo={undoLog}
             on:look={(e) => dispatch("lookPlace", e.detail)}
+            on:crew={(e) => dispatch("logCrew", e.detail)}
+            on:trail={(e) => dispatch("logTrail", e.detail)}
           />
         {:else if crew.length || self || !guest}
           <CrewRows
@@ -691,6 +697,8 @@
           {guest}
           undo={undoLog}
           on:look={(e) => dispatch("lookPlace", e.detail)}
+          on:crew={(e) => dispatch("logCrew", e.detail)}
+          on:trail={(e) => dispatch("logTrail", e.detail)}
         />
       {:else if crew.length || self || !guest}
         <CrewRows

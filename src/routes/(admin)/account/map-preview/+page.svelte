@@ -118,6 +118,7 @@
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
   import TrailCard from "./TrailCard.svelte"
+  import TrailingNow from "./TrailingNow.svelte"
   import TrailSetCard from "./TrailSetCard.svelte"
   import ShapeCard from "./ShapeCard.svelte"
   import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
@@ -353,7 +354,13 @@
   let following: { id: string; mode: "follow" | "cab" } | null = null
   let hideStale = load<boolean>("hide-stale") ?? false
   /** The trail the picked crew member is laying now, in figures. */
-  let crewTrail: { since: number; metres: number; ha: number } | null = null
+  let crewTrail: {
+    since: number
+    metres: number
+    ha: number
+    colour: string
+    lit: boolean
+  } | null = null
   /** A pin being placed by dragging, before it exists. */
   let placing: { iconClass: string; colour: string } | null = null
   /** Stepping through trails is kept to these (the ones through a paddock). */
@@ -1407,22 +1414,42 @@
   $: tailMode =
     selectedCrew && following?.id === selectedCrew.id ? following.mode : null
 
-  const span = (ms: number) => {
-    const minutes = Math.max(1, Math.round(ms / 60000))
-    if (minutes < 60) return `${minutes} min`
-    const rest = minutes % 60
-    return `${Math.floor(minutes / 60)} h${rest ? ` ${rest} min` : ""}`
+  // Who is in someone's machine, when it isn't said by the account's own
+  // name already ("Mick Harris" driven by "Mick").
+  function drivenBy(person: CrewRow) {
+    const driver = (person.driver ?? "").trim()
+    const d = driver.toLowerCase()
+    const a = person.name.trim().toLowerCase()
+    return driver && !a.startsWith(d) && !d.startsWith(a) ? driver : ""
   }
-  // What a trail being laid has done so far, in words.
-  $: trailingNow = crewTrail
-    ? [
-        `Trailing ${span(now - crewTrail.since)}`,
-        `${formatHa(crewTrail.ha)} ha`,
-        crewTrail.metres >= 1000
-          ? `${(crewTrail.metres / 1000).toFixed(1)} km`
-          : `${Math.round(crewTrail.metres)} m`,
-      ].join(" · ")
-    : ""
+
+  // From the log: a trail still being laid picks the machine laying it,
+  // a finished one opens that trail.
+  function logCrew(account: string) {
+    const id = account === userId ? ME : account
+    if (id === ME ? !self : !engine?.lookAt(id)) {
+      say(
+        id === ME
+          ? "You aren't on the map yet."
+          : "That machine isn't on the map right now.",
+      )
+      return
+    }
+    engine?.pickCrew(id)
+    if (id === ME) engine?.setFollow("follow")
+    if (!wide) closePanel()
+  }
+  function logTrail(trail: { id: string; operation: string }) {
+    if (!trails.some((t) => t.id === trail.id)) {
+      say(
+        trail.operation && trail.operation !== operation?.name
+          ? `That trail is in ${trail.operation}. Switch to ${trail.operation} to see it.`
+          : "That trail isn't on the map any more.",
+      )
+      return
+    }
+    if (pickTrail(trail.id) && !wide) closePanel()
+  }
 
   function setHideStale(on: boolean) {
     hideStale = on
@@ -3293,7 +3320,11 @@
       <div in:rise>
         <MachineCard
           {marker}
-          trailing={trailingNow}
+          trail={crewTrail}
+          {now}
+          operation={operation?.name ?? ""}
+          speed={self?.speed ?? 0}
+          on:light={(e) => engine?.lightCrewTrail(e.detail)}
           locked={trailOn || trailFound}
           on:close={() => engine?.selectedCrew.set(null)}
           on:change={(e) => changeMachine(e.detail)}
@@ -3324,19 +3355,22 @@
               </h2>
               <p>
                 {[
-                  ...(selectedCrew.driver
-                    ? [`${selectedCrew.driver} driving`]
+                  ...(drivenBy(selectedCrew)
+                    ? [`${drivenBy(selectedCrew)} driving`]
                     : []),
                   selectedCrew.machineLabel,
                   selectedCrew.doing,
-                  ...(selectedCrew.trailing
-                    ? [
-                        `Trailing${selectedCrew.operation ? ` · ${selectedCrew.operation}` : ""}`,
-                      ]
-                    : selectedCrew.operation
-                      ? [selectedCrew.operation]
-                      : []),
-                  ...(selectedCrew.speed > 0
+                  // (A trail being laid has its own block below.)
+                  ...(crewTrail
+                    ? []
+                    : selectedCrew.trailing
+                      ? [
+                          `Trailing${selectedCrew.operation ? ` · ${selectedCrew.operation}` : ""}`,
+                        ]
+                      : selectedCrew.operation
+                        ? [selectedCrew.operation]
+                        : []),
+                  ...(selectedCrew.speed > 0 && !crewTrail
                     ? [`${selectedCrew.speed} km/h`]
                     : []),
                   ...(selectedCrew.distance !== null
@@ -3354,8 +3388,14 @@
               <X size={22} />
             </button>
           </div>
-          {#if trailingNow}
-            <p class="mn-trailing"><i></i>{trailingNow}</p>
+          {#if crewTrail}
+            <TrailingNow
+              trail={crewTrail}
+              {now}
+              operation={selectedCrew.operation ?? ""}
+              speed={selectedCrew.speed}
+              on:light={(e) => engine?.lightCrewTrail(e.detail)}
+            />
           {/if}
           <div class="mn-menu-actions">
             <button
@@ -3634,6 +3674,8 @@
           if (made)
             say(`${made.name} added. Tap + beside it to draw a paddock.`)
         }}
+        on:logCrew={(e) => logCrew(e.detail)}
+        on:logTrail={(e) => logTrail(e.detail)}
         on:lookPlace={(e) => {
           engine?.showPlace({ at: e.detail })
           if (!wide) closePanel()

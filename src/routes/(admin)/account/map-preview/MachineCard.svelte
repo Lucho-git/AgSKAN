@@ -14,17 +14,29 @@
     findColour,
   } from "$lib/components/mapnext/palette"
   import type { VehicleMarkerData } from "./liveData"
+  import TrailingNow from "./TrailingNow.svelte"
 
   export let marker: VehicleMarkerData
   /** A trail is running: it keeps the colour and width it started with. */
   export let locked = false
-  /** What the trail being laid has done so far, in words. */
-  export let trailing = ""
+  /** The trail being laid, in figures. */
+  export let trail: {
+    since: number
+    metres: number
+    ha: number
+    colour: string
+    lit: boolean
+  } | null = null
+  export let now = Date.now()
+  export let operation = ""
+  export let speed = 0
 
   const dispatch = createEventDispatcher<{
     close: void
     change: { type: string; colour: string; swath: number }
     machine: void
+    /** Highlight the trail being laid, or take the highlight off. */
+    light: boolean
   }>()
 
   // The widths the current viewer offers as one-tap choices.
@@ -69,8 +81,14 @@
     </button>
   </div>
 
-  {#if trailing}
-    <p class="mn-trailing"><i></i>{trailing}</p>
+  {#if trail}
+    <TrailingNow
+      {trail}
+      {now}
+      {operation}
+      {speed}
+      on:light={(e) => dispatch("light", e.detail)}
+    />
   {/if}
   {#if locked}
     <p class="mn-warning">
