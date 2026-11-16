@@ -25,6 +25,7 @@
     MessageCircle,
     Play,
     RadioTower,
+    ScrollText,
     Route,
     Ruler,
     Search,
@@ -39,7 +40,7 @@
   import MachinePicker from "$lib/components/mapnext/MachinePicker.svelte"
   import CrewRows from "./CrewRows.svelte"
   import PinsTool from "./PinsTool.svelte"
-  import FarmLog from "./FarmLog.svelte"
+  import FarmLog, { type LogUndo } from "./FarmLog.svelte"
   import type { LngLat } from "$lib/components/mapnext/geo"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
@@ -111,6 +112,8 @@
   export let farmList: FarmName[] = []
   /** The map itself, for its log. */
   export let mapId = ""
+  /** Put back what a row of the log did. */
+  export let undoLog: (what: LogUndo) => Promise<boolean> = async () => false
   /** Messages this person hasn't opened. */
   export let unread = 0
   /** Who the open conversation is with (their name), if one is open. */
@@ -497,7 +500,8 @@
               aria-selected={crewTab === "crew"}
               on:click={() => (crewTab = "crew")}
             >
-              Crew · {online} on
+              <Users size={15} /> Crew
+              {#if online}<b>{online}</b>{/if}
             </button>
             <button
               type="button"
@@ -505,7 +509,7 @@
               aria-selected={crewTab === "log"}
               on:click={() => (crewTab = "log")}
             >
-              Log
+              <ScrollText size={15} /> Log
             </button>
           </div>
           {#if !guest}
@@ -520,7 +524,12 @@
           {/if}
         </div>
         {#if crewTab === "log" && mapId}
-          <FarmLog {mapId} on:look={(e) => dispatch("lookPlace", e.detail)} />
+          <FarmLog
+            {mapId}
+            {guest}
+            undo={undoLog}
+            on:look={(e) => dispatch("lookPlace", e.detail)}
+          />
         {:else if crew.length || self || !guest}
           <CrewRows
             {crew}
@@ -653,7 +662,8 @@
             aria-selected={crewTab === "crew"}
             on:click={() => (crewTab = "crew")}
           >
-            Crew · {online} on
+            <Users size={15} /> Crew
+            {#if online}<b>{online}</b>{/if}
           </button>
           <button
             type="button"
@@ -661,7 +671,7 @@
             aria-selected={crewTab === "log"}
             on:click={() => (crewTab = "log")}
           >
-            Log
+            <ScrollText size={15} /> Log
           </button>
         </div>
         {#if !guest}
@@ -676,7 +686,12 @@
         {/if}
       </div>
       {#if crewTab === "log" && mapId}
-        <FarmLog {mapId} on:look={(e) => dispatch("lookPlace", e.detail)} />
+        <FarmLog
+          {mapId}
+          {guest}
+          undo={undoLog}
+          on:look={(e) => dispatch("lookPlace", e.detail)}
+        />
       {:else if crew.length || self || !guest}
         <CrewRows
           {crew}

@@ -53,7 +53,6 @@
     PIN_DEFAULT,
     pinChoices as allPinChoices,
     pinColour,
-    pinLabel,
     preferenceIconClass,
   } from "$lib/components/mapnext/pins"
   import { markerColor } from "$lib/components/map/markers/markerPalette"
@@ -351,6 +350,10 @@
   let conversations: Conversation[] = []
   let unread = 0
   let chatWith: string | null = null
+  /** A place is being picked on the map to send to whoever the chat is with. */
+  let placePick = false
+  /** The place picked, waiting in the conversation to be sent. */
+  let chatPlace: { label: string; place: SharedPlace } | null = null
   let thread: Message[] = []
   let chatLoading = false
   let chatSending = false
@@ -484,6 +487,24 @@
       created.through.subscribe((v) => (through = v)),
       created.throughStats.subscribe((v) => (throughStats = v)),
       created.grabbed.subscribe((item) => {
+        if (item && placePick) {
+          // Picked for a message: back to the conversation with it.
+          attachPlace({
+            label: item.label,
+            place: {
+              at: item.at,
+              label: item.type === "spot" ? "A spot on the map" : item.label,
+              refType:
+                item.type === "field"
+                  ? "field"
+                  : item.type === "marker"
+                    ? "marker"
+                    : null,
+              refId: item.type === "spot" ? null : item.id,
+            },
+          })
+          return
+        }
         if (!item || !jobDraft) return
         // Tapping something already on the step takes it off again.
         const same = (other: JobItem) =>
@@ -951,54 +972,43 @@
       "Team member")
     : ""
   $: notice = notices[notices.length - 1] ?? null
-  $: sharePlaces = sharable(readout, selectedPin, selectedPaddock)
 
   function openChat(id: string | null) {
     messenger?.open(id)
     openPanel("messages")
   }
 
-  // What can be sent as a place right now: where this person is, and
-  // whatever they have picked on the map.
-  function sharable(
-    fix: Readout,
-    pin: LivePin | null,
-    paddock: Paddock | null,
-  ) {
-    const list: { key: string; label: string; place: SharedPlace }[] = []
+  // Sending a place: the messages step aside, the next tap on the map (a
+  // paddock, a pin, or bare ground) is the place, and the conversation
+  // comes back with it ready to send.
+  function pickPlace() {
+    if (jobDraft) endJob()
+    placePick = true
+    if (!wide) panelOpen = false
+    stopPinning()
+    engine?.setGrabbing(true)
+  }
+  function endPlacePick() {
+    placePick = false
+    engine?.setGrabbing(false)
+    openPanel("messages")
+  }
+  function attachPlace(place: { label: string; place: SharedPlace }) {
+    chatPlace = place
+    endPlacePick()
+  }
+  function sendWhereIAm() {
     const mine = engine?.myPosition()
-    if (mine && fix.hasFix && userId)
-      list.push({
-        key: "me",
-        label: "Where I am now",
-        place: {
-          at: mine,
-          label: `${myName.trim().split(/\s+/)[0]} is here`,
-          refType: "vehicle",
-          refId: userId,
-        },
-      })
-    if (pin) {
-      const what = pinLabel(pin.iconClass)
-      list.push({
-        key: "pin",
-        label: `The ${what.toLowerCase()} pin I've picked`,
-        place: {
-          at: pin.at,
-          label: pin.note ? `${what}: ${pin.note}`.slice(0, 60) : `${what} pin`,
-          refType: "marker",
-          refId: pin.id,
-        },
-      })
-    }
-    const at = paddock ? engine?.paddockPoint(paddock.id) : null
-    if (paddock && at)
-      list.push({
-        key: "paddock",
-        label: `${paddock.name}, the paddock I've picked`,
-        place: { at, label: paddock.name, refType: "field", refId: paddock.id },
-      })
-    return list
+    if (!mine || !userId) return
+    attachPlace({
+      label: "Where I am now",
+      place: {
+        at: mine,
+        label: `${myName.trim().split(/\s+/)[0]} is here`,
+        refType: "vehicle",
+        refId: userId,
+      },
+    })
   }
 
   // ── Jobs: something to do at a place, for one person or for anyone ──
@@ -1807,6 +1817,20 @@
             <X size={16} />
           </button>
         </p>
+      {/if}
+      {#if placePick}
+        <div class="mn-pickbar">
+          <p>
+            <b>Tap a paddock, a pin or any spot</b>
+            to send it{chatName ? ` to ${chatName.split(/\s+/)[0]}` : ""}
+          </p>
+          {#if readout.hasFix}
+            <button type="button" on:click={sendWhereIAm}>
+              <LocateFixed size={16} /> Where I am
+            </button>
+          {/if}
+          <button type="button" on:click={endPlacePick}>Cancel</button>
+        </div>
       {/if}
       {#if jobDraft && !measure}
         <JobBar
@@ -3140,6 +3164,20 @@
           if (engine?.pickPaddockById(e.detail) && !wide) closePanel()
         }}
         farmList={farmNames}
+        undoLog={async (what) => {
+          const ok = (await engine?.undoLogged(what)) ?? false
+          if (ok)
+            say(
+              what.kind === "restore"
+                ? "Pin put back"
+                : what.kind === "remove"
+                  ? "Pin removed"
+                  : what.kind === "move"
+                    ? "Pin moved back"
+                    : "Pin changed back",
+            )
+          return ok
+        }}
         mapId={mapId ?? ""}
         on:newPaddock={(e) => {
           startMeasuring()
@@ -3180,7 +3218,8 @@
             {thread}
             loading={chatLoading}
             sending={chatSending}
-            places={sharePlaces}
+            bind:attached={chatPlace}
+            on:pickPlace={pickPlace}
             {paddocks}
             {drawings}
             {guest}

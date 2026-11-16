@@ -865,6 +865,14 @@ export class LiveEngine {
   private slowTick = 0
   private trailTick = 0
   private followPausedUntil = 0
+  /** Where the riding camera is, and the way its machine has been going. */
+  private cam: {
+    key: string
+    at: LngLat
+    /** Trails twenty metres behind the machine: the line to it is its course. */
+    hitch: LngLat
+    course: number
+  } | null = null
   /** Fingers are on the map: leave the camera alone until they lift. */
   private touching = false
   private destroyed = false
@@ -2381,6 +2389,41 @@ export class LiveEngine {
     }
   }
 
+  /** Put back what a row of the farm's log did to a pin. */
+  async undoLogged(
+    what:
+      | { kind: "restore"; id: string }
+      | { kind: "remove"; id: string }
+      | { kind: "edit"; id: string; iconClass: string; colour: string }
+      | { kind: "move"; id: string; at: LngLat },
+  ) {
+    if (what.kind === "restore") {
+      try {
+        await restorePin(what.id)
+        const back = (await loadPins(this.mapId)).find((p) => p.id === what.id)
+        if (back) {
+          this.pinsById.set(back.id, back)
+          this.drawPins()
+        }
+        return true
+      } catch {
+        this.problem.set("That pin couldn't be put back.")
+        return false
+      }
+    }
+    if (!this.pinsById.has(what.id)) {
+      this.problem.set("That pin isn't on the map any more.")
+      return false
+    }
+    if (what.kind === "remove") return !!(await this.removePin(what.id))
+    if (what.kind === "edit")
+      return this.updatePin(what.id, {
+        iconClass: what.iconClass,
+        colour: what.colour,
+      })
+    return this.updatePin(what.id, { at: what.at })
+  }
+
   pinName = (pin: LivePin) => pin.note || pinLabel(pin.iconClass)
 
   // ── Crew ────────────────────────────────────────────────────────────────
@@ -2460,7 +2503,10 @@ export class LiveEngine {
           from: vehicle.pos,
           to: state.at,
           start: performance.now(),
-          dur: clamp(state.t - previous.t, 300, 1500),
+          // A little longer than the gap between reports: the machine is
+          // still gliding when the next one lands, instead of stopping at
+          // each and starting again.
+          dur: clamp((state.t - previous.t) * 1.25, 450, 3200),
         }
       }
     }
@@ -2505,7 +2551,7 @@ export class LiveEngine {
           (where ? ` · ${where.name}` : "")
       else if (age < 10 * 60_000)
         doing = where ? `Stopped · ${where.name}` : "Stopped"
-      else doing = `Last seen ${formatAgo(state.t, now)}`
+      else doing = `Seen ${formatAgo(state.t, now)}`
       rows.push({
         id,
         name: entry.profile.name,
@@ -5014,6 +5060,53 @@ export class LiveEngine {
     })
   }
 
+  /**
+   * Ride along with a machine. The camera doesn't sit on every position
+   * the machine reports (they arrive a second or so apart and wander a
+   * metre either way, which made the map shake); it glides after it. And
+   * when the map is turning with the machine, it turns to the way the
+   * machine has actually travelled over the last twenty metres (as a
+   * trailer follows a ute), not to each heading reading.
+   */
+  private ride(
+    key: string,
+    pos: LngLat,
+    heading: number,
+    swing: boolean,
+    offset: [number, number],
+    dt: number,
+    rate = 1,
+  ) {
+    let cam = this.cam
+    if (!cam || cam.key !== key || distanceM(cam.at, pos) > 300)
+      cam = this.cam = { key, at: pos, hitch: pos, course: heading }
+    const glide = 1 - Math.exp(-dt * 3.4 * rate)
+    cam.at = [lerp(cam.at[0], pos[0], glide), lerp(cam.at[1], pos[1], glide)]
+    const out = distanceM(cam.hitch, pos)
+    const REACH = 20
+    if (out > REACH) {
+      cam.course = bearingDeg(cam.hitch, pos)
+      const pull = (out - REACH) / out
+      cam.hitch = [
+        lerp(cam.hitch[0], pos[0], pull),
+        lerp(cam.hitch[1], pos[1], pull),
+      ]
+    }
+    const bearing = this.map.getBearing()
+    this.map.easeTo({
+      center: cam.at,
+      ...(swing
+        ? {
+            bearing:
+              bearing +
+              turn(bearing, cam.course) * (1 - Math.exp(-dt * 1.7 * rate)),
+          }
+        : {}),
+      offset,
+      duration: 0,
+    })
+  }
+
   private followOffset(mode: FollowMode): [number, number] {
     const height = this.map.getContainer().clientHeight
     return [
@@ -5147,6 +5240,22 @@ export class LiveEngine {
       xs.push(tail[0])
       ys.push(tail[1])
       alongs.push(Math.max(travelled, alongs[alongs.length - 1] + 0.5))
+    }
+    // A recorded position is good to a metre or so, which leaves a path
+    // that twitches from side to side. Each point is drawn a little toward
+    // its neighbours (twice over), which takes the twitch out and leaves
+    // the turns where they are.
+    for (let pass = 0; pass < 2; pass++) {
+      let px = xs[0]
+      let py = ys[0]
+      for (let i = 1; i < xs.length - 1; i++) {
+        const nx = (px + 2 * xs[i] + xs[i + 1]) / 4
+        const ny = (py + 2 * ys[i] + ys[i + 1]) / 4
+        px = xs[i]
+        py = ys[i]
+        xs[i] = nx
+        ys[i] = ny
+      }
     }
     const count = xs.length
 
@@ -5299,7 +5408,12 @@ export class LiveEngine {
     const vehicle = sim.vehicle
     vehicle.pos = pos
     vehicle.marker.setLngLat(pos)
-    vehicle.heading = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360
+    const back = Math.max(0, i - 2)
+    const on = Math.min(last, i + 3)
+    vehicle.heading =
+      ((Math.atan2(g.x[on] - g.x[back], g.y[on] - g.y[back]) * 180) / Math.PI +
+        360) %
+      360
     const bearing = this.map.getBearing()
     vehicle.eased = Number.isNaN(vehicle.eased)
       ? vehicle.heading
@@ -5316,16 +5430,16 @@ export class LiveEngine {
       now > this.followPausedUntil &&
       !this.touching
     )
-      this.map.easeTo({
-        center: pos,
-        // Run faster, it turns faster, so the way ahead stays up the screen.
-        bearing:
-          bearing +
-          turn(bearing, vehicle.eased) *
-            (1 - Math.exp(-dt * 3 * Math.max(1, sim.rate / 2))),
-        offset: this.followOffset("cab"),
-        duration: 0,
-      })
+      // (Run faster, it turns faster, so the way ahead stays up the screen.)
+      this.ride(
+        "demo",
+        pos,
+        vehicle.heading,
+        true,
+        this.followOffset("cab"),
+        dt,
+        Math.max(1, sim.rate / 2),
+      )
   }
 
   /** Follow it the other way round. */
@@ -5767,7 +5881,7 @@ export class LiveEngine {
         from: this.mine.pos,
         to: fix.at,
         start: now,
-        dur: clamp(gap, 180, 1200),
+        dur: clamp(gap * 1.15, 200, 1600),
       }
     }
     this.lastFix = fix
@@ -5889,18 +6003,15 @@ export class LiveEngine {
       const followed = this.crewById.get(tail.id)?.vehicle
       if (!followed) this.followCrew(null)
       else if (now > this.followPausedUntil && !this.touching)
-        this.map.easeTo({
-          center: followed.pos,
-          ...(tail.mode === "cab"
-            ? {
-                bearing:
-                  bearing +
-                  turn(bearing, followed.heading) * (1 - Math.exp(-dt * 3)),
-              }
-            : {}),
-          offset: this.followOffset(tail.mode),
-          duration: 0,
-        })
+        this.ride(
+          `crew:${tail.id}`,
+          followed.pos,
+          followed.heading,
+          tail.mode === "cab",
+          this.followOffset(tail.mode),
+          dt,
+        )
+      else if (this.cam?.key === `crew:${tail.id}`) this.cam.at = followed.pos
     }
 
     const mine = this.mine
@@ -5920,20 +6031,16 @@ export class LiveEngine {
       this.turnTo(mine, mine.eased - bearing)
 
       const mode = get(this.follow)
-      if (mode !== "free" && now > this.followPausedUntil && !this.touching) {
-        this.map.easeTo({
-          center: mine.pos,
-          ...(mode === "cab"
-            ? {
-                bearing:
-                  bearing +
-                  turn(bearing, mine.heading) * (1 - Math.exp(-dt * 3)),
-              }
-            : {}),
-          offset: this.followOffset(mode),
-          duration: 0,
-        })
-      }
+      if (mode !== "free" && now > this.followPausedUntil && !this.touching)
+        this.ride(
+          "me",
+          mine.pos,
+          mine.heading,
+          mode === "cab",
+          this.followOffset(mode),
+          dt,
+        )
+      else if (this.cam?.key === "me") this.cam.at = mine.pos
     }
 
     this.stepReplay(dt, now)

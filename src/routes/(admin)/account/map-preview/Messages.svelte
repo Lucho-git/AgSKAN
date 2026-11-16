@@ -3,16 +3,18 @@
    * Messages, inside the toolbox: the list of people this person has talked
    * to (and the rest of the crew, to start with), or one conversation.
    *
-   * Built for a cab: answers that take one tap, a place sent in two (where
-   * you are, or whatever is picked on the map), and a place received opens
-   * on the map. A job, something to do at a paddock or a pin, is sent from
-   * here too and shows with a picture of where it is.
+   * Built for a cab. The box to type in is one row; the one-tap answers
+   * show once it is tapped into, and the + beside it sends a place or a
+   * job. Sending a place steps out to the map (a paddock, a pin, any spot,
+   * or where you are) and comes back with it ready to send. A place
+   * received opens on the map; a job shows with a picture of where it is.
    */
   import { createEventDispatcher, tick } from "svelte"
   import {
     ClipboardList,
     LocateFixed,
     MapPin,
+    Plus,
     SendHorizontal,
     X,
   } from "lucide-svelte"
@@ -38,8 +40,8 @@
   export let thread: Message[] = []
   export let loading = false
   export let sending = false
-  /** Places that can be sent right now: where I am, and what is picked. */
-  export let places: { key: string; label: string; place: SharedPlace }[] = []
+  /** The place picked on the map, waiting to go with the next message. */
+  export let attached: { label: string; place: SharedPlace } | null = null
   /** The farm, for the picture on a job. */
   export let paddocks: Paddock[] = []
   export let drawings: PinDrawing[] = []
@@ -54,6 +56,8 @@
     look: string
     /** Start putting a job together for this person. */
     job: void
+    /** Step out to the map to pick a place to send. */
+    pickPlace: void
     showJob: Job
     takeJob: string
     finishJob: string
@@ -73,8 +77,10 @@
   ]
 
   let draft = ""
-  let attached: { key: string; label: string; place: SharedPlace } | null = null
-  let choosing = false
+  /** The + is open: send a place, or a job. */
+  let more = false
+  /** The box is being typed in: the one-tap answers show. */
+  let focused = false
   let threadEl: HTMLDivElement | undefined
   let lastWith: string | null = null
 
@@ -87,7 +93,7 @@
     lastWith = withId
     draft = ""
     attached = null
-    choosing = false
+    more = false
   }
   // Keep the newest message in view.
   $: if (thread.length && threadEl) toEnd()
@@ -154,7 +160,7 @@
     dispatch("send", { body: text, place: attached?.place ?? null })
     if (body === draft) draft = ""
     attached = null
-    choosing = false
+    more = false
   }
 </script>
 
@@ -179,12 +185,16 @@
     {/if}
   </div>
 
-  <div class="mn-thread" bind:this={threadEl} aria-live="polite">
+  <!-- With nothing said yet there is no empty box: just a line. -->
+  <div
+    class="mn-thread"
+    class:bare={!thread.length}
+    bind:this={threadEl}
+    aria-live="polite"
+  >
     {#if !thread.length}
-      <p class="mn-empty">
-        {loading
-          ? "Loading…"
-          : `Nothing yet. Say something to ${person?.name.split(/\s+/)[0] ?? "them"}.`}
+      <p class="none">
+        {loading ? "Loading…" : "No messages yet."}
       </p>
     {/if}
     {#each thread as message, i (message.id)}
@@ -237,39 +247,6 @@
   </div>
 
   {#if person}
-    <div class="mn-quick" role="group" aria-label="Quick replies">
-      {#each QUICK as text}
-        <button type="button" disabled={sending} on:click={() => send(text)}>
-          {text}
-        </button>
-      {/each}
-    </div>
-
-    {#if choosing}
-      <div class="mn-places">
-        {#each places as option (option.key)}
-          <button
-            type="button"
-            on:click={() => {
-              attached = option
-              choosing = false
-            }}
-          >
-            <PlaceArt
-              type={option.place.refType}
-              id={option.place.refId}
-              size={24}
-            />
-            {option.label}
-          </button>
-        {:else}
-          <p class="mn-note">
-            Turn your location on, or pick a pin or paddock on the map, and it
-            can be sent from here.
-          </p>
-        {/each}
-      </div>
-    {/if}
     {#if attached}
       <p class="mn-attached">
         <PlaceArt
@@ -288,23 +265,58 @@
       </p>
     {/if}
 
-    <div class="mn-send-row">
-      <button
-        type="button"
-        class:on={choosing || !!attached}
-        aria-expanded={choosing}
-        on:click={() => (choosing = !choosing)}
-      >
-        <MapPin size={18} /> Send location
-      </button>
-      {#if !guest}
-        <button type="button" on:click={() => dispatch("job")}>
-          <ClipboardList size={18} /> Send job
+    {#if more}
+      <div class="mn-more">
+        <button
+          type="button"
+          on:click={() => {
+            more = false
+            dispatch("pickPlace")
+          }}
+        >
+          <MapPin size={18} /> Send a place
+          <span>Pick it on the map</span>
         </button>
-      {/if}
-    </div>
+        {#if !guest}
+          <button
+            type="button"
+            on:click={() => {
+              more = false
+              dispatch("job")
+            }}
+          >
+            <ClipboardList size={18} /> Send a job
+            <span>Something to do, and where</span>
+          </button>
+        {/if}
+      </div>
+    {:else if focused && !draft}
+      <!-- One-tap answers, once the box has been tapped into. -->
+      <div class="mn-quick" role="group" aria-label="Quick replies">
+        {#each QUICK as text}
+          <!-- (mousedown, so the tap lands before the box loses the cursor.) -->
+          <button
+            type="button"
+            disabled={sending}
+            on:mousedown|preventDefault={() => send(text)}
+          >
+            {text}
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     <form class="mn-compose" on:submit|preventDefault={() => send()}>
+      <button
+        type="button"
+        class="place"
+        class:on={more}
+        aria-label="Send a place or a job"
+        aria-expanded={more}
+        on:click={() => (more = !more)}
+      >
+        <Plus size={22} />
+      </button>
       <input
         type="text"
         bind:value={draft}
@@ -312,6 +324,11 @@
         placeholder="Message {person.name.split(/\s+/)[0]}"
         autocomplete="off"
         enterkeyhint="send"
+        on:focus={() => {
+          focused = true
+          more = false
+        }}
+        on:blur={() => (focused = false)}
       />
       <button
         type="submit"
@@ -330,7 +347,11 @@
       {#each conversations as convo (convo.id)}
         {@const who = byId.get(convo.id)}
         <li>
-          <button type="button" on:click={() => dispatch("open", convo.id)}>
+          <button
+            type="button"
+            class:live={who?.online}
+            on:click={() => dispatch("open", convo.id)}
+          >
             <span class="art" class:away={who?.away}>
               {#if who}
                 <svelte:component
@@ -371,7 +392,11 @@
     <ul class="mn-crew mn-inbox">
       {#each others as member (member.id)}
         <li>
-          <button type="button" on:click={() => dispatch("open", member.id)}>
+          <button
+            type="button"
+            class:live={member.online}
+            on:click={() => dispatch("open", member.id)}
+          >
             <span class="art" class:away={member.away}>
               <svelte:component
                 this={vehicles[member.type]}

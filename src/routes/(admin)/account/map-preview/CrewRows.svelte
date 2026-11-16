@@ -4,8 +4,10 @@
    * are on, and how far off they are. Your own machine is first. Tapping a
    * row finds them on the map; the button beside it opens their messages.
    *
-   * Someone laying a trail is marked in green, and the list keeps a steady
-   * order (the engine decides it) so rows don't jump about.
+   * Whoever is on the map now (or laying a trail) sits on a light blue
+   * shade; someone laying a trail also carries a badge in the colour the
+   * trail is being laid in. The list keeps a steady order (the engine
+   * decides it) so rows don't jump about.
    */
   import { createEventDispatcher } from "svelte"
   import { MessageCircle, UserPlus } from "lucide-svelte"
@@ -36,6 +38,15 @@
   )
   $: shown = hideStale ? crew.filter((person) => !stale.includes(person)) : crew
   $: rows = self ? [self, ...shown] : shown
+
+  /** Ink or white, whichever reads on a colour. */
+  function onColour(hex: string) {
+    const n = parseInt(hex.replace("#", "").slice(0, 6), 16)
+    if (Number.isNaN(n)) return "#ffffff"
+    const bright =
+      (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
+    return bright > 0.6 ? "#15261c" : "#ffffff"
+  }
 </script>
 
 <ul class="mn-crew">
@@ -43,7 +54,7 @@
     <li>
       <button
         type="button"
-        class:trailing={person.trailing}
+        class:live={person.trailing || (person.online && !person.me)}
         disabled={!person.placed}
         on:click={() => dispatch("look", person.id)}
       >
@@ -64,7 +75,12 @@
           <strong>{person.name}{person.guest ? " (guest)" : ""}</strong>
           <span class="doing">{person.doing}</span>
           {#if person.trailing}
-            <span class="job on">
+            <span
+              class="job on"
+              style="background: {person.colour}; color: {onColour(
+                person.colour,
+              )}"
+            >
               <i></i>Trailing{person.operation ? ` · ${person.operation}` : ""}
             </span>
           {:else if person.operation}
