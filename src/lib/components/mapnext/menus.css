@@ -2489,3 +2489,111 @@
   border-color: #f7db5c;
   color: #f7db5c;
 }
+
+/* ── Eighth pass ────────────────────────────────────────────────────────── */
+/* Pin buttons, bottom right: one per default pin, stacked above the trail
+   button. Pressed once a button is armed (and offers to change); pressed
+   again it drops the pin. */
+.mn-quickpins {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.mn-quickpins .slot {
+  position: relative;
+  display: flex;
+}
+.mn-quickpins.many .mn-pin-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 21px;
+}
+.mn-quickpins .mn-pin-button span {
+  max-width: 100%;
+  padding: 0 3px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-quickpins .mn-pin-button.armed {
+  background: #15261c;
+  box-shadow:
+    0 0 0 3px #f7db5c,
+    0 12px 26px -10px rgba(10, 25, 15, 0.9);
+  color: #f7db5c;
+}
+.mn-quickpins .change {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 99px;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1.5px var(--lp-ink),
+    0 10px 22px -10px rgba(10, 25, 15, 0.8);
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--lp-ink);
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+/* The Pins tool: which kinds have a button. */
+.mn-quickset {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 16px;
+}
+.mn-quickset .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mn-quickset .chips > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 10px 0 6px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-quickset .chips small {
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+}
+.mn-quickset .chips button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: -6px;
+  border-radius: 50%;
+  color: var(--lp-ink-soft);
+}
+.mn-quickset .add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 1.5px dashed var(--lp-ink-soft);
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}

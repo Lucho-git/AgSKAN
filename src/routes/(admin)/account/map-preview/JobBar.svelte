@@ -6,6 +6,7 @@
    * follow, an area, where you are, where someone on the crew is.
    */
   import { createEventDispatcher } from "svelte"
+  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import {
     ChevronDown,
     LocateFixed,
@@ -76,25 +77,20 @@
         </button>
       {/if}
       {#if crew.length}
-        <label>
+        <Dropdown
+          look="item"
+          title="Whose spot?"
+          options={crew.map((person) => ({
+            value: person.id,
+            label: person.name,
+          }))}
+          on:change={(e) => {
+            open = false
+            dispatch("crew", e.detail)
+          }}
+        >
           <Users size={18} /> Where someone is
-          <ChevronDown size={15} />
-          <select
-            aria-label="Whose spot to add"
-            value=""
-            on:change={(e) => {
-              const id = e.currentTarget.value
-              e.currentTarget.value = ""
-              open = false
-              if (id) dispatch("crew", id)
-            }}
-          >
-            <option value="" disabled>Whose spot?</option>
-            {#each crew as person (person.id)}
-              <option value={person.id}>{person.name}</option>
-            {/each}
-          </select>
-        </label>
+        </Dropdown>
       {/if}
     </div>
   {/if}
@@ -179,8 +175,7 @@
       0 0 0 1.5px rgba(244, 241, 230, 0.25),
       0 18px 34px -12px rgba(0, 0, 0, 0.75);
   }
-  .menu button,
-  .menu label {
+  .menu button {
     position: relative;
     display: flex;
     align-items: center;
@@ -194,21 +189,8 @@
     text-align: left;
     cursor: pointer;
   }
-  .menu label :global(svg:last-of-type) {
-    margin-left: auto;
-  }
-  .menu button:hover,
-  .menu label:hover {
+  .menu button:hover {
     background: rgba(244, 241, 230, 0.1);
-  }
-  .menu select {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    font-size: 1rem;
-    opacity: 0;
-    cursor: pointer;
   }
   @media (prefers-reduced-motion: reduce) {
     .tap {

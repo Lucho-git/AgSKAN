@@ -14,7 +14,7 @@
    */
   import { onDestroy, onMount, setContext } from "svelte"
   import { writable } from "svelte/store"
-  import { fly } from "svelte/transition"
+  import { fade, fly } from "svelte/transition"
   import { goto } from "$app/navigation"
   import { PUBLIC_MAPBOX_ACCESS_TOKEN } from "$env/static/public"
   import {
@@ -115,6 +115,7 @@
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
   import TrailCard from "./TrailCard.svelte"
+  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import JobBuilder, { type JobDraft } from "./JobBuilder.svelte"
   import JobBar from "./JobBar.svelte"
   import { JobBoard } from "./jobBoard"
@@ -232,8 +233,6 @@
   let toolView: ToolView = "home"
   let pinning = false
   let showAllPins = false
-  let droppedHere = 0
-  let droppedAtStart = 0
   let wide = false
   let online = true
   let secure = true
@@ -256,6 +255,43 @@
     preferenceIconClass(
       resolveDefaultMarkerPreference($userSettingsStore.defaultMarker),
     )
+  // The kinds of pin with a button of their own, bottom right. The first
+  // is the default: it is the one a long press on the map drops.
+  let quickKinds: string[] = load<string[]>("quick-pins") ?? [pinKind]
+  if (!quickKinds.length) quickKinds = [pinKind]
+  /** The button that has been pressed once: pressed again, it drops. */
+  let armedPin: string | null = null
+  /** Its "Change" button is showing. */
+  let changeShown = false
+  /** The button whose kind is being changed. */
+  let pinSlot: string | null = null
+  const pinName = (iconClass: string) =>
+    pinChoices.find((choice) => choice.iconClass === iconClass)?.label ?? "Pin"
+  function setQuick(kinds: string[]) {
+    quickKinds = kinds.length ? kinds : [pinKind]
+    save("quick-pins", quickKinds)
+  }
+  function pinTap(iconClass: string) {
+    if (armedPin !== iconClass) {
+      armedPin = iconClass
+      changeShown = true
+      return
+    }
+    // Pressed again: down it goes, where the machine is.
+    changeShown = false
+    engine?.dropPin(iconClass)
+  }
+  function disarmPin() {
+    armedPin = null
+    changeShown = false
+  }
+  // A tap anywhere but on the pin buttons lets go of them.
+  function tapAway(event: Event) {
+    if (!armedPin) return
+    const target = event.target as HTMLElement | null
+    if (target?.closest?.(".mn-quickpins")) return
+    disarmPin()
+  }
   $: quickPins = [
     ...pinChoices.filter((choice) => choice.iconClass === pinKind),
     ...pinChoices.filter((choice) => choice.iconClass !== pinKind).slice(0, 9),
@@ -327,6 +363,27 @@
    * particular). `null` when the draw tool is being used for anything else.
    */
   let paddockFor: string | null = null
+  /** Asked for a new paddock: how to make it, and for which farm. */
+  let paddockAsk: { farmId: string | null } | null = null
+  /** The name being given to the paddock being built. */
+  let newPaddockName = ""
+  function buildPaddock(trailId: string | null = null) {
+    const ask = paddockAsk
+    if (!ask) return
+    let start = null
+    if (trailId) {
+      start = engine?.outlineOfTrail(trailId) ?? null
+      if (!start) {
+        say("That trail is still loading, or covers too little ground.")
+        return
+      }
+    }
+    paddockAsk = null
+    newPaddockName = ""
+    if (!wide) panelOpen = false
+    stopPinning()
+    engine?.newPaddock(ask.farmId, start)
+  }
 
   // ── Jobs ──
   let board: JobBoard | null = null
@@ -405,8 +462,6 @@
   // Keep "centred" meaning centred in the part of the map that isn't covered.
   $: engine?.setInsets(wide ? 352 : 0, wide ? 0 : 76)
   $: pinDistance = selectedPin ? distanceFromMe(selectedPin, readout) : null
-  $: if (pinning) droppedHere = Math.max(0, droppedTotal - droppedAtStart)
-  let droppedTotal = 0
 
   // `fix` is only here so the distance refreshes as the viewer moves.
   function distanceFromMe(pin: LivePin, fix: Readout) {
@@ -450,6 +505,15 @@
       pinSettings,
     })
     engine = created
+    // Holding a finger on the map drops the default pin there (or the one
+    // whose button is pressed), as the current viewer does.
+    created.onHold = (at) => {
+      if (guest || pinning) return
+      const kind = armedPin ?? quickKinds[0]
+      created.dropPin(kind, at)
+      changeShown = false
+      say(`${pinName(kind)} dropped`)
+    }
     stop.push(
       created.gps.subscribe((v) => (gps = v)),
       created.follow.subscribe((v) => (follow = v)),
@@ -457,7 +521,6 @@
       created.bearing.subscribe((v) => (bearing = v)),
       created.crew.subscribe((v) => (crew = v)),
       created.pinCount.subscribe((v) => (pinCount = v)),
-      created.dropped.subscribe((v) => (droppedTotal = v)),
       created.selectedPin.subscribe((v) => (selectedPin = v)),
       created.selectedPaddock.subscribe((v) => (selectedPaddock = v)),
       created.selectedTrail.subscribe((v) => {
@@ -838,25 +901,34 @@
   }
 
   // ── Pins ──
-  function startPinning() {
+  // Changing which kind of pin a button drops.
+  function startPinning(slot: string | null = null) {
     panelOpen = false
     stopAsk = false
+    pinSlot = slot ?? quickKinds[0]
     pinning = true
     showAllPins = false
-    droppedAtStart = droppedTotal
-    engine?.armPin(pinKind)
+    disarmPin()
   }
 
   function stopPinning() {
     pinning = false
-    engine?.armPin(null)
+    pinSlot = null
   }
 
   function choosePin(iconClass: string) {
     pinKind = iconClass
     save("pin", iconClass)
     showAllPins = false
-    if (pinning) engine?.armPin(iconClass)
+    if (pinning && pinSlot) {
+      // The button takes the new kind (two buttons never drop the same).
+      setQuick(
+        quickKinds.includes(iconClass)
+          ? quickKinds
+          : quickKinds.map((kind) => (kind === pinSlot ? iconClass : kind)),
+      )
+      stopPinning()
+    }
   }
 
   async function removeSelectedPin() {
@@ -1537,6 +1609,7 @@
 
   $: cardOpen =
     !!driverOffer ||
+    !!paddockAsk ||
     !!boundaryEdit ||
     !!placing ||
     !!jobDraft ||
@@ -1603,8 +1676,16 @@
   })
   async function saveBoundary() {
     const edit = boundaryEdit
-    const saved = edit ? await engine?.saveEdit() : false
+    const saved = edit ? await engine?.saveEdit(newPaddockName) : false
     if (!edit || !saved) return
+    if (edit.creating) {
+      say(
+        saved.made.length > 1
+          ? `${saved.made.map((paddock) => paddock.name).join(" and ")} are now paddocks`
+          : `${saved.name} is now a paddock`,
+      )
+      return
+    }
     const made = saved.made.map((paddock) => paddock.name)
     const gone = saved.gone.map((paddock) => paddock.name)
     say(
@@ -1704,7 +1785,7 @@
   }
 </script>
 
-<svelte:window on:keydown={onKey} />
+<svelte:window on:keydown={onKey} on:pointerdown|capture={tapAway} />
 
 <svelte:head>
   <title>Map · {farmName} · AgSKAN</title>
@@ -1987,6 +2068,45 @@
     {#if wide || !cardOpen}
       <div class="mn-corner bottom-right">
         {#if !guest}
+          <!-- A button for each default pin, the first one lowest. Pressed
+               once it offers to change; pressed again it drops the pin where
+               the machine is. A tap anywhere else lets go of it. -->
+          <div class="mn-quickpins" class:many={quickKinds.length > 1}>
+            {#each [...quickKinds].reverse() as kind (kind)}
+              <div class="slot">
+                {#if armedPin === kind && changeShown}
+                  <button
+                    type="button"
+                    class="change"
+                    transition:fade={{ duration: 160 }}
+                    on:click={() => startPinning(kind)}
+                  >
+                    Change pin
+                  </button>
+                {/if}
+                <button
+                  type="button"
+                  class="mn-pin-button"
+                  class:armed={armedPin === kind}
+                  aria-label={armedPin === kind
+                    ? `Drop a ${pinName(kind)} pin here`
+                    : `${pinName(kind)} pin`}
+                  on:click={() => pinTap(kind)}
+                >
+                  <PinArt look={choiceLook(kind)} size={wide ? 34 : 30} />
+                  <span>
+                    {armedPin === kind
+                      ? readout.hasFix
+                        ? "Drop here"
+                        : "Drop"
+                      : pinName(kind)}
+                  </span>
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+        {#if !guest}
           <button
             type="button"
             class="mn-trail-button"
@@ -2002,17 +2122,6 @@
           >
             <span class="rec"></span>
             <span>{trailOn ? "Stop" : "Trail"}</span>
-          </button>
-        {/if}
-        {#if !guest}
-          <button
-            type="button"
-            class="mn-pin-button"
-            aria-label="Drop a pin"
-            on:click={startPinning}
-          >
-            <PinArt look={choiceLook(pinKind)} size={wide ? 36 : 32} />
-            <span>Pin</span>
           </button>
         {/if}
         <button
@@ -2068,10 +2177,65 @@
           </button>
         </div>
       </div>
+    {:else if paddockAsk}
+      <!-- ── A new paddock: how to make it ── -->
+      <div class="mn-card mn-menu" in:rise>
+        <div class="mn-card-head">
+          <p class="lp-eyebrow">
+            New paddock{farmNames.find((f) => f.id === paddockAsk?.farmId)
+              ? ` in ${farmNames.find((f) => f.id === paddockAsk?.farmId)?.name}`
+              : ""}
+          </p>
+          <button
+            type="button"
+            class="mn-icon-button"
+            aria-label="Close"
+            on:click={() => (paddockAsk = null)}
+          >
+            <X size={22} />
+          </button>
+        </div>
+        <div class="mn-keep">
+          <button type="button" on:click={() => buildPaddock()}>
+            <strong>Draw it on the map</strong>
+            <span>
+              Tap round it, then move corners, cut holes out, add pieces, split
+              it or join a neighbour on.
+            </span>
+          </button>
+        </div>
+        <Dropdown
+          label="From a trail"
+          placeholder={trails.length
+            ? "The ground one of this job's trails covered"
+            : "This job has no finished trails"}
+          title="Take the boundary from"
+          disabled={!trails.length}
+          options={trails.slice(0, 40).map((trail) => ({
+            value: trail.id,
+            label: `${day(trail.start)} · ${trail.operator || "No operator"}`,
+            note: [
+              ...(trail.machine ? [machineFor(trail.machine).label] : []),
+              `${trail.width} m wide`,
+              ...(trail.ha !== null ? [`${formatHa(trail.ha)} ha`] : []),
+            ].join(" · "),
+          }))}
+          on:change={(e) => buildPaddock(e.detail)}
+        />
+        <div class="mn-keep">
+          <button type="button" disabled>
+            <strong>Pick it off the imagery</strong>
+            <span>
+              Not here yet: choosing a boundary found in the satellite picture.
+            </span>
+          </button>
+        </div>
+      </div>
     {:else if boundaryEdit}
       <!-- ── Changing a paddock's boundary ── -->
       <div in:rise>
         <BoundaryCard
+          bind:name={newPaddockName}
           edit={boundaryEdit}
           colour={paddocks.find((p) => p.id === boundaryEdit?.paddockId)
             ?.colour ?? null}
@@ -2216,16 +2380,12 @@
         </div>
       </div>
     {:else if pinning}
-      <!-- ── Dropping pins ── -->
+      <!-- ── Which kind of pin a button drops ── -->
       <div class="mn-card" in:rise>
         <div class="mn-card-head">
-          <p class="lp-eyebrow">Drop a pin</p>
-          <p class="mn-hint" aria-live="polite">
-            {#if droppedHere}
-              {droppedHere} dropped. Tap again for another.
-            {:else}
-              Pick what it is, then tap the map.
-            {/if}
+          <p class="lp-eyebrow">Change pin</p>
+          <p class="mn-hint">
+            Which pin should the {pinSlot ? pinName(pinSlot) : ""} button drop?
           </p>
         </div>
         <div class="mn-kinds" class:all={showAllPins}>
@@ -2233,8 +2393,8 @@
             <button
               type="button"
               class="mn-kind"
-              class:selected={pinKind === choice.iconClass}
-              aria-pressed={pinKind === choice.iconClass}
+              class:selected={pinSlot === choice.iconClass}
+              aria-pressed={pinSlot === choice.iconClass}
               on:click={() => choosePin(choice.iconClass)}
             >
               <PinArt look={choiceLook(choice.iconClass)} size={34} />
@@ -2255,10 +2415,13 @@
           <button
             type="button"
             class="lp-btn lp-btn-ghost"
-            disabled={!readout.hasFix}
-            on:click={() => engine?.dropPin(pinKind)}
+            disabled={quickKinds.length < 2}
+            on:click={() => {
+              setQuick(quickKinds.filter((kind) => kind !== pinSlot))
+              stopPinning()
+            }}
           >
-            At my machine
+            Remove button
           </button>
           <button
             type="button"
@@ -3152,7 +3315,19 @@
           }
         }}
         on:pinKind={(e) => choosePin(e.detail)}
-        on:dropPins={startPinning}
+        on:dropPins={() => {
+          if (!wide) closePanel()
+          armedPin = quickKinds.includes(pinKind) ? pinKind : quickKinds[0]
+          changeShown = true
+          say("Tap the pin button to drop it here, or hold the map")
+        }}
+        quickPinKinds={quickKinds}
+        on:quickPin={(e) =>
+          setQuick(
+            e.detail.on
+              ? [...quickKinds, e.detail.iconClass].slice(0, 5)
+              : quickKinds.filter((kind) => kind !== e.detail.iconClass),
+          )}
         on:operation={(e) => chooseOperation(e.detail)}
         on:lookTrail={(e) => {
           if (pickTrail(e.detail) && !wide) closePanel()
@@ -3180,9 +3355,9 @@
         }}
         mapId={mapId ?? ""}
         on:newPaddock={(e) => {
-          startMeasuring()
-          engine?.setMeasureKind("polygon")
-          paddockFor = e.detail ?? ""
+          engine?.clearSelection()
+          paddockAsk = { farmId: e.detail }
+          if (!wide) closePanel()
         }}
         on:newFarm={async (e) => {
           const made = await engine?.addFarm(e.detail)

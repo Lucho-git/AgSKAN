@@ -112,6 +112,8 @@
   export let farmList: FarmName[] = []
   /** The map itself, for its log. */
   export let mapId = ""
+  /** The kinds of pin with a button of their own on the map. */
+  export let quickPinKinds: string[] = []
   /** Put back what a row of the log did. */
   export let undoLog: (what: LogUndo) => Promise<boolean> = async () => false
   /** Messages this person hasn't opened. */
@@ -168,6 +170,8 @@
     newPaddock: string | null
     /** Add a farm with this name. */
     newFarm: string
+    /** Give a kind of pin a button on the map, or take it away. */
+    quickPin: { iconClass: string; on: boolean }
     /** Go to a place the log points at. */
     lookPlace: LngLat
   }>()
@@ -280,6 +284,12 @@
   }
   /** Farms folded down to their heading. */
   let folded = new Set<string>()
+  // To begin with only the first farm is open.
+  let foldedOnce = false
+  $: if (!foldedOnce && paddockGroups.length > 1) {
+    foldedOnce = true
+    folded = new Set(paddockGroups.slice(1).map((group) => group.key))
+  }
   function fold(key: string) {
     const next = new Set(folded)
     if (next.has(key)) next.delete(key)
@@ -733,6 +743,8 @@
         {typeColours}
         {names}
         {guest}
+        quick={quickPinKinds}
+        on:quick={(e) => dispatch("quickPin", e.detail)}
         on:pinKind={(e) => dispatch("pinKind", e.detail)}
         on:dropPins={() => dispatch("dropPins")}
         on:colour={(e) => dispatch("typeColour", e.detail)}

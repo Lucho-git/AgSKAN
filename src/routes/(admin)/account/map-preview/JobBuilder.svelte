@@ -22,7 +22,8 @@
    * stays in view at the bottom.
    */
   import { createEventDispatcher } from "svelte"
-  import { ChevronDown, ClipboardList, MapPin, Plus, X } from "lucide-svelte"
+  import { ClipboardList, MapPin, Plus, X } from "lucide-svelte"
+  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import JobThumb from "./JobThumb.svelte"
   import PlaceArt from "./PlaceArt.svelte"
   import type { Paddock, PinDrawing } from "./liveData"
@@ -187,25 +188,15 @@
   </ol>
 
   <!-- ── Who it is for: one line, the crew in a list behind it ── -->
-  <label class="mn-drop">
-    <span class="lp-eyebrow">For</span>
-    <strong>
-      {crew.find((person) => person.id === draft.to)?.name ??
-        "Anyone on the crew"}
-    </strong>
-    <ChevronDown size={18} />
-    <select
-      aria-label="Who the job is for"
-      value={draft.to ?? ""}
-      on:change={(e) =>
-        (draft = { ...draft, to: e.currentTarget.value || null })}
-    >
-      <option value="">Anyone on the crew</option>
-      {#each crew as person (person.id)}
-        <option value={person.id}>{person.name}</option>
-      {/each}
-    </select>
-  </label>
+  <Dropdown
+    label="For"
+    value={draft.to ?? ""}
+    options={[
+      { value: "", label: "Anyone on the crew" },
+      ...crew.map((person) => ({ value: person.id, label: person.name })),
+    ]}
+    on:change={(e) => (draft = { ...draft, to: e.detail || null })}
+  />
 
   <div class="mn-card-actions">
     <button

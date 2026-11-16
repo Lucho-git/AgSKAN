@@ -93,31 +93,26 @@ const RAINBOW =
     .join("") +
   `</linearGradient>`
 
-/** How bright a #rrggbb colour reads, 0 (black) to 1 (white). */
-function brightness(hex: string) {
-  const n = parseInt(hex.slice(1, 7), 16)
-  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255]
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255
-}
-
 /** A pin nobody has given a colour: sky blue, which sits well on any map. */
 export const PIN_DEFAULT = "#7dd3fc"
 
 /**
  * The disc a pin sits on. With no colour chosen it is sky blue; with one,
- * the disc is filled with it and the art turns white or ink, whichever
- * reads. "white" is the plain white disc.
+ * the disc is filled with it; the art stays ink (white on a black disc).
+ * "white" is the plain white disc.
  */
 function disc(key: string) {
   if (!key) return { defs: "", fill: PIN_DEFAULT, art: INK, ring: INK }
   if (key === "white") return { defs: "", fill: "#fff", art: INK, ring: INK }
   if (key === "rainbow")
-    return { defs: RAINBOW, fill: "url(#rb)", art: "#fff", ring: INK }
+    return { defs: RAINBOW, fill: "url(#rb)", art: INK, ring: INK }
   const fill = key === "black" ? INK : markerColor(key, "circle-fill").dark
+  // The picture is ink on every colour, so a kind of pin reads the same
+  // whatever colour it is given; only on a black disc does it turn white.
   return {
     defs: "",
     fill,
-    art: brightness(fill) > 0.62 ? INK : "#fff",
+    art: key === "black" ? "#fff" : INK,
     ring: key === "black" ? "#fff" : INK,
   }
 }

@@ -2310,6 +2310,222 @@ export function mergeOutlines(
   ])
 }
 
+/**
+ * The ground a trail covered, as an outline: every pass is laid down at the
+ * machine's width on a grid of cells a few metres across, the strips missed
+ * between passes are closed up, and the edge of what is left is traced.
+ * Ground the trail went right round (a dam, a rock heap) comes out as a
+ * hole. Null when the trail covers next to nothing.
+ */
+export function outlineOfPath(
+  parts: LngLat[][],
+  width: number,
+): LngLat[][][] | null {
+  const all = parts.flat()
+  if (all.length < 2) return null
+  const flat = projector(all[0])
+  const lines = parts.map((part) => part.map((at) => flat.toXY(at)))
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const line of lines)
+    for (const [x, y] of line) {
+      if (x < minX) minX = x
+      if (x > maxX) maxX = x
+      if (y < minY) minY = y
+      if (y > maxY) maxY = y
+    }
+  const swath = Math.max(2, width || 0)
+  let cell = Math.min(6, Math.max(2.5, swath / 5))
+  // Passes are a swath apart; a strip narrower than about one of them left
+  // between two is a miss, not a gap, and the scallops where the passes
+  // end at the headland are squared off the same way.
+  const close = Math.max(2 * cell, swath * 0.6)
+  const edge = swath / 2 + close + 2 * cell
+  const span = (size: number) => Math.ceil((size + 2 * edge) / cell) + 2
+  while (span(maxX - minX) * span(maxY - minY) > 1_600_000) cell *= 1.3
+  const cols = span(maxX - minX)
+  const rows = span(maxY - minY)
+  const x0 = minX - edge
+  const y0 = minY - edge
+  let grid = new Uint8Array(cols * rows)
+
+  // Lay the passes down, a disc at a time, wider than the machine by
+  // `close` (taken off again below).
+  const reach = Math.round((swath / 2 + close) / cell)
+  for (const line of lines)
+    for (let i = 1; i < line.length; i++) {
+      const [ax, ay] = line[i - 1]
+      const [bx, by] = line[i]
+      const steps = Math.max(
+        1,
+        Math.ceil(Math.hypot(bx - ax, by - ay) / (cell * 0.8)),
+      )
+      for (let s = 0; s <= steps; s++) {
+        const cx = Math.floor((ax + ((bx - ax) * s) / steps - x0) / cell)
+        const cy = Math.floor((ay + ((by - ay) * s) / steps - y0) / cell)
+        for (let dy = -reach; dy <= reach; dy++) {
+          const gy = cy + dy
+          if (gy < 0 || gy >= rows) continue
+          const half = Math.floor(Math.sqrt(reach * reach - dy * dy))
+          const from = Math.max(0, cx - half)
+          const to = Math.min(cols - 1, cx + half)
+          for (let gx = from; gx <= to; gx++) grid[gy * cols + gx] = 1
+        }
+      }
+    }
+  // Take the extra back off: a cell stays only if every cell within
+  // `close` of it is filled (done along the rows, then down the columns).
+  const k = Math.round(close / cell)
+  const shrink = (source: Uint8Array, across: boolean) => {
+    const out = new Uint8Array(source.length)
+    const outer = across ? rows : cols
+    const inner = across ? cols : rows
+    for (let o = 0; o < outer; o++) {
+      let run = 0
+      const at = (i: number) => (across ? o * cols + i : i * cols + o)
+      // `run` counts filled cells in a row ending at i.
+      const filled: number[] = new Array(inner)
+      for (let i = 0; i < inner; i++) {
+        run = source[at(i)] ? run + 1 : 0
+        filled[i] = run
+      }
+      for (let i = k; i < inner - k; i++)
+        if (filled[i + k] >= 2 * k + 1) out[at(i)] = 1
+    }
+    return out
+  }
+  grid = shrink(shrink(grid, true), false)
+
+  // Trace the edge: every side of a filled cell that faces an empty one,
+  // joined end to end into loops (filled ground kept on the right).
+  const full = (gx: number, gy: number) =>
+    gx >= 0 && gy >= 0 && gx < cols && gy < rows && grid[gy * cols + gx] === 1
+  const key = (x: number, y: number) => y * (cols + 1) + x
+  const next = new Map<number, number[]>()
+  const add = (ax: number, ay: number, bx: number, by: number) => {
+    const from = key(ax, ay)
+    const list = next.get(from)
+    if (list) list.push(key(bx, by))
+    else next.set(from, [key(bx, by)])
+  }
+  for (let gy = 0; gy < rows; gy++)
+    for (let gx = 0; gx < cols; gx++) {
+      if (!grid[gy * cols + gx]) continue
+      if (!full(gx, gy + 1)) add(gx, gy + 1, gx + 1, gy + 1)
+      if (!full(gx + 1, gy)) add(gx + 1, gy + 1, gx + 1, gy)
+      if (!full(gx, gy - 1)) add(gx + 1, gy, gx, gy)
+      if (!full(gx - 1, gy)) add(gx, gy, gx, gy + 1)
+    }
+  const loops: XY[][] = []
+  for (const start of [...next.keys()]) {
+    while (next.get(start)?.length) {
+      const loop: XY[] = []
+      let at = start
+      for (let guard = 0; guard < 4_000_000; guard++) {
+        const out = next.get(at)
+        if (!out?.length) break
+        loop.push([at % (cols + 1), Math.floor(at / (cols + 1))])
+        at = out.pop() as number
+        if (at === start) break
+      }
+      if (loop.length >= 4) loops.push(loop)
+    }
+  }
+  if (!loops.length) return null
+
+  // Corners in a row along one line are one side; then the staircase the
+  // grid leaves is straightened out.
+  const area2 = (ring: XY[]) => {
+    let sum = 0
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
+      sum += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1]
+    return sum
+  }
+  const straighten = (ring: XY[], tolerance: number): XY[] => {
+    const keep = new Uint8Array(ring.length)
+    const stack: [number, number][] = [[0, ring.length - 1]]
+    keep[0] = keep[ring.length - 1] = 1
+    while (stack.length) {
+      const [a, b] = stack.pop() as [number, number]
+      const [ax, ay] = ring[a]
+      const [bx, by] = ring[b]
+      const len = Math.hypot(bx - ax, by - ay) || 1
+      let worst = 0
+      let at = -1
+      for (let i = a + 1; i < b; i++) {
+        const off =
+          Math.abs(
+            (bx - ax) * (ay - ring[i][1]) - (ax - ring[i][0]) * (by - ay),
+          ) / len
+        if (off > worst) {
+          worst = off
+          at = i
+        }
+      }
+      if (at > 0 && worst > tolerance) {
+        keep[at] = 1
+        stack.push([a, at], [at, b])
+      }
+    }
+    return ring.filter((_, i) => keep[i])
+  }
+  // A trail puts the fence within half a swath at best, so corners closer
+  // to a straight line than a third of one (or 3 m) are not kept: the
+  // outline comes out with tens of corners to tidy, not hundreds.
+  const slack = Math.max(3, swath * 0.3) / cell
+  const toGround = (ring: XY[]): LngLat[] => {
+    // Split at the corner furthest from the first, so both halves of the
+    // loop are straightened as open lines.
+    let far = 0
+    let most = 0
+    ring.forEach(([x, y], i) => {
+      const dist = (x - ring[0][0]) ** 2 + (y - ring[0][1]) ** 2
+      if (dist > most) {
+        most = dist
+        far = i
+      }
+    })
+    const tidy = [
+      ...straighten(ring.slice(0, far + 1), slack).slice(0, -1),
+      ...straighten([...ring.slice(far), ring[0]], slack).slice(0, -1),
+    ]
+    const out = tidy.map(([x, y]) =>
+      flat.toLngLat([x0 + x * cell, y0 + y * cell]),
+    )
+    return [...out, out[0]]
+  }
+  const MIN = 2500 / (cell * cell)
+  const outers = loops
+    .filter((loop) => area2(loop) / 2 <= -MIN)
+    .sort((a, b) => area2(a) - area2(b))
+  const holes = loops.filter((loop) => area2(loop) / 2 >= MIN)
+  if (!outers.length) return null
+  const inside = (p: XY, ring: XY[]) => {
+    let within = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
+      if (
+        ring[i][1] > p[1] !== ring[j][1] > p[1] &&
+        p[0] <
+          ((ring[j][0] - ring[i][0]) * (p[1] - ring[i][1])) /
+            (ring[j][1] - ring[i][1]) +
+            ring[i][0]
+      )
+        within = !within
+    return within
+  }
+  return outers
+    .slice(0, 6)
+    .map((outer) => [
+      toGround(outer),
+      ...holes
+        .filter((hole) => inside([hole[0][0] + 0.5, hole[0][1] - 0.5], outer))
+        .map(toGround),
+    ])
+    .filter((polygon) => polygon[0].length >= 4)
+}
+
 /** Whether an outline crosses over itself anywhere. */
 export const crossesItself = (polygons: LngLat[][][]) =>
   (kinks(asFeature(polygons) as never) as Row).features.length > 0

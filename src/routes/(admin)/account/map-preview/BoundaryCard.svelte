@@ -33,6 +33,8 @@
   export let colour: string | null = null
   /** When its boundary was last changed, if there is one to bring back. */
   export let priorAt: number | null = null
+  /** The name being given to a new paddock. */
+  export let name = ""
 
   const dispatch = createEventDispatcher<{
     add: "hole" | "piece" | "split"
@@ -58,8 +60,10 @@
 
   $: change = edit.ha - edit.was
   $: facts = [
-    `${formatHa(edit.ha)} ha`,
-    ...(Math.abs(change) >= 0.05
+    ...(edit.creating && !edit.polygons.length
+      ? ["Nothing drawn yet"]
+      : [`${formatHa(edit.ha)} ha`]),
+    ...(!edit.creating && Math.abs(change) >= 0.05
       ? [`${formatHa(Math.abs(change))} ha ${change > 0 ? "more" : "less"}`]
       : []),
     ...(edit.pieces > 1 && !edit.apart ? [`${edit.pieces} pieces`] : []),
@@ -75,8 +79,21 @@
       <ShapeArt polygons={edit.polygons} {colour} size={44} />
     </span>
     <div class="about">
-      <p class="lp-eyebrow">Changing the boundary</p>
-      <h2>{edit.name}</h2>
+      {#if edit.creating}
+        <p class="lp-eyebrow">New paddock</p>
+        <input
+          class="name"
+          type="text"
+          bind:value={name}
+          maxlength="60"
+          placeholder="Name it"
+          aria-label="Name of the new paddock"
+          autocomplete="off"
+        />
+      {:else}
+        <p class="lp-eyebrow">Changing the boundary</p>
+        <h2>{edit.name}</h2>
+      {/if}
       <p>{facts.join(" · ")}</p>
     </div>
     <button
@@ -113,14 +130,18 @@
         ? "Tap a line across the paddock, fence to fence"
         : edit.adding.kind === "hole"
           ? "Tap round the ground to take out"
-          : "Tap round the ground to add"}
+          : edit.creating && !edit.polygons.length
+            ? "Tap each corner of the paddock, right round it"
+            : "Tap round the ground to add"}
     </p>
     <p class="mn-note">
       {edit.adding.kind === "split"
         ? "Two taps make a straight cut; more make it bend. Each side becomes a paddock of its own when you save."
         : edit.adding.kind === "hole"
           ? "Inside the paddock it becomes a hole. Across the edge, it takes a bite out of it."
-          : "Touching the paddock, it joins on. Apart from it, it becomes another piece of the same paddock."}
+          : edit.creating && !edit.polygons.length
+            ? "Rough is fine: every corner can be moved afterwards, and holes, extra pieces and splits are added from here once it is round."
+            : "Touching the paddock, it joins on. Apart from it, it becomes another piece of the same paddock."}
     </p>
     <div class="mn-card-actions three">
       <button
@@ -221,13 +242,15 @@
       >
         <Undo2 size={18} /> Undo
       </button>
-      <button
-        type="button"
-        disabled={!edit.changed}
-        on:click={() => dispatch("reset")}
-      >
-        <RotateCcw size={18} /> Start again
-      </button>
+      {#if !edit.creating}
+        <button
+          type="button"
+          disabled={!edit.changed}
+          on:click={() => dispatch("reset")}
+        >
+          <RotateCcw size={18} /> Start again
+        </button>
+      {/if}
       {#if priorAt}
         <button type="button" on:click={() => dispatch("prior")}>
           <History size={18} /> As before {when(priorAt)}
@@ -246,18 +269,42 @@
       <button
         type="button"
         class="lp-btn lp-btn-primary"
-        disabled={!edit.changed || edit.saving}
+        disabled={!edit.changed ||
+          edit.saving ||
+          (edit.creating && !name.trim())}
         on:click={() => dispatch("save")}
       >
         <Check size={18} strokeWidth={3} />
         {edit.saving
           ? "Saving…"
-          : edit.apart
-            ? `Save as ${edit.apart.length} paddocks`
-            : edit.joined.length
-              ? "Save as one paddock"
-              : "Save boundary"}
+          : edit.creating && !name.trim()
+            ? "Name it to save"
+            : edit.apart
+              ? `Save as ${edit.apart.length} paddocks`
+              : edit.creating
+                ? "Create paddock"
+                : edit.joined.length
+                  ? "Save as one paddock"
+                  : "Save boundary"}
       </button>
     </div>
   {/if}
 </div>
+
+<style>
+  .name {
+    width: 100%;
+    min-height: 38px;
+    padding: 0 2px;
+    border-bottom: 2px solid var(--lp-line);
+    background: none;
+    font-family: var(--lp-display);
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--lp-ink);
+    outline: none;
+  }
+  .name:focus {
+    border-color: var(--lp-ink);
+  }
+</style>

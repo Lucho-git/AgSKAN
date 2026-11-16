@@ -12,7 +12,6 @@
     ArrowLeft,
     Check,
     History,
-    ChevronDown,
     Layers,
     Pencil,
     PencilRuler,
@@ -20,6 +19,8 @@
     X,
   } from "lucide-svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
+  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
+  import { machineFor } from "$lib/components/mapnext/machines"
   import { formatHa } from "$lib/components/mapnext/format"
   import { sizeOf, type ThroughStats } from "./liveEngine"
   import type { FarmName, Paddock, PaddockPatch, TrailInfo } from "./liveData"
@@ -287,20 +288,14 @@
         {/if}
       {/each}
       {#if farms.length > 1 && !guest}
-        <label class="block">
-          <span class="lp-eyebrow">Farm</span>
-          <select
-            value={paddock.farmId ?? ""}
-            on:change={(e) =>
-              e.currentTarget.value &&
-              dispatch("change", { farmId: e.currentTarget.value })}
-          >
-            {#if !paddock.farmId}<option value="">No farm</option>{/if}
-            {#each farms as farm (farm.id)}
-              <option value={farm.id}>{farm.name}</option>
-            {/each}
-          </select>
-        </label>
+        <Dropdown
+          look="block"
+          label="Farm"
+          placeholder="No farm"
+          value={paddock.farmId ?? ""}
+          options={farms.map((farm) => ({ value: farm.id, label: farm.name }))}
+          on:change={(e) => dispatch("change", { farmId: e.detail })}
+        />
       {/if}
       <div class="still block">
         <span class="lp-eyebrow">Area</span>
@@ -422,30 +417,23 @@
                 ? "Show it in this paddock"
                 : `Show all ${trails.length} in this paddock`}
           </button>
-          <label class="one">
-            <span>{trails.length === 1 ? "Open it" : "Open one"}</span>
-            <ChevronDown size={16} />
-            <select
-              aria-label="Open one of these trails"
-              value=""
-              on:change={(e) => {
-                const id = e.currentTarget.value
-                e.currentTarget.value = ""
-                if (id) dispatch("trail", id)
-              }}
-            >
-              <option value="" disabled>Open a trail</option>
-              {#each trails as trail (trail.id)}
-                <option value={trail.id}>
-                  {when(trail.start)}{trail.operator
-                    ? ` · ${trail.operator.split(/\s+/)[0]}`
-                    : ""}{trail.ha !== null
-                    ? ` · ${formatHa(trail.ha)} ha`
-                    : ""}
-                </option>
-              {/each}
-            </select>
-          </label>
+          <Dropdown
+            look="pill"
+            title="Open a trail"
+            options={trails.map((trail) => ({
+              value: trail.id,
+              label:
+                when(trail.start) +
+                (trail.operator ? ` · ${trail.operator.split(/\s+/)[0]}` : ""),
+              note: [
+                ...(trail.machine ? [machineFor(trail.machine).label] : []),
+                ...(trail.ha !== null ? [`${formatHa(trail.ha)} ha`] : []),
+              ].join(" · "),
+            }))}
+            on:change={(e) => dispatch("trail", e.detail)}
+          >
+            {trails.length === 1 ? "Open it" : "Open one"}
+          </Dropdown>
         </div>
         {#if allTrails && stats}
           <!-- What they add up to, inside the fence only. -->

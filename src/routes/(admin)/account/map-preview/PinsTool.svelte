@@ -5,7 +5,7 @@
    * them to remove.
    */
   import { createEventDispatcher } from "svelte"
-  import { ArrowLeft, List, Search, Trash2 } from "lucide-svelte"
+  import { ArrowLeft, List, Plus, Search, Trash2, X } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { markerColor } from "$lib/components/map/markers/markerPalette"
   import {
@@ -30,8 +30,12 @@
   /** People's names by id, for who last changed a pin. */
   export let names: Record<string, string> = {}
   export let guest = false
+  /** The kinds of pin that have a button of their own on the map. */
+  export let quick: string[] = []
 
   const dispatch = createEventDispatcher<{
+    /** Give this kind a button on the map, or take its button away. */
+    quick: { iconClass: string; on: boolean }
     pinKind: string
     dropPins: void
     colour: { iconClass: string; colour: string }
@@ -223,6 +227,42 @@
   {/if}
 
   {#if !guest}
+    <!-- The kinds with a button of their own, bottom right of the map. -->
+    <section class="mn-quickset">
+      <p class="lp-eyebrow">Pin buttons on the map</p>
+      <div class="chips">
+        {#each quick as iconClass, i (iconClass)}
+          <span>
+            <PinArt look={choiceLook(iconClass)} size={26} />
+            {pinChoices.find((choice) => choice.iconClass === iconClass)
+              ?.label ?? "Pin"}
+            {#if i === 0}<small>hold the map</small>{/if}
+            {#if quick.length > 1}
+              <button
+                type="button"
+                aria-label="Take this button off the map"
+                on:click={() => dispatch("quick", { iconClass, on: false })}
+              >
+                <X size={15} />
+              </button>
+            {/if}
+          </span>
+        {/each}
+      </div>
+      {#if !quick.includes(pinKind) && quick.length < 5}
+        <button
+          type="button"
+          class="add"
+          on:click={() => dispatch("quick", { iconClass: pinKind, on: true })}
+        >
+          <Plus size={17} strokeWidth={3} /> Give {chosen?.label ?? "this pin"} a
+          button
+        </button>
+      {:else if quick.length < 5}
+        <p class="mn-note">Pick a kind below to give it a button of its own.</p>
+      {/if}
+    </section>
+
     {#if special.length}
       <p class="lp-eyebrow">Pins that do more</p>
       <div class="mn-kinds all" style="margin: 0; padding: 0">

@@ -3,7 +3,8 @@
    * The menu for a picked pin. Like the current viewer's, it opens on the
    * map itself, right beside the pin, and stays with it as the map moves:
    * below the pin when there is room, above it when there isn't, sliding
-   * along a screen edge before it flips.
+   * along a screen edge before it flips. It is drawn like the paddock's
+   * menu: the same card, type and buttons.
    *
    * It shows what the pin is, its note, and what is attached to it (areas
    * and lines drawn on the map, and photos) straight away. Edit, Move and
@@ -116,6 +117,22 @@
       : key === "black"
         ? "#15261C"
         : markerColor(key, "circle-fill").dark
+
+  const COLOUR_NAMES: Record<string, string> = {
+    default: "Default",
+    red: "Red",
+    orange: "Orange",
+    yellow: "Yellow",
+    green: "Green",
+    skyblue: "Sky blue",
+    blue: "Blue",
+    purple: "Purple",
+    pink: "Pink",
+    black: "Black",
+  }
+  /** The colour or kind under the finger, named as it is passed over. */
+  let overColour: string | null = null
+  let overKind: string | null = null
 
   let view: "main" | "edit" | "add" = "main"
   /** The photo opened to fill the screen. */
@@ -400,24 +417,30 @@
       </button>
     </div>
   {:else if view === "edit"}
-    <!-- ── Editing the pin: its colour, and what kind it is ── -->
+    <!-- ── The marker itself: its colour, and what kind it is ── -->
     <div class="pp-sub">
       <button type="button" class="back" on:click={() => (view = "main")}>
         <ChevronLeft size={16} /> Back
       </button>
-      <span>Edit</span>
+      <span>Marker</span>
     </div>
     <div class="pp-body">
       {#if !bin}
-        <p class="pp-title">Colour</p>
-        <div class="mn-swatches" role="group" aria-label="Pin colour">
+        <p class="pp-title">
+          Colour ·
+          <b>{COLOUR_NAMES[overColour ?? (pin.colour || "default")] ?? ""}</b>
+        </p>
+        <div class="pp-colours" role="group" aria-label="Pin colour">
           {#each COLOURS as key}
             <button
               type="button"
               class:selected={(pin.colour || "default") === key}
               style="--swatch: {swatch(key)}"
-              aria-label={key === "default" ? "Default colour" : key}
+              aria-label={COLOUR_NAMES[key] ?? key}
+              title={COLOUR_NAMES[key] ?? key}
               aria-pressed={(pin.colour || "default") === key}
+              on:pointerenter={() => (overColour = key)}
+              on:pointerleave={() => (overColour = null)}
               on:click={() =>
                 (pin.colour || "default") !== key &&
                 dispatch("change", { colour: key })}
@@ -425,19 +448,37 @@
           {/each}
         </div>
       {/if}
-      <p class="pp-title">Kind of pin</p>
-      <div class="mn-kinds all" style="margin: 0; padding: 0">
+      <p class="pp-title">
+        Kind ·
+        <b>
+          {choices.find(
+            (choice) => choice.iconClass === (overKind ?? pin.iconClass),
+          )?.label ?? pinLabel(pin.iconClass)}
+        </b>
+      </p>
+      <!-- Five across, pictures only, as the current viewer has them: the
+           one wanted is quicker to find. Its name shows above. -->
+      <div class="pp-kinds">
         {#each choices as choice (choice.iconClass)}
           <button
             type="button"
-            class="mn-kind"
             class:selected={pin.iconClass === choice.iconClass}
+            aria-label={choice.label}
+            title={choice.label}
+            aria-pressed={pin.iconClass === choice.iconClass}
+            on:pointerenter={() => (overKind = choice.iconClass)}
+            on:pointerleave={() => (overKind = null)}
             on:click={() =>
               choice.iconClass !== pin.iconClass &&
               dispatch("change", { iconClass: choice.iconClass })}
           >
-            <PinArt look={choiceLook(choice.iconClass)} size={32} />
-            {choice.label}
+            <PinArt
+              look={{
+                ...choiceLook(choice.iconClass),
+                colour: pin.colour || choiceLook(choice.iconClass).colour,
+              }}
+              size={36}
+            />
           </button>
         {/each}
       </div>
@@ -684,13 +725,9 @@
       </button>
       <div class="pp-foot">
         <button type="button" on:click={() => (view = "edit")}>
-          <Pencil size={17} /> Edit
+          <Pencil size={17} /> Marker
         </button>
-        <button
-          type="button"
-          class="amber"
-          on:click={() => dispatch("move", true)}
-        >
+        <button type="button" on:click={() => dispatch("move", true)}>
           <Move size={17} /> Move
         </button>
         <button type="button" on:click={() => (view = "add")}>
@@ -727,32 +764,25 @@
 {/if}
 
 <style>
-  /* The current viewer's pin menu: dark glass with a blue edge, compact,
-     the head and the buttons fixed and only the middle scrolling. */
+  /* On the map beside the pin, drawn as the paddock's menu is: the same
+     card, the head and the buttons fixed and only the middle scrolling. */
   .pp {
-    --lp-card: #0b1120;
-    --lp-paper: #0b1120;
-    --lp-paper-2: rgba(255, 255, 255, 0.08);
-    --lp-line: rgba(148, 163, 184, 0.3);
-    --lp-ink: #f1f5f9;
-    --lp-ink-soft: rgba(241, 245, 249, 0.68);
-    --lp-ink-faint: rgba(241, 245, 249, 0.45);
     --y: 0%;
     position: fixed;
     z-index: 14;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: min(300px, calc(100vw - 16px));
-    max-height: min(430px, calc(100dvh - 90px));
-    padding: 10px 12px 12px;
-    border: 1px solid rgba(96, 165, 250, 0.45);
-    border-radius: 16px;
-    background: rgba(8, 12, 24, 0.96);
-    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.6);
-    color: rgba(255, 255, 255, 0.92);
+    width: min(324px, calc(100vw - 16px));
+    max-height: min(450px, calc(100dvh - 90px));
+    padding: 12px;
+    border-radius: 20px;
+    background: var(--lp-card);
+    box-shadow:
+      0 0 0 1.5px var(--lp-ink),
+      0 18px 38px -14px rgba(10, 25, 15, 0.75);
+    color: var(--lp-ink);
     transform: translate(-50%, var(--y));
-    backdrop-filter: blur(14px);
     animation: pp-in 0.26s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .pp.up {
@@ -769,7 +799,9 @@
     pointer-events: none;
   }
   .pp.moving {
-    border: 2px dashed rgba(245, 158, 11, 0.9);
+    box-shadow:
+      0 0 0 2px #d97706,
+      0 18px 38px -14px rgba(10, 25, 15, 0.75);
   }
   @keyframes pp-in {
     from {
@@ -781,9 +813,7 @@
     display: flex;
     flex-shrink: 0;
     align-items: center;
-    gap: 9px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    gap: 10px;
   }
   .pp-head .about {
     flex: 1;
@@ -791,18 +821,16 @@
   }
   .pp-head h2 {
     overflow: hidden;
-    font-size: 0.98rem;
+    font-size: 1.1rem;
     font-weight: 800;
-    line-height: 1.2;
-    color: #93c5fd;
+    line-height: 1.15;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .pp-head p {
     overflow: hidden;
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.78rem;
+    color: var(--lp-ink-soft);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -811,39 +839,39 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.75);
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    color: var(--lp-ink-soft);
   }
   .pp-head .x:hover {
-    background: rgba(255, 255, 255, 0.16);
-    color: #fff;
+    background: var(--lp-paper-2);
   }
   .pp-sub {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     gap: 10px;
+    font-family: var(--lp-mono);
     font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.05em;
-    color: rgba(255, 255, 255, 0.6);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--lp-ink-soft);
     text-transform: uppercase;
   }
   .pp-sub .back {
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    min-height: 34px;
-    padding: 0 12px 0 6px;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.08);
-    font-size: 0.78rem;
+    min-height: 36px;
+    padding: 0 13px 0 7px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 99px;
+    font-family: inherit;
+    font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0;
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--lp-ink);
     text-transform: none;
   }
   .pp-body {
@@ -852,19 +880,25 @@
     align-content: start;
     gap: 8px;
     min-height: 0;
-    padding: 1px 2px 4px 0;
+    /* Room for a ring round whatever is picked, so it isn't cut off. */
+    padding: 3px;
+    margin: -3px;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     scrollbar-width: thin;
-    scrollbar-color: rgba(147, 197, 253, 0.6) rgba(255, 255, 255, 0.07);
   }
   .pp-title {
-    font-size: 0.66rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    color: rgba(255, 255, 255, 0.55);
+    font-family: var(--lp-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--lp-ink-soft);
     text-transform: uppercase;
+  }
+  .pp-title b {
+    font-weight: 700;
+    color: var(--lp-ink);
   }
   .pp-row {
     display: flex;
@@ -878,75 +912,81 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.74rem;
+    font-size: 0.78rem;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.8);
+    color: var(--lp-ink);
   }
   .pp-label i {
     position: relative;
-    width: 30px;
-    height: 18px;
+    width: 32px;
+    height: 19px;
     border-radius: 99px;
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--lp-line);
     transition: background 0.15s;
   }
   .pp-label i::after {
     position: absolute;
     top: 2px;
     left: 2px;
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
     border-radius: 50%;
     background: #fff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
     content: "";
     transition: transform 0.15s;
   }
   .pp-label[aria-checked="true"] i {
-    background: #6386e8;
+    background: var(--lp-ink);
   }
   .pp-label[aria-checked="true"] i::after {
-    transform: translateX(12px);
+    transform: translateX(13px);
   }
+  /* The note is an info block, like a paddock's name: tap it to write. */
   .pp-note {
     display: flex;
     align-items: center;
     gap: 8px;
     width: 100%;
-    min-height: 42px;
-    padding: 8px 10px 8px 12px;
-    border: 1px solid rgba(96, 165, 250, 0.35);
-    border-left: 3px solid #60a5fa;
-    border-radius: 9px;
-    background: rgba(255, 255, 255, 0.04);
-    color: rgba(255, 255, 255, 0.5);
+    min-height: 46px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 14px;
+    background: var(--lp-paper);
+    color: var(--lp-ink-soft);
     text-align: left;
+  }
+  .pp-note:hover:not(:disabled) {
+    border-color: var(--lp-ink);
   }
   .pp-note span {
     flex: 1;
     min-width: 0;
-    font-size: 0.9rem;
-    line-height: 1.35;
-    color: #fff;
+    font-size: 0.98rem;
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--lp-ink);
     overflow-wrap: anywhere;
   }
   .pp-note.empty span {
-    font-style: italic;
-    color: rgba(255, 255, 255, 0.45);
+    font-weight: 600;
+    color: var(--lp-ink-soft);
   }
   .pp-note.writing {
     align-items: stretch;
     padding: 0;
-    border-left-width: 1px;
-    border-color: #60a5fa;
+    border-color: var(--lp-ink);
+    background: var(--lp-card);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--lp-yellow) 60%, transparent);
   }
   .pp-note textarea {
     flex: 1;
     min-width: 0;
-    padding: 9px 4px 9px 12px;
+    padding: 10px 4px 10px 12px;
     background: none;
     font-size: 1rem;
     line-height: 1.35;
-    color: #fff;
+    color: var(--lp-ink);
     outline: none;
     resize: none;
   }
@@ -954,10 +994,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 42px;
-    border-radius: 0 8px 8px 0;
-    background: #2563eb;
-    color: #fff;
+    width: 44px;
+    margin: 4px;
+    border-radius: 11px;
+    background: var(--lp-yellow);
+    color: #15261c;
   }
   .pp-drawn {
     display: grid;
@@ -966,14 +1007,12 @@
   .pp-drawn li {
     display: flex;
     align-items: center;
-    border: 1px solid rgba(148, 163, 184, 0.28);
-    border-radius: 10px;
-    background: rgba(255, 255, 255, 0.04);
+    border: 1.5px solid var(--lp-line);
+    border-radius: 13px;
   }
   .pp-drawn li.picked {
-    border-color: #facc15;
-    background: rgba(250, 204, 21, 0.14);
-    box-shadow: 0 0 0 1px #facc15;
+    border-color: var(--lp-ink);
+    background: var(--lp-yellow);
   }
   .pp-drawn .pick {
     display: flex;
@@ -981,26 +1020,30 @@
     align-items: center;
     gap: 9px;
     min-width: 0;
-    min-height: 42px;
-    padding: 0 6px 0 9px;
-    font-size: 0.88rem;
+    min-height: 44px;
+    padding: 0 6px 0 10px;
+    font-size: 0.94rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--lp-ink);
     text-align: left;
+  }
+  .pp-drawn li.picked .pick {
+    color: #15261c;
   }
   .pp-drawn small {
     margin-left: 5px;
-    font-size: 0.76rem;
+    font-family: var(--lp-mono);
+    font-size: 0.74rem;
     font-weight: 500;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--lp-ink-soft);
   }
   .pp-drawn .bin {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 40px;
-    height: 42px;
-    color: #fca5a5;
+    height: 44px;
+    color: var(--lp-rust);
   }
   .pp-photos {
     display: grid;
@@ -1010,8 +1053,49 @@
   }
   .pp-photos button {
     aspect-ratio: 1;
-    border-radius: 8px;
-    background: rgba(255, 255, 255, 0.1) center / cover;
+    border-radius: 10px;
+    background: var(--lp-paper-2) center / cover;
+  }
+  /* Ten colours in one row, each with room for its ring. */
+  .pp-colours {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .pp-colours button {
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--swatch);
+    box-shadow: inset 0 0 0 1.5px rgba(21, 38, 28, 0.35);
+  }
+  .pp-colours button.selected {
+    box-shadow:
+      inset 0 0 0 1.5px rgba(21, 38, 28, 0.35),
+      0 0 0 2px var(--lp-card),
+      0 0 0 3.5px var(--lp-ink);
+  }
+  /* Kinds of pin: five across, pictures only. */
+  .pp-kinds {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .pp-kinds button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 13px;
+    background: var(--lp-paper);
+  }
+  .pp-kinds button:hover {
+    border-color: var(--lp-ink);
+  }
+  .pp-kinds button.selected {
+    border-color: var(--lp-ink);
+    background: var(--lp-yellow);
+    box-shadow: inset 0 0 0 1.5px var(--lp-ink);
   }
   .pp-add {
     display: grid;
@@ -1024,24 +1108,25 @@
     gap: 0 10px;
     min-height: 54px;
     padding: 8px 12px;
-    border: 1px solid rgba(96, 165, 250, 0.4);
-    border-radius: 11px;
-    background: rgba(37, 99, 235, 0.14);
-    color: #bfdbfe;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 14px;
+    color: var(--lp-ink);
     text-align: left;
+  }
+  .pp-add button:hover:not(:disabled) {
+    border-color: var(--lp-ink);
   }
   .pp-add button :global(svg),
   .pp-add button .mn-spin {
     grid-row: span 2;
   }
   .pp-add strong {
-    font-size: 0.92rem;
+    font-size: 0.96rem;
     font-weight: 800;
-    color: #fff;
   }
   .pp-add span:not(.mn-spin) {
-    font-size: 0.76rem;
-    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.8rem;
+    color: var(--lp-ink-soft);
   }
   .pp-add button:disabled {
     opacity: 0.6;
@@ -1051,12 +1136,13 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 40px;
-    border-radius: 10px;
-    background: rgba(245, 158, 11, 0.14);
-    font-size: 0.86rem;
+    min-height: 44px;
+    border: 1.5px dashed rgba(217, 119, 6, 0.6);
+    border-radius: 14px;
+    background: rgba(245, 158, 11, 0.12);
+    font-size: 0.92rem;
     font-weight: 700;
-    color: #fcd34d;
+    color: #92400e;
   }
   .pp-delete {
     display: flex;
@@ -1065,15 +1151,14 @@
     justify-content: center;
     gap: 8px;
     min-height: 40px;
-    border: 1px solid rgba(248, 113, 113, 0.55);
-    border-radius: 10px;
-    background: rgba(127, 29, 29, 0.35);
+    border: 1.5px solid color-mix(in srgb, var(--lp-rust) 55%, transparent);
+    border-radius: 99px;
     font-size: 0.88rem;
-    font-weight: 800;
-    color: #fecaca;
+    font-weight: 700;
+    color: var(--lp-rust);
   }
   .pp-delete.armed {
-    background: #dc2626;
+    background: var(--lp-rust);
     color: #fff;
   }
   .pp-foot {
@@ -1087,42 +1172,23 @@
   }
   .pp-foot button {
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
-    min-height: 50px;
-    border: 1px solid rgba(96, 165, 250, 0.45);
-    border-radius: 10px;
-    background: rgba(30, 41, 59, 0.7);
-    font-size: 0.76rem;
-    font-weight: 800;
-    color: #dbeafe;
-  }
-  .pp-foot.two button {
-    flex-direction: row;
-    gap: 7px;
-    min-height: 44px;
-    font-size: 0.88rem;
+    gap: 6px;
+    min-height: 46px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 99px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+    white-space: nowrap;
   }
   .pp-foot button:hover {
-    background: rgba(51, 65, 85, 0.8);
-  }
-  .pp-foot .amber {
-    border-color: rgba(245, 158, 11, 0.7);
-    background: rgba(120, 53, 15, 0.4);
-    color: #fcd34d;
+    border-color: var(--lp-ink);
   }
   .pp-foot .go {
-    border-color: #22c55e;
-    background: #16a34a;
-    color: #fff;
-  }
-  /* The shared pieces, on the dark glass. */
-  .pp :global(.mn-kind) {
-    color: #e2e8f0;
-  }
-  .pp :global(.mn-pair button) {
-    color: #e2e8f0;
+    border-color: var(--lp-ink);
+    background: var(--lp-yellow);
+    color: #15261c;
   }
 </style>

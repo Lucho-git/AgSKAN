@@ -26,7 +26,6 @@
     Activity,
     ArrowRight,
     Check,
-    ChevronDown,
     LoaderCircle,
     MapPin,
     Move,
@@ -40,6 +39,7 @@
   } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
+  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import { drawColour } from "$lib/components/mapnext/palette"
   import { machineFor } from "$lib/components/mapnext/machines"
   import {
@@ -246,20 +246,18 @@
 </script>
 
 <div class="mn-log">
-  <label class="mn-drop">
-    <span class="lp-eyebrow">Show</span>
-    <strong>{KINDS.find((option) => option.key === kind)?.label}</strong>
-    <ChevronDown size={18} />
-    <select
-      aria-label="What to show in the log"
-      bind:value={kind}
-      on:change={() => load()}
-    >
-      {#each KINDS as option (option.key)}
-        <option value={option.key}>{option.label}</option>
-      {/each}
-    </select>
-  </label>
+  <Dropdown
+    label="Show"
+    value={kind}
+    options={KINDS.map((option) => ({
+      value: option.key,
+      label: option.label,
+    }))}
+    on:change={(e) => {
+      kind = e.detail
+      load()
+    }}
+  />
 
   {#if loading && !entries.length}
     <p class="mn-empty">

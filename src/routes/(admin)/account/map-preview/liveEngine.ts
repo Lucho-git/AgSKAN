@@ -106,6 +106,7 @@ import {
   createPaddockLike,
   changePaddockFeatures,
   splitAlong,
+  outlineOfPath,
   mergeOutlines,
   gapBetween,
   type JobItem,
@@ -404,6 +405,8 @@ export type BoundaryEdit = {
   steps: number
   changed: boolean
   saving: boolean
+  /** This is a new paddock being drawn, not an existing one being changed. */
+  creating: boolean
   /** The outline as it stands, for a picture of it. */
   polygons: LngLat[][][]
 }
@@ -422,6 +425,8 @@ type Editing = {
   /** Split with a line: the pieces part company when this is saved. */
   apart: boolean
   joining: boolean
+  /** A new paddock is being made: the farm it is for. */
+  creating: { farmId: string | null } | null
   drag: {
     at: [number, number, number]
     from: [number, number]
@@ -865,6 +870,10 @@ export class LiveEngine {
   private slowTick = 0
   private trailTick = 0
   private followPausedUntil = 0
+  /** When a long press on the map last went off. */
+  private heldAt = -1e9
+  /** What a long press on the map does (the page drops the default pin). */
+  onHold: (at: LngLat) => void = () => {}
   /** Where the riding camera is, and the way its machine has been going. */
   private cam: {
     key: string
@@ -959,12 +968,74 @@ export class LiveEngine {
       () => (this.followPausedUntil = performance.now() + 400),
       { passive: true },
     )
+    // Holding a finger (or the mouse) still on the map for three quarters
+    // of a second, as in the current viewer: the page drops the default pin
+    // there. A drag, a pinch or a second finger calls it off.
+    let hold: {
+      timer: ReturnType<typeof setTimeout>
+      x: number
+      y: number
+    } | null = null
+    const letGo = () => {
+      if (hold) clearTimeout(hold.timer)
+      hold = null
+    }
+    const press = (e: {
+      point: { x: number; y: number }
+      lngLat: { lng: number; lat: number }
+      originalEvent: MouseEvent | TouchEvent
+    }) => {
+      letGo()
+      const event = e.originalEvent
+      if ("touches" in event ? event.touches.length !== 1 : event.button !== 0)
+        return
+      if ((event.target as HTMLElement | null)?.closest?.(".mapboxgl-marker"))
+        return
+      if (
+        this.editing ||
+        this.move ||
+        this.draft ||
+        this.grabbing ||
+        this.replaying ||
+        get(this.measure) ||
+        get(this.lasso)
+      )
+        return
+      const at: LngLat = [e.lngLat.lng, e.lngLat.lat]
+      hold = {
+        x: e.point.x,
+        y: e.point.y,
+        timer: setTimeout(() => {
+          hold = null
+          // The finger lifting afterwards is not also a tap on the map.
+          this.heldAt = performance.now()
+          this.onHold(at)
+        }, 765),
+      }
+    }
+    const drift = (e: { point: { x: number; y: number } }) => {
+      if (hold && Math.hypot(e.point.x - hold.x, e.point.y - hold.y) > 5)
+        letGo()
+    }
+    this.map.on("mousedown", press)
+    this.map.on("touchstart", press)
+    this.map.on("mousemove", drift)
+    this.map.on("touchmove", drift)
+    for (const over of [
+      "mouseup",
+      "touchend",
+      "touchcancel",
+      "dragstart",
+      "zoomstart",
+    ])
+      this.map.on(over, letGo)
     this.map.on(
       "click",
       (e: {
         point: { x: number; y: number }
         lngLat: { lng: number; lat: number }
       }) => {
+        if (performance.now() - this.heldAt < 600) return
         if (this.editing) {
           this.editTap([e.lngLat.lng, e.lngLat.lat])
           return
@@ -4037,6 +4108,59 @@ export class LiveEngine {
   editBoundary(id: string) {
     const paddock = this.paddocks.find((p) => p.id === id)
     if (!paddock) return false
+    return this.openEditor(paddock, null)
+  }
+
+  /**
+   * Build a new paddock in the same editor: tapped out on the map from
+   * nothing, or started from an outline (the ground a trail covered). It has
+   * everything the editor has, so it can have holes and several pieces
+   * from the start. Nothing exists until it is saved with a name.
+   */
+  newPaddock(farmId: string | null, start: LngLat[][][] | null = null) {
+    const farms = get(this.farmNames)
+    const farm =
+      farms.find((f) => f.id === farmId) ??
+      (farms.length === 1 ? farms[0] : null)
+    const polygons = start ?? []
+    const opened = this.openEditor(
+      {
+        id: "",
+        name: "New paddock",
+        ha: 0,
+        farm: farms.length > 1 ? (farm?.name ?? null) : null,
+        farmId: farm?.id ?? null,
+        crop: "",
+        variety: "",
+        colour: null,
+        polygons,
+        bbox: polygons.length ? bboxOf(polygons) : [0, 0, 0, 0],
+        features: [],
+        prior: null,
+      },
+      { farmId: farm?.id ?? null },
+    )
+    // Starting from nothing, the first thing is to tap round the ground.
+    if (opened && !polygons.length) this.startAdding("piece")
+    return opened
+  }
+
+  /** The outline of the ground a finished trail covered. */
+  outlineOfTrail(id: string) {
+    const info = get(this.trails).find((trail) => trail.id === id)
+    const parts = this.trailFeatures(id).flatMap(partsOf)
+    if (!info || !parts.length) return null
+    try {
+      return outlineOfPath(parts, info.width)
+    } catch {
+      return null
+    }
+  }
+
+  private openEditor(
+    paddock: Paddock,
+    creating: { farmId: string | null } | null,
+  ) {
     this.cancelEdit(false)
     if (get(this.measure)) this.setMeasuring(false)
     if (this.draft) this.endPlacing()
@@ -4149,6 +4273,7 @@ export class LiveEngine {
       absorbed: [],
       apart: false,
       joining: false,
+      creating,
       drag: null,
       was: outlineHa(paddock.polygons),
       dirty: false,
@@ -4167,26 +4292,27 @@ export class LiveEngine {
     }
     this.setFollow("free")
     this.followCrew(null)
-    this.map.fitBounds(
-      [
-        [paddock.bbox[0], paddock.bbox[1]],
-        [paddock.bbox[2], paddock.bbox[3]],
-      ],
-      {
-        // The editor's card takes the lower half of the map.
-        padding: {
-          top: 90,
-          right: 70,
-          bottom: Math.max(
-            250 + this.insets.bottom,
-            Math.round(container.clientHeight * 0.52),
-          ),
-          left: 70 + this.insets.left,
+    if (paddock.polygons.length)
+      this.map.fitBounds(
+        [
+          [paddock.bbox[0], paddock.bbox[1]],
+          [paddock.bbox[2], paddock.bbox[3]],
+        ],
+        {
+          // The editor's card takes the lower half of the map.
+          padding: {
+            top: 90,
+            right: 70,
+            bottom: Math.max(
+              250 + this.insets.bottom,
+              Math.round(container.clientHeight * 0.52),
+            ),
+            left: 70 + this.insets.left,
+          },
+          maxZoom: 17.5,
+          duration: 700,
         },
-        maxZoom: 17.5,
-        duration: 700,
-      },
-    )
+      )
     this.drawPaddocks()
     this.drawEdit()
     this.tellEdit()
@@ -4401,8 +4527,11 @@ export class LiveEngine {
               .sort((a, b) => b - a)
           : null,
       steps: edit.history.length,
-      changed:
-        JSON.stringify(polygons) !== edit.original || edit.absorbed.length > 0,
+      creating: !!edit.creating,
+      changed: edit.creating
+        ? polygons.length > 0
+        : JSON.stringify(polygons) !== edit.original ||
+          edit.absorbed.length > 0,
       saving: edit.saving,
       polygons,
     })
@@ -4471,6 +4600,11 @@ export class LiveEngine {
     if (!edit) return
     edit.adding = null
     this.map.getCanvas().style.cursor = ""
+    // A new paddock with nothing drawn yet has nothing to go back to.
+    if (edit.creating && !edit.rings.length) {
+      this.cancelEdit(false)
+      return
+    }
     this.touchEdit()
   }
 
@@ -4487,7 +4621,9 @@ export class LiveEngine {
         ? splitAlong(now, adding.points)
         : adding.kind === "hole"
           ? takeOut(now, adding.points)
-          : joinOn(now, adding.points)
+          : now.length
+            ? joinOn(now, adding.points)
+            : [[[...adding.points, adding.points[0]]]]
     } catch {
       after = null
     }
@@ -4632,10 +4768,11 @@ export class LiveEngine {
     }
   }
 
-  async saveEdit(): Promise<BoundarySaved | false> {
+  async saveEdit(name = ""): Promise<BoundarySaved | false> {
     const edit = this.editing
     if (!edit || edit.saving) return false
     let polygons = closeRings(edit.rings)
+    if (edit.creating && !polygons.length) return false
     let crossed = false
     try {
       crossed = crossesItself(polygons)
@@ -4668,13 +4805,31 @@ export class LiveEngine {
         others = bySize.slice(1)
       }
       const gone = this.paddocks.filter((p) => edit.absorbed.includes(p.id))
-      await this.changeBoundary(edit.paddock, polygons)
+      const called = name.trim().slice(0, 60) || edit.paddock.name
+      if (edit.creating) {
+        // A new paddock: made with the name it was given.
+        const first = await createPaddockLike(
+          this.mapId,
+          edit.paddock,
+          this.paddocks.some(
+            (p) => p.name.trim().toLowerCase() === called.toLowerCase(),
+          )
+            ? this.freeName(called, [])
+            : called,
+          polygons,
+          outlineHa(polygons),
+        )
+        saved.made.push(first)
+        saved.paddockId = first.id
+        saved.name = first.name
+        this.paddocks = [...this.paddocks, first]
+      } else await this.changeBoundary(edit.paddock, polygons)
       for (const piece of others) {
         const made = await createPaddockLike(
           this.mapId,
           edit.paddock,
           this.freeName(
-            edit.paddock.name,
+            called,
             saved.made.map((p) => p.name),
           ),
           [piece],
@@ -4685,8 +4840,8 @@ export class LiveEngine {
       // Joined on: what was kept on the neighbour moves over, then it goes.
       const carried = gone.flatMap((paddock) => paddock.features)
       if (carried.length) {
-        const features = await changePaddockFeatures(edit.paddock.id, carried)
-        this.setPaddock(edit.paddock.id, { features })
+        const features = await changePaddockFeatures(saved.paddockId, carried)
+        this.setPaddock(saved.paddockId, { features })
       }
       for (const paddock of gone) {
         await deletePaddock(paddock.id)
@@ -4711,11 +4866,17 @@ export class LiveEngine {
     }
     const goneIds = new Set(saved.gone.map((p) => p.id))
     this.paddocks = [
-      ...this.paddocks.filter((p) => !goneIds.has(p.id)),
+      ...this.paddocks.filter(
+        (p) => !goneIds.has(p.id) && !saved.made.some((m) => m.id === p.id),
+      ),
       ...saved.made,
     ]
     this.cancelEdit()
     this.listPaddocks(this.paddocks)
+    if (edit.creating) {
+      const first = this.paddocks.find((p) => p.id === saved.paddockId)
+      if (first) this.selectedPaddock.set(first)
+    }
     return saved
   }
 
