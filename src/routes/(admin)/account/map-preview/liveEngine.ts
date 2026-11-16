@@ -172,7 +172,11 @@ export type CrewRow = {
   machineLabel: string
   /** The colour to draw, already translated from the saved name. */
   colour: string
+  /** What they are doing and where, in one line ("Spraying · Railway"). */
   doing: string
+  /** The same in two parts: what ("Spraying"), and the paddock, if any. */
+  action: string
+  where: string | null
   /** km/h, 0 when stopped or not heard from lately. */
   speed: number
   /** Metres from the viewer, once both are on the map. */
@@ -2794,18 +2798,21 @@ export class LiveEngine {
       const age = state?.t ? now - state.t : Infinity
       const moving = !!state && age < FRESH_FOR && state.speed >= 0.7
       const where = state?.at ? this.paddockAt(state.at) : null
-      let doing: string
+      let action: string
+      // (Where they are is only said while it is fresh.)
+      let place: string | null = null
       if (!state?.at)
-        doing = entry.online
+        action = entry.online
           ? "On the map, no position yet"
           : "Not on the map yet"
-      else if (moving)
-        doing =
-          (state.trailing && spec.paints ? spec.verb : "On the move") +
-          (where ? ` · ${where.name}` : "")
-      else if (age < 10 * 60_000)
-        doing = where ? `Stopped · ${where.name}` : "Stopped"
-      else doing = `Seen ${formatAgo(state.t, now)}`
+      else if (moving) {
+        action = state.trailing && spec.paints ? spec.verb : "On the move"
+        place = where?.name ?? null
+      } else if (age < 10 * 60_000) {
+        action = "Stopped"
+        place = where?.name ?? null
+      } else action = `Seen ${formatAgo(state.t, now)}`
+      const doing = action + (place ? ` · ${place}` : "")
       rows.push({
         id,
         name: entry.profile.name,
@@ -2815,6 +2822,8 @@ export class LiveEngine {
         machineLabel: spec.label,
         colour: drawColour(marker?.bodyColor),
         doing,
+        action,
+        where: place,
         speed: moving ? Math.round(state!.speed) : 0,
         distance:
           mine && entry.vehicle ? distanceM(mine.pos, entry.vehicle.pos) : null,
@@ -2905,6 +2914,11 @@ export class LiveEngine {
     const moving = fresh && this.speedKmh >= 0.7
     const where = this.paddockAt(mine.pos)
     const trailing = this.recorder.recording
+    const action = moving
+      ? trailing && spec.paints
+        ? spec.verb
+        : "On the move"
+      : "Stopped"
     this.self.set({
       id: ME,
       name: "You",
@@ -2914,12 +2928,9 @@ export class LiveEngine {
       type: spec.type,
       machineLabel: spec.label,
       colour: drawColour(this.me.bodyColor),
-      doing:
-        (moving
-          ? trailing && spec.paints
-            ? spec.verb
-            : "On the move"
-          : "Stopped") + (where ? ` · ${where.name}` : ""),
+      doing: action + (where ? ` · ${where.name}` : ""),
+      action,
+      where: where?.name ?? null,
       speed: moving ? Math.round(this.speedKmh) : 0,
       distance: null,
       online: true,
@@ -4320,8 +4331,8 @@ export class LiveEngine {
       }
       for (let i = 0; i < frozen; i++)
         features.push(
-          line(
-            points.slice(i * CHUNK, (i + 1) * CHUNK + 1).map((p) => p.at),
+          ...this.laid(
+            points.slice(i * CHUNK, (i + 1) * CHUNK + 1),
             colour,
             width,
           ),
@@ -4331,15 +4342,19 @@ export class LiveEngine {
 
     const mineLines: unknown[] = []
     if (recording && points.length) {
-      const tail = points.slice(frozen * CHUNK).map((p) => p.at)
+      const tail = points.slice(frozen * CHUNK)
       // The stretch being painted runs right up to the machine.
       if (this.mine && this.speedKmh >= 0.7 && this.painting())
-        tail.push(this.mine.pos)
+        tail.push({ at: this.mine.pos, t: Date.now() })
       for (let i = 0; i < tail.length - 1; i += CHUNK)
-        mineLines.push(line(tail.slice(i, i + CHUNK + 1), colour, width))
+        mineLines.push(
+          ...this.laid(tail.slice(i, i + CHUNK + 1), colour, width),
+        )
     }
     const lead = this.mine && mineLines.length ? this.mine.pos.join() : ""
-    const drawn = `${recording?.id ?? ""}|${points.length}|${lead}`
+    const drawn = `${recording?.id ?? ""}|${points.length}|${lead}|${
+      this.recorder.pauses.length
+    }${get(this.recorder.paused) ? "p" : ""}`
     if (drawn === this.myTrailDrawn) return
     this.myTrailDrawn = drawn
     this.map.getSource(MY_TRAIL_SOURCE)?.setData(collection(mineLines))
@@ -4404,6 +4419,54 @@ export class LiveEngine {
     source.setData(collection(arrows))
   }
 
+  /**
+   * A stretch of my own trail as lines to draw: what was driven with the
+   * trail paused is marked, so it shows as a dotted line and not coverage.
+   */
+  private laid(points: TrailPoint[], colour: string, width: number) {
+    if (points.length < 2) return []
+    if (!this.recorder.pauses.length)
+      return [
+        line(
+          points.map((p) => p.at),
+          colour,
+          width,
+        ),
+      ]
+    const out: unknown[] = []
+    let run: LngLat[] = [points[0].at]
+    let paused = false
+    const put = () => {
+      if (run.length > 1)
+        out.push(line(run, colour, width, paused ? { segment: "pause" } : {}))
+    }
+    for (let i = 1; i < points.length; i++) {
+      const now = this.recorder.inPause(points[i].t)
+      if (now !== paused) {
+        put()
+        run = [points[i - 1].at]
+        paused = now
+      }
+      run.push(points[i].at)
+    }
+    put()
+    return out
+  }
+
+  /** Pause my trail: driving still shows, dotted, but isn't coverage. */
+  pauseTrail() {
+    const done = this.recorder.pause(this.mine?.pos ?? null)
+    if (done) this.liveDirty = true
+    return done
+  }
+
+  /** Carry on laying coverage. */
+  resumeTrail() {
+    const done = this.recorder.unpause()
+    if (done) this.liveDirty = true
+    return done
+  }
+
   /** A trail is running, so each fix lays a point. */
   private painting() {
     return this.recorder.recording
@@ -4453,16 +4516,43 @@ export class LiveEngine {
   }
 
   async stopTrail(): Promise<FinishedTrail | null> {
+    const pauses = [...this.recorder.pauses]
     const finished = await this.recorder.stop()
     if (this.recorder.recording) return null
     this.link.saveSoon()
     this.sendNow()
     if (finished) {
       const coords = finished.points.map((p) => p.at)
+      // Drawn the way it will come back from the server: the stretches
+      // driven paused apart from the coverage.
+      const paused = (t: number) =>
+        pauses.some(
+          (w) => t > w.pausedAt && (w.resumedAt === null || t < w.resumedAt),
+        )
+      const work: LngLat[][] = []
+      const rest: LngLat[][] = []
+      if (pauses.length) {
+        let run: LngLat[] = [finished.points[0].at]
+        let was = false
+        for (let i = 1; i < finished.points.length; i++) {
+          const now = paused(finished.points[i].t)
+          if (now !== was) {
+            if (run.length > 1) (was ? rest : work).push(run)
+            run = [finished.points[i - 1].at]
+            was = now
+          }
+          run.push(finished.points[i].at)
+        }
+        if (run.length > 1) (was ? rest : work).push(run)
+      }
       this.addHistory({
         info: finished.info,
-        path: { type: "LineString", coordinates: coords },
-        pausePath: null,
+        path: work.length
+          ? { type: "MultiLineString", coordinates: work }
+          : { type: "LineString", coordinates: coords },
+        pausePath: rest.length
+          ? { type: "MultiLineString", coordinates: rest }
+          : null,
       })
       this.trails.update((list) => [finished.info, ...list])
     }
@@ -6911,7 +7001,8 @@ export class LiveEngine {
       const moved = distanceM(last, fix.at)
       // GPS wobble while parked isn't coverage.
       if (moved < 1) return
-      if (moved < 150) this.recordedM += moved
+      // (Driven with the trail paused, it isn't coverage either.)
+      if (moved < 150 && !get(this.recorder.paused)) this.recordedM += moved
     }
     this.lastRecorded = fix.at
     this.recordedCount++

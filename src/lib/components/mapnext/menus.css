@@ -3100,3 +3100,231 @@
 .mn-card .mn-kinds.wrap .mn-kind.used {
   opacity: 0.45;
 }
+
+/* ── Fourteenth pass ────────────────────────────────────────────────────── */
+/* The rail put away (a tablet): the map has the whole screen, and the Tools
+   button at the top left brings the rail back. */
+.mn.wide.shut {
+  --mn-rail: 0px;
+}
+.mn-toprow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The toolbox's heading: put it away, and back to the farm's dashboard. */
+.mn-panel-head.home {
+  gap: 4px;
+}
+.mn-panel-head .mini {
+  flex-shrink: 0;
+  margin-left: -6px;
+  color: var(--lp-ink);
+}
+.mn-dash {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 14px;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-dash:hover {
+  background: var(--lp-paper);
+}
+.mn-dash > svg {
+  flex-shrink: 0;
+}
+.mn-dash > span {
+  display: grid;
+  min-width: 0;
+  line-height: 1.12;
+}
+.mn-dash small {
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+}
+.mn-dash b {
+  overflow: hidden;
+  font-family: "Archivo", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.08rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A crew row, a line for each thing and none of them wrapped: what they are
+   doing (or the trailing badge) with their speed, then the paddock. */
+.mn-crew .line .doing {
+  display: block;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-crew .line .job {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.mn-crew .place {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-crew .place svg {
+  display: inline;
+  margin-right: 3px;
+  vertical-align: -1.5px;
+}
+
+/* The crew as a card over the map (a phone): about as tall as a paddock's
+   card, scrolling inside, the map free to move above it. */
+.mn-crewcard {
+  --pad: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(46dvh, 26rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.mn-crewcard.aside {
+  display: none;
+}
+.mn-menu .head .back {
+  flex-shrink: 0;
+  margin: 0 -8px 0 -8px;
+  color: var(--lp-ink);
+}
+
+/* The trail button while a trail is being laid: it draws a trail over and
+   over and glows; a pause button sits to its left, and a tag under it says
+   Trailing or Paused. Paused, everything holds still. */
+.mn-trailwrap {
+  position: relative;
+  display: flex;
+}
+.mn-pause {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    0 10px 24px -10px rgba(10, 25, 15, 0.8);
+}
+.mn-pause.paused {
+  background: #f59e0b;
+  color: #15261c;
+  box-shadow:
+    0 0 0 1.5px #15261c,
+    0 10px 24px -10px rgba(120, 80, 10, 0.9);
+  animation: mn-pause-pulse 2s ease-in-out infinite;
+}
+@keyframes mn-pause-pulse {
+  50% {
+    box-shadow:
+      0 0 0 1.5px #15261c,
+      0 0 0 9px rgba(245, 158, 11, 0.3);
+  }
+}
+.mn-trail-button .laying {
+  width: 38px;
+  height: 19px;
+  overflow: visible;
+}
+.mn-trail-button .laying path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  animation: mn-lay 1.9s ease-in-out infinite;
+}
+@keyframes mn-lay {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+.mn-trail-button.on {
+  animation: mn-trail-glow 1.9s ease-in-out infinite;
+}
+@keyframes mn-trail-glow {
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(217, 93, 57, 0.3),
+      0 10px 24px -10px rgba(120, 40, 15, 0.9);
+  }
+}
+.mn-trail-button.paused,
+.mn-trail-button.paused .laying path {
+  animation-play-state: paused;
+}
+.mn-trail-button.paused .laying {
+  opacity: 0.45;
+}
+.mn-trailpill {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  padding: 2px 8px;
+  border: 1.5px solid #15261c;
+  border-radius: 99px;
+  background: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  color: #15261c;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.mn-trailpill.paused {
+  background: #f59e0b;
+}
+.mn-chip.trail.paused .dot {
+  background: #f59e0b;
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-pause.paused,
+  .mn-trail-button.on,
+  .mn-trail-button .laying path {
+    animation: none;
+  }
+  .mn-trail-button .laying path {
+    stroke-dashoffset: 0;
+  }
+}

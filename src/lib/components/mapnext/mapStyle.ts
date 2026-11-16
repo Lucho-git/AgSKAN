@@ -827,7 +827,9 @@ export function buildStyle() {
       trailLayer("mv-history", HISTORY_SOURCE),
       pauseLayer("mv-history-pause", HISTORY_SOURCE),
       trailLayer("mv-trails", TRAIL_SOURCE),
+      pauseLayer("mv-trails-pause", TRAIL_SOURCE),
       trailLayer("mv-my-trail", MY_TRAIL_SOURCE),
+      pauseLayer("mv-my-trail-pause", MY_TRAIL_SOURCE),
       // While one paddock's trails are all on show, the rest of the map
       // is dimmed so the paddock stands out.
       {

@@ -8,8 +8,12 @@
  * wait in a queue, kept in localStorage, and are retried; a trail is only
  * closed once every point has reached the server.
  *
- * Left out on purpose for now: pausing a trail, and the automatic
- * trail-per-paddock mode.
+ * A trail can be paused, the way the current viewer pauses one: points are
+ * still laid (what is driven shows as a dotted line, not as coverage), and
+ * each pause is a window of time, kept here, saved to `trail_pauses`, and
+ * handed over when the trail is closed so its path is split there.
+ *
+ * Left out on purpose for now: the automatic trail-per-paddock mode.
  */
 import { get, writable, type Writable } from "svelte/store"
 import { trailsApi } from "$lib/api/trailsApi"
@@ -48,6 +52,9 @@ export type FinishedTrail = {
 
 type Pending = { trailId: string; operationId: string; points: TrailPoint[] }
 
+/** One pause of a trail; `resumedAt` is null while it is still paused. */
+export type PauseWindow = { pausedAt: number; resumedAt: number | null }
+
 const STORE = "agskan-map-next:trail-queue"
 /** The trail this device itself is recording, so a reload carries on. */
 const HERE = "agskan-map-next:trail-here"
@@ -65,6 +72,29 @@ const rememberHere = (trailId: string | null) => {
     else localStorage.removeItem(HERE)
   } catch {
     // Storage blocked: a reload will ask before carrying on.
+  }
+}
+
+/** This device's pauses of the trail it is recording. */
+const PAUSES = "agskan-map-next:trail-pauses"
+const readPauses = (trailId: string): PauseWindow[] => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PAUSES) ?? "null") as {
+      trailId: string
+      pauses: PauseWindow[]
+    } | null
+    return saved?.trailId === trailId ? saved.pauses : []
+  } catch {
+    return []
+  }
+}
+const writePauses = (trailId: string | null, pauses: PauseWindow[] = []) => {
+  try {
+    if (trailId && pauses.length)
+      localStorage.setItem(PAUSES, JSON.stringify({ trailId, pauses }))
+    else localStorage.removeItem(PAUSES)
+  } catch {
+    // Storage blocked: the pauses still live in memory for this visit.
   }
 }
 
@@ -107,6 +137,10 @@ export class TrailRecorder {
   })
   /** Every point of the trail being recorded, oldest first. */
   points: TrailPoint[] = []
+  /** Paused: points are still laid, but they aren't coverage. */
+  readonly paused: Writable<boolean> = writable(false)
+  /** Every pause of the trail being recorded, oldest first. */
+  pauses: PauseWindow[] = []
 
   private queue: TrailPoint[] = []
   private sending = false
@@ -175,6 +209,11 @@ export class TrailRecorder {
     for (const point of this.queue)
       if (!this.points.some((p) => p.t === point.t)) this.points.push(point)
     this.points.sort((a, b) => a.t - b.t)
+    this.pauses = readPauses(info.id)
+    this.paused.set(
+      !!this.pauses.length &&
+        this.pauses[this.pauses.length - 1].resumedAt === null,
+    )
     rememberHere(info.id)
     this.state.set({
       phase: "on",
@@ -240,6 +279,45 @@ export class TrailRecorder {
     this.queue.push(point)
     this.remember(trail)
     this.flush()
+  }
+
+  /** Pause the trail (where the machine is, if known). */
+  pause(at: LngLat | null) {
+    const { phase, trail } = get(this.state)
+    if (phase !== "on" || !trail || get(this.paused)) return false
+    const pausedAt = Date.now()
+    this.pauses = [...this.pauses, { pausedAt, resumedAt: null }]
+    writePauses(trail.id, this.pauses)
+    this.paused.set(true)
+    // Best effort: closing the trail doesn't depend on this row.
+    Promise.resolve(
+      trailsApi.recordTrailPause(trail.id, pausedAt, at?.[1], at?.[0]),
+    ).catch(() => {})
+    return true
+  }
+
+  /** Carry on laying coverage after a pause. */
+  unpause() {
+    const { trail } = get(this.state)
+    const open = this.pauses[this.pauses.length - 1]
+    if (!trail || !open || open.resumedAt !== null) return false
+    this.pauses = [
+      ...this.pauses.slice(0, -1),
+      { pausedAt: open.pausedAt, resumedAt: Date.now() },
+    ]
+    writePauses(trail.id, this.pauses)
+    this.paused.set(false)
+    Promise.resolve(trailsApi.recordTrailResume(trail.id, open.pausedAt)).catch(
+      () => {},
+    )
+    return true
+  }
+
+  /** Was the trail paused at this moment? */
+  inPause(t: number) {
+    return this.pauses.some(
+      (w) => t > w.pausedAt && (w.resumedAt === null || t < w.resumedAt),
+    )
   }
 
   private remember(trail: TrailInfo) {
@@ -336,7 +414,7 @@ export class TrailRecorder {
           longitude: p.at[0],
           timestamp: p.t,
         })),
-        pauses: [],
+        pauses: this.pauses.map((w) => ({ ...w })),
       })) as Row
       if (closed?.error) return giveUp("Couldn't save the trail. Try again.")
 
@@ -366,6 +444,9 @@ export class TrailRecorder {
   private reset() {
     this.points = []
     this.queue = []
+    this.pauses = []
+    this.paused.set(false)
+    writePauses(null)
     writeQueue(null)
     rememberHere(null)
     this.state.set({ phase: "off", trail: null, waiting: 0, problem: null })

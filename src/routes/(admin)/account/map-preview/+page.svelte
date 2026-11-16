@@ -28,6 +28,9 @@
     Trash2,
     Users,
     X,
+    ArrowLeft,
+    Pause,
+    Play,
   } from "lucide-svelte"
   import "../../../(marketing)/landing/landing-theme.css"
   import "$lib/components/mapnext/chrome.css"
@@ -109,6 +112,9 @@
   } from "./recorder"
   import LiveJoin from "./LiveJoin.svelte"
   import Toolbox from "./Toolbox.svelte"
+  import CrewPanel from "./CrewPanel.svelte"
+  import ProfilePicker from "./ProfilePicker.svelte"
+  import type { LogUndo } from "./FarmLog.svelte"
   import PinCard from "./PinCard.svelte"
   import MachineCard from "./MachineCard.svelte"
   import GuideBar from "./GuideBar.svelte"
@@ -237,6 +243,16 @@
   // ── Chrome ──
   let panelOpen = false
   let toolView: ToolView = "home"
+  /** On a tablet the toolbox can be put away, to a button at the top left. */
+  let railShut = load<boolean>("rail-shut") ?? false
+  /** On a phone the crew is a card over the map, not part of the sheet. */
+  let crewCard = false
+  let crewTab: "crew" | "log" = "crew"
+  let crewCardH = 0
+  /** The kind picked in the change-pin card, waiting to be confirmed. */
+  let pinPick: string | null = null
+  /** My trail is paused: driving shows dotted and isn't coverage. */
+  let trailPaused = false
   let pinning = false
   let wide = false
   let online = true
@@ -596,7 +612,11 @@
   // The first real fix ends the join flow.
   $: if (phase === "join" && step === "locate" && gps === "live") enterMap()
   // Keep "centred" meaning centred in the part of the map that isn't covered.
-  $: engine?.setInsets(wide ? 352 : 0, wide ? 0 : 76)
+  $: railOn = wide && !railShut
+  $: engine?.setInsets(
+    railOn ? 352 : 0,
+    wide ? 0 : crewCard && !cardOpen ? Math.max(76, crewCardH + 24) : 76,
+  )
   // Who last changed the picked pin, with what they drive.
   $: pinWho = whoIs(selectedPin?.by ?? null, crew, self)
   function whoIs(id: string | null, others: CrewRow[], me: CrewRow | null) {
@@ -747,6 +767,7 @@
       created.loading.subscribe((v) => (loading = v)),
       created.readout.subscribe((v) => (readout = v)),
       created.recorder.state.subscribe((v) => (recording = v)),
+      created.recorder.paused.subscribe((v) => (trailPaused = v)),
       created.problem.subscribe((text) => {
         if (!text) return
         say(text)
@@ -948,6 +969,8 @@
     const current = $operatorStore.operator
     if (current) {
       driverOffer = { name: current.name, operator: null }
+      // (The rest of the farm's profiles, to pick someone else from.)
+      operatorApi.getMapOperators(mapId).then((list) => (operators = list))
     } else {
       // Nobody set yet: offer their own name, from the list if it is there.
       operators = await operatorApi.getMapOperators(mapId)
@@ -983,13 +1006,31 @@
     const chosen = offer.operator
       ? await operatorApi.selectOperator(offer.operator.id, mapId)
       : await operatorApi.createAndSelectOperator(mapId, offer.name)
-    if (!chosen) say("Couldn't set who's driving. Try again from Driver.")
+    if (!chosen) say("Couldn't set who's driving. Try again from Profile.")
   }
 
-  function someoneElse() {
+  // The profile picker. Touching anything but the offer stops its count.
+  function holdDriver() {
+    clearInterval(driverTimer)
+    if (driverOffer) driverLeft = 0
+  }
+  function closeProfile() {
     clearInterval(driverTimer)
     driverOffer = null
-    chooseDriver()
+    operatorAsk = false
+    driverOnly = false
+  }
+  // Someone else from the list (or a new name).
+  function pickProfile(choice: Operator | null, name = "") {
+    if (driverOffer) {
+      // On the way in it only sets who is driving; no trail starts.
+      clearInterval(driverTimer)
+      driverOffer = null
+      driverOnly = true
+      operatorAsk = true
+    }
+    operatorName = name
+    chooseOperator(choice)
   }
 
   function askForLocation() {
@@ -1039,6 +1080,13 @@
   function openPanel(view: ToolView = "home") {
     toolView = view
     panelOpen = true
+    if (railShut) setRailShut(false)
+  }
+  // Put the rail away (a tablet), or bring it back.
+  function setRailShut(shut: boolean) {
+    railShut = shut
+    save("rail-shut", shut)
+    if (shut) toolView = "home"
   }
 
   function closePanel() {
@@ -1053,6 +1101,7 @@
     panelOpen = false
     stopAsk = false
     pinSlot = slot ?? quickKinds[0]
+    pinPick = null
     pinning = true
     disarmPin()
   }
@@ -1060,6 +1109,7 @@
   function stopPinning() {
     pinning = false
     pinSlot = null
+    pinPick = null
   }
 
   function choosePin(iconClass: string) {
@@ -1177,7 +1227,7 @@
 
   // ── Messages ──
   // On screen means the panel is showing them (the rail always is).
-  $: messagesShown = (wide || panelOpen) && toolView === "messages"
+  $: messagesShown = (railOn || (!wide && panelOpen)) && toolView === "messages"
   $: messenger?.watch(messagesShown)
   $: if (messagesShown) {
     // Looking at the list, or at a conversation: nothing left to announce.
@@ -1437,7 +1487,6 @@
     }
     engine?.pickCrew(id)
     if (id === ME) engine?.setFollow("follow")
-    if (!wide) closePanel()
   }
   function logTrail(trail: { id: string; operation: string }) {
     if (!trails.some((t) => t.id === trail.id)) {
@@ -1448,7 +1497,41 @@
       )
       return
     }
-    if (pickTrail(trail.id) && !wide) closePanel()
+    pickTrail(trail.id)
+  }
+
+  // Someone picked in the crew list: found on the map, with their card up.
+  // (On a phone the list is a card too, and comes back when theirs goes.)
+  function lookCrew(id: string) {
+    if (id === ME) engine?.setFollow("follow")
+    else if (engine?.lookAt(id)) engine.pickCrew(id)
+    else return
+    if (!wide) closePanel()
+  }
+
+  // Put back what a row of the log did (or do it over again).
+  async function undoLog(what: LogUndo) {
+    const ok = (await engine?.undoLogged(what)) ?? false
+    if (ok)
+      say(
+        what.kind === "restore"
+          ? "Pin put back"
+          : what.kind === "remove"
+            ? "Pin removed"
+            : what.kind === "move"
+              ? "Pin moved back"
+              : "Pin changed back",
+      )
+    return ok
+  }
+
+  // Pause the trail being laid, or carry on with it.
+  function pauseTap() {
+    if (!engine) return
+    if (trailPaused) {
+      if (engine.resumeTrail()) say("Trail going again")
+    } else if (engine.pauseTrail())
+      say("Trail paused. What you drive now shows as a dotted line.")
   }
 
   function setHideStale(on: boolean) {
@@ -1827,6 +1910,8 @@
     !!trailSet ||
     !!measure ||
     mineSelected
+  // On a phone the crew's card takes the bottom of the map too.
+  $: bottomTaken = cardOpen || (crewCard && !wide)
 
   // ── A picked trail ──
   const day = (t: number) =>
@@ -2006,7 +2091,7 @@
   />
 </svelte:head>
 
-<div class="lp-theme mn" class:wide>
+<div class="lp-theme mn" class:wide class:shut={wide && railShut}>
   <div class="mn-map" bind:this={mapEl}></div>
 
   {#if switching}
@@ -2054,21 +2139,48 @@
   {:else if phase === "map"}
     <!-- ── On the map ── -->
     <div class="mn-corner top-left">
-      <button
-        type="button"
-        class="mn-status {status.tone}"
-        disabled={status.tone !== "off"}
-        on:click={askForLocation}
-      >
-        <span class="dot"></span>{status.text}
-      </button>
+      <div class="mn-toprow">
+        {#if !railOn}
+          <!-- The way into the toolbox: on a phone, and on a tablet while
+               the rail is put away. -->
+          <button
+            type="button"
+            class="mn-tools-button"
+            aria-label="Toolbox. {onlineCrew.length} of the crew on the map{unread
+              ? `, ${unread} unread ${unread === 1 ? 'message' : 'messages'}`
+              : ''}"
+            on:click={() => openPanel("home")}
+          >
+            {#if onlineCrew.length}
+              <span class="dots" aria-hidden="true">
+                {#each onlineCrew.slice(0, 4) as person}
+                  <i style="background: {person.colour}"></i>
+                {/each}
+              </span>
+            {/if}
+            Tools
+            {#if unread}<span class="mn-badge">{unread}</span>{/if}
+          </button>
+        {/if}
+        <button
+          type="button"
+          class="mn-status {status.tone}"
+          disabled={status.tone !== "off"}
+          on:click={askForLocation}
+        >
+          <span class="dot"></span>{status.text}
+        </button>
+      </div>
       {#if trailOn}
         <button
           type="button"
           class="mn-chip trail"
+          class:paused={trailPaused}
           on:click={() => (stopAsk = true)}
         >
-          <span class="dot"></span>Trail · {formatHa(readout.ha)} ha
+          <span class="dot"></span>{trailPaused ? "Paused" : "Trail"} · {formatHa(
+            readout.ha,
+          )} ha
         </button>
       {/if}
       {#if broadcast}
@@ -2139,29 +2251,6 @@
       {/if}
     </div>
 
-    {#if !wide}
-      <div class="mn-corner top-right">
-        <button
-          type="button"
-          class="mn-tools-button"
-          aria-label="Toolbox. {onlineCrew.length} of the crew on the map{unread
-            ? `, ${unread} unread ${unread === 1 ? 'message' : 'messages'}`
-            : ''}"
-          on:click={() => openPanel("home")}
-        >
-          {#if onlineCrew.length}
-            <span class="dots" aria-hidden="true">
-              {#each onlineCrew.slice(0, 4) as person}
-                <i style="background: {person.colour}"></i>
-              {/each}
-            </span>
-          {/if}
-          Tools
-          {#if unread}<span class="mn-badge">{unread}</span>{/if}
-        </button>
-      </div>
-    {/if}
-
     {#if notice && !messagesShown}
       <!-- ── A message has come in ── -->
       {#key notice.id}
@@ -2204,7 +2293,7 @@
     {/if}
 
     <!-- On a phone a card takes the place of the bottom controls. -->
-    {#if !cardOpen}
+    {#if !bottomTaken}
       <div class="mn-corner bottom-left">
         {#if !wide}
           <!-- On a tablet the crew is listed in the rail. -->
@@ -2212,7 +2301,7 @@
             type="button"
             class="mn-crew-button"
             aria-label="Crew. {onlineCrew.length} on the map now"
-            on:click={() => openPanel("crew")}
+            on:click={() => (crewCard = true)}
           >
             <Users size={22} />
             <span>Crew</span>
@@ -2251,7 +2340,7 @@
 
     <!-- The working buttons sit down the right: trail, pin, and where am I
          at the very bottom. -->
-    {#if wide || !cardOpen}
+    {#if wide || !bottomTaken}
       <div class="mn-corner bottom-right">
         {#if !guest}
           <!-- A button for each default pin, the first one lowest. Pressed
@@ -2293,22 +2382,61 @@
           </div>
         {/if}
         {#if !guest}
-          <button
-            type="button"
-            class="mn-trail-button"
-            class:on={trailOn}
-            disabled={recording.phase === "starting" ||
-              recording.phase === "stopping"}
-            aria-label={trailOn
-              ? "Stop trail"
-              : trailFound
-                ? "Your running trail"
-                : "Start trail"}
-            on:click={trailTap}
-          >
-            <span class="rec"></span>
-            <span>{trailOn ? "Stop" : "Trail"}</span>
-          </button>
+          <!-- Start or stop a trail. While one is being laid the button
+               draws a trail over and over, a pause button sits beside it,
+               and a tag under it says which of the two it is doing. -->
+          <div class="mn-trailwrap">
+            {#if trailOn}
+              <button
+                type="button"
+                class="mn-pause"
+                class:paused={trailPaused}
+                aria-label={trailPaused
+                  ? "Carry on with the trail"
+                  : "Pause the trail"}
+                transition:fade={{ duration: 160 }}
+                on:click={pauseTap}
+              >
+                {#if trailPaused}
+                  <Play size={22} fill="currentColor" />
+                {:else}
+                  <Pause size={22} fill="currentColor" />
+                {/if}
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="mn-trail-button"
+              class:on={trailOn}
+              class:paused={trailPaused}
+              disabled={recording.phase === "starting" ||
+                recording.phase === "stopping"}
+              aria-label={trailOn
+                ? "Stop trail"
+                : trailFound
+                  ? "Your running trail"
+                  : "Start trail"}
+              on:click={trailTap}
+            >
+              {#if trailOn}
+                <svg class="laying" viewBox="0 0 36 18" aria-hidden="true">
+                  <path
+                    pathLength="1"
+                    d="M2 14 C 9 14, 9 4, 18 4 S 27 14, 34 14"
+                  />
+                </svg>
+                <span>Stop</span>
+              {:else}
+                <span class="rec"></span>
+                <span>Trail</span>
+              {/if}
+            </button>
+            {#if trailOn}
+              <span class="mn-trailpill" class:paused={trailPaused}>
+                {trailPaused ? "Paused" : "Trailing"}
+              </span>
+            {/if}
+          </div>
         {/if}
         <button
           type="button"
@@ -2337,33 +2465,7 @@
       </div>
     {/if}
 
-    {#if driverOffer}
-      <!-- ── Who is driving, confirmed on the way in ── -->
-      <div class="mn-card" in:rise>
-        <p class="lp-eyebrow">Driver</p>
-        <h2 class="mn-card-title">Driving as {driverOffer.name}?</h2>
-        <p class="mn-card-text">
-          Trails laid from this screen are signed with this name.
-        </p>
-        <div class="mn-card-actions">
-          <button
-            type="button"
-            class="lp-btn lp-btn-ghost"
-            on:click={someoneElse}
-          >
-            Someone else
-          </button>
-          <button
-            type="button"
-            class="lp-btn lp-btn-primary mn-count"
-            style="--left: {(driverLeft / DRIVER_WAIT) * 100}%"
-            on:click={() => confirmDriver()}
-          >
-            Yes · {driverLeft}
-          </button>
-        </div>
-      </div>
-    {:else if paddockAsk}
+    {#if paddockAsk}
       <!-- ── A new paddock: how to make it ── -->
       <div class="mn-card mn-menu" in:rise>
         <div class="mn-card-head">
@@ -2625,21 +2727,30 @@
         <div class="mn-card-head">
           <p class="lp-eyebrow">Change pin</p>
           <p class="mn-hint">
-            Which pin should the {pinSlot ? pinName(pinSlot) : ""} button drop?
+            {#if pinPick}
+              Change the {pinSlot ? pinName(pinSlot) : ""} button to {pinName(
+                pinPick,
+              )}?
+            {:else}
+              Which pin should the {pinSlot ? pinName(pinSlot) : ""} button drop?
+            {/if}
           </p>
         </div>
-        <!-- Every kind, in a grid that wraps: it scrolls down, not across. -->
+        <!-- Every kind, in a grid that wraps: it scrolls down, not across.
+             A tap picks one; the button only changes on Confirm. -->
         <div class="mn-kinds wrap">
           {#each slotChoices as choice (choice.iconClass)}
             <button
               type="button"
               class="mn-kind"
-              class:selected={pinSlot === choice.iconClass}
+              class:selected={(pinPick ?? pinSlot) === choice.iconClass}
               class:used={pinSlot !== choice.iconClass &&
                 quickKinds.includes(choice.iconClass)}
-              aria-pressed={pinSlot === choice.iconClass}
+              aria-pressed={(pinPick ?? pinSlot) === choice.iconClass}
               title={choice.label}
-              on:click={() => choosePin(choice.iconClass)}
+              on:click={() =>
+                (pinPick =
+                  choice.iconClass === pinSlot ? null : choice.iconClass)}
             >
               <PinArt look={choiceLook(choice.iconClass)} size={32} />
               <span>{choice.label}</span>
@@ -2647,84 +2758,42 @@
           {/each}
         </div>
         <div class="mn-card-actions">
-          <button
-            type="button"
-            class="lp-btn lp-btn-ghost"
-            disabled={quickKinds.length < 2}
-            on:click={() => {
-              setQuick(quickKinds.filter((kind) => kind !== pinSlot))
-              stopPinning()
-            }}
-          >
-            Remove button
-          </button>
-          <button
-            type="button"
-            class="lp-btn lp-btn-primary"
-            on:click={stopPinning}
-          >
-            Done
-          </button>
+          {#if pinPick}
+            <button
+              type="button"
+              class="lp-btn lp-btn-ghost"
+              on:click={() => (pinPick = null)}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="lp-btn lp-btn-primary"
+              on:click={() => pinPick && choosePin(pinPick)}
+            >
+              <Check size={18} strokeWidth={3} /> Confirm
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="lp-btn lp-btn-ghost"
+              disabled={quickKinds.length < 2}
+              on:click={() => {
+                setQuick(quickKinds.filter((kind) => kind !== pinSlot))
+                stopPinning()
+              }}
+            >
+              Remove button
+            </button>
+            <button
+              type="button"
+              class="lp-btn lp-btn-primary"
+              on:click={stopPinning}
+            >
+              Done
+            </button>
+          {/if}
         </div>
-      </div>
-    {:else if operatorAsk}
-      <!-- ── Who is driving ── -->
-      <div class="mn-card" in:rise>
-        <div class="mn-card-head">
-          <p class="lp-eyebrow">
-            {driverOnly ? "Driver" : "Before the trail starts"}
-          </p>
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={() => {
-              operatorAsk = false
-              driverOnly = false
-            }}
-          >
-            <X size={22} />
-          </button>
-        </div>
-        <h2 class="mn-card-title">Who's driving?</h2>
-        <p class="mn-card-text">
-          The trail and its spray record are signed with this name.
-        </p>
-        {#if operators.length}
-          <div class="mn-kinds">
-            {#each operators as choice (choice.id)}
-              <button
-                type="button"
-                class="mn-kind"
-                disabled={operatorBusy}
-                on:click={() => chooseOperator(choice)}
-              >
-                <strong>{choice.name}</strong>
-                {#if choice.in_use_by}<span>in use</span>{/if}
-              </button>
-            {/each}
-          </div>
-        {/if}
-        <form
-          class="mn-field"
-          style="margin-top: 10px"
-          on:submit|preventDefault={() => chooseOperator(null)}
-        >
-          <input
-            type="text"
-            bind:value={operatorName}
-            placeholder={operators.length ? "Someone new" : "Your name"}
-            autocomplete="name"
-            maxlength="40"
-          />
-          <button
-            type="submit"
-            class="lp-btn lp-btn-primary"
-            disabled={operatorBusy || !operatorName.trim()}
-          >
-            {driverOnly ? "Set" : "Start"}
-          </button>
-        </form>
       </div>
     {:else if roadAsk}
       <!-- ── A trail in a machine that doesn't usually lay one ── -->
@@ -3286,7 +3355,7 @@
           map={engine.map}
           place={() =>
             selectedPin ? (engine?.pinPlace(selectedPin.id) ?? null) : null}
-          insets={{ left: wide ? 352 : 0, bottom: wide ? 0 : 76 }}
+          insets={{ left: railOn ? 352 : 0, bottom: wide ? 0 : 76 }}
           on:place={() => {
             if (engine?.placePin()) say("Pin moved")
           }}
@@ -3339,6 +3408,16 @@
       {#key selectedCrew.id}
         <div class="mn-card mn-menu" in:rise>
           <div class="head">
+            {#if crewCard && !wide}
+              <button
+                type="button"
+                class="mn-icon-button back"
+                aria-label="Back to the crew"
+                on:click={() => engine?.selectedCrew.set(null)}
+              >
+                <ArrowLeft size={22} />
+              </button>
+            {/if}
             <span class="art">
               <svelte:component
                 this={vehicles[selectedCrew.type]}
@@ -3383,7 +3462,10 @@
               type="button"
               class="mn-icon-button"
               aria-label="Close"
-              on:click={() => engine?.selectedCrew.set(null)}
+              on:click={() => {
+                engine?.selectedCrew.set(null)
+                crewCard = false
+              }}
             >
               <X size={22} />
             </button>
@@ -3541,8 +3623,60 @@
       </div>
     {/if}
 
+    {#if crewCard && !wide}
+      <!-- ── The crew, on a phone: a card over the map, which still moves
+           under it. It steps aside (kept as it was) while another card is
+           up, and is back when that one goes. ── -->
+      <div
+        class="mn-card mn-menu mn-crewcard"
+        class:aside={cardOpen}
+        bind:clientHeight={crewCardH}
+      >
+        <CrewPanel
+          bind:tab={crewTab}
+          closable
+          {crew}
+          {self}
+          selfDriver={$operatorStore.operator?.name ?? ""}
+          unreadBy={Object.fromEntries(
+            conversations.map((convo) => [convo.id, convo.unread]),
+          )}
+          {hideStale}
+          {guest}
+          mapId={mapId ?? ""}
+          {undoLog}
+          on:close={() => (crewCard = false)}
+          on:settings={() => openPanel("crewSettings")}
+          on:look={(e) => lookCrew(e.detail)}
+          on:message={(e) => openChat(e.detail)}
+          on:invite={openInvite}
+          on:lookPlace={(e) => engine?.showPlace({ at: e.detail })}
+          on:logCrew={(e) => logCrew(e.detail)}
+          on:logTrail={(e) => logTrail(e.detail)}
+        />
+      </div>
+    {/if}
+
+    {#if driverOffer || operatorAsk}
+      <!-- ── Who is driving: confirmed on the way in, changed from
+           Profile, asked before a trail when nobody is set ── -->
+      <ProfilePicker
+        {operators}
+        current={driverOffer?.name ?? $operatorStore.operator?.name ?? ""}
+        countdown={driverOffer ? driverLeft : 0}
+        total={DRIVER_WAIT}
+        busy={operatorBusy}
+        forTrail={operatorAsk && !driverOnly}
+        on:confirm={() => (driverOffer ? confirmDriver() : closeProfile())}
+        on:hold={holdDriver}
+        on:pick={(e) => pickProfile(e.detail)}
+        on:add={(e) => pickProfile(null, e.detail)}
+        on:close={closeProfile}
+      />
+    {/if}
+
     <!-- ── Toolbox: a side rail on a tablet, a sheet on a phone ── -->
-    {#if wide || panelOpen}
+    {#if railOn || (!wide && panelOpen)}
       {#if !wide}
         <button
           type="button"
@@ -3582,13 +3716,16 @@
         {farm}
         {farms}
         currentFarmId={mapId}
-        {unread}
         unreadBy={Object.fromEntries(
           conversations.map((convo) => [convo.id, convo.unread]),
         )}
+        on:minimise={() => setRailShut(true)}
+        on:crewCard={() => {
+          closePanel()
+          crewCard = true
+        }}
         on:messageCrew={(e) => openChat(e.detail)}
         messageWith={chatName}
-        on:messagesBack={() => messenger?.open(null)}
         on:close={closePanel}
         on:locate={askForLocation}
         on:machine={(e) => changeMachine(e.detail)}
@@ -3609,16 +3746,7 @@
           if (!wide) closePanel()
         }}
         on:lasso={startLasso}
-        on:lookCrew={(e) => {
-          if (e.detail === ME) {
-            // Your own row: back to yourself.
-            engine?.setFollow("follow")
-            if (!wide) closePanel()
-          } else if (engine?.lookAt(e.detail)) {
-            engine.pickCrew(e.detail)
-            if (!wide) closePanel()
-          }
-        }}
+        on:lookCrew={(e) => lookCrew(e.detail)}
         on:pinKind={(e) => choosePin(e.detail)}
         on:dropPins={() => {
           if (!wide) closePanel()
@@ -3649,20 +3777,7 @@
           if (engine?.pickPaddockById(e.detail) && !wide) closePanel()
         }}
         farmList={farmNames}
-        undoLog={async (what) => {
-          const ok = (await engine?.undoLogged(what)) ?? false
-          if (ok)
-            say(
-              what.kind === "restore"
-                ? "Pin put back"
-                : what.kind === "remove"
-                  ? "Pin removed"
-                  : what.kind === "move"
-                    ? "Pin moved back"
-                    : "Pin changed back",
-            )
-          return ok
-        }}
+        {undoLog}
         mapId={mapId ?? ""}
         on:newPaddock={(e) => {
           engine?.clearSelection()
@@ -3676,10 +3791,7 @@
         }}
         on:logCrew={(e) => logCrew(e.detail)}
         on:logTrail={(e) => logTrail(e.detail)}
-        on:lookPlace={(e) => {
-          engine?.showPlace({ at: e.detail })
-          if (!wide) closePanel()
-        }}
+        on:lookPlace={(e) => engine?.showPlace({ at: e.detail })}
         on:base={(e) => setBase(e.detail)}
         on:layer={(e) => setLayer(e.detail.key, e.detail.on)}
         on:measure={startMeasuring}

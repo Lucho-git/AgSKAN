@@ -7,7 +7,10 @@
    * a phone.
    *
    * On the rail the grid is kept small and the crew is listed under it, so
-   * who is where is always on screen; a phone has its own Crew button.
+   * who is where is always on screen; a phone has its own Crew button, and
+   * the crew there is a card over the map (the page's). The rail can be put
+   * away with the button at its top left. Beside that is the way back to the
+   * farm's dashboard.
    */
   import { createEventDispatcher } from "svelte"
   import {
@@ -21,15 +24,12 @@
     Layers,
     LocateFixed,
     Map as MapIcon,
-    MapPinned,
-    MessageCircle,
+    PanelLeftClose,
     Play,
     RadioTower,
-    ScrollText,
     Route,
     Ruler,
     Search,
-    Settings,
     UserMinus,
     UserPlus,
     UserRound,
@@ -38,9 +38,9 @@
   } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import MachinePicker from "$lib/components/mapnext/MachinePicker.svelte"
-  import CrewRows from "./CrewRows.svelte"
+  import CrewPanel from "./CrewPanel.svelte"
   import PinsTool from "./PinsTool.svelte"
-  import FarmLog, { type LogUndo } from "./FarmLog.svelte"
+  import type { LogUndo } from "./FarmLog.svelte"
   import type { LngLat } from "$lib/components/mapnext/geo"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
@@ -115,8 +115,6 @@
   export let quickPinKinds: string[] = []
   /** Put back what a row of the log did. */
   export let undoLog: (what: LogUndo) => Promise<boolean> = async () => false
-  /** Messages this person hasn't opened. */
-  export let unread = 0
   /** Who the open conversation is with (their name), if one is open. */
   export let messageWith = ""
   /** Messages not yet opened, by who sent them. */
@@ -157,8 +155,11 @@
     fitFarm: void
     farm: string
     leave: "dashboard" | "viewer"
-    messagesBack: void
     messageCrew: string
+    /** Put the rail away (a tablet). */
+    minimise: void
+    /** Show the crew as its card over the map (a phone). */
+    crewCard: void
     invite: void
     stale: boolean
     removeCrew: { id: string; guest: boolean; name: string }
@@ -349,8 +350,30 @@
   aria-label="Toolbox"
 >
   {#if view === "home"}
-    <header class="mn-panel-head">
-      <span class="word">{farmName || "AgSKAN"}</span>
+    <header class="mn-panel-head home">
+      {#if wide}
+        <button
+          type="button"
+          class="mn-icon-button mini"
+          aria-label="Put the toolbox away"
+          title="Put the toolbox away"
+          on:click={() => dispatch("minimise")}
+        >
+          <PanelLeftClose size={21} />
+        </button>
+      {/if}
+      <button
+        type="button"
+        class="mn-dash"
+        aria-label="Back to the {farmName || 'farm'} dashboard"
+        on:click={() => dispatch("leave", "dashboard")}
+      >
+        <ArrowLeft size={17} />
+        <span>
+          <small>Dashboard</small>
+          <b>{farmName || "AgSKAN"}</b>
+        </span>
+      </button>
       {#if !wide}
         <button
           type="button"
@@ -364,23 +387,28 @@
     </header>
 
     <nav class="mn-grid" aria-label="Tools">
+      {#if !guest}
+        <button
+          type="button"
+          class="mn-tile"
+          on:click={() => dispatch("driver")}
+        >
+          <span class="icon"><UserRound size={24} /></span>
+          <strong>Profile</strong>
+          <small>{driver || "not set"}</small>
+        </button>
+      {/if}
       {#if !wide}
-        <button type="button" class="mn-tile" on:click={() => (view = "crew")}>
+        <button
+          type="button"
+          class="mn-tile"
+          on:click={() => dispatch("crewCard")}
+        >
           <span class="icon"><Users size={24} /></span>
           <strong>Crew</strong>
           <small>{online} on now</small>
         </button>
       {/if}
-      <button
-        type="button"
-        class="mn-tile"
-        on:click={() => (view = "messages")}
-      >
-        {#if unread}<span class="mn-badge">{unread}</span>{/if}
-        <span class="icon"><MessageCircle size={24} /></span>
-        <strong>Messages</strong>
-        <small>{unread ? `${unread} new` : "talk to the crew"}</small>
-      </button>
       <button type="button" class="mn-tile" on:click={() => (view = "jobs")}>
         {#if jobsWaiting}<span class="mn-badge">{jobsWaiting}</span>{/if}
         <span class="icon"><ClipboardList size={24} /></span>
@@ -474,85 +502,29 @@
         <strong>Layers</strong>
         <small>{hidden ? `${hidden} hidden` : "all showing"}</small>
       </button>
-      {#if !guest}
-        <button
-          type="button"
-          class="mn-tile"
-          on:click={() => dispatch("driver")}
-        >
-          <span class="icon"><UserRound size={24} /></span>
-          <strong>Driver</strong>
-          <small>{driver || "not set"}</small>
-        </button>
-      {/if}
-      <button type="button" class="mn-tile" on:click={() => (view = "farm")}>
-        <span class="icon"><MapPinned size={24} /></span>
-        <strong>Farm</strong>
-        <small>{isOwner ? "yours" : farmOwner}</small>
-      </button>
     </nav>
 
     {#if wide}
       <!-- The crew, always in view under the tools. -->
       <section class="mn-home-crew" aria-label="Crew">
-        <div class="mn-crew-head">
-          <div class="mn-tabs" role="tablist" aria-label="Crew and log">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={crewTab === "crew"}
-              on:click={() => (crewTab = "crew")}
-            >
-              <Users size={15} /> Crew
-              {#if online}<b>{online}</b>{/if}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={crewTab === "log"}
-              on:click={() => (crewTab = "log")}
-            >
-              <ScrollText size={15} /> Log
-            </button>
-          </div>
-          {#if !guest}
-            <button
-              type="button"
-              class="mn-icon-button"
-              aria-label="Crew settings"
-              on:click={() => (view = "crewSettings")}
-            >
-              <Settings size={20} />
-            </button>
-          {/if}
-        </div>
-        {#if crewTab === "log" && mapId}
-          <FarmLog
-            {mapId}
-            {guest}
-            undo={undoLog}
-            on:look={(e) => dispatch("lookPlace", e.detail)}
-            on:crew={(e) => dispatch("logCrew", e.detail)}
-            on:trail={(e) => dispatch("logTrail", e.detail)}
-          />
-        {:else if crew.length || self || !guest}
-          <CrewRows
-            {crew}
-            {self}
-            selfDriver={driver}
-            {unreadBy}
-            {hideStale}
-            canInvite={!guest}
-            on:look={(e) => dispatch("lookCrew", e.detail)}
-            on:message={(e) => dispatch("messageCrew", e.detail)}
-            on:invite={() => dispatch("invite")}
-          />
-        {:else}
-          <p class="mn-empty">
-            Nobody else has joined this farm yet. Invite the crew from the
-            dashboard and they'll show up here.
-          </p>
-        {/if}
+        <CrewPanel
+          bind:tab={crewTab}
+          {crew}
+          {self}
+          selfDriver={driver}
+          {unreadBy}
+          {hideStale}
+          {guest}
+          {mapId}
+          {undoLog}
+          on:settings={() => (view = "crewSettings")}
+          on:look={(e) => dispatch("lookCrew", e.detail)}
+          on:message={(e) => dispatch("messageCrew", e.detail)}
+          on:invite={() => dispatch("invite")}
+          on:lookPlace={(e) => dispatch("lookPlace", e.detail)}
+          on:logCrew={(e) => dispatch("logCrew", e.detail)}
+          on:logTrail={(e) => dispatch("logTrail", e.detail)}
+        />
       </section>
     {/if}
 
@@ -577,13 +549,14 @@
       <button
         type="button"
         class="mn-icon-button back"
-        aria-label={view === "messages" && messageWith
-          ? "Back to all messages"
-          : "Back to the tools"}
-        on:click={() =>
-          view === "messages" && messageWith
-            ? dispatch("messagesBack")
-            : (view = view === "crewSettings" && !wide ? "crew" : "home")}
+        aria-label="Back"
+        on:click={() => {
+          // A conversation, and the crew's settings, are opened from the
+          // crew list: on a phone that is a card under this sheet.
+          if (!wide && (view === "messages" || view === "crewSettings"))
+            dispatch("close")
+          else view = "home"
+        }}
       >
         <ArrowLeft size={22} />
       </button>
@@ -660,64 +633,24 @@
         {/if}
       </section>
     {:else if view === "crew"}
-      <div class="mn-crew-head">
-        <div class="mn-tabs" role="tablist" aria-label="Crew and log">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={crewTab === "crew"}
-            on:click={() => (crewTab = "crew")}
-          >
-            <Users size={15} /> Crew
-            {#if online}<b>{online}</b>{/if}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={crewTab === "log"}
-            on:click={() => (crewTab = "log")}
-          >
-            <ScrollText size={15} /> Log
-          </button>
-        </div>
-        {#if !guest}
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Crew settings"
-            on:click={() => (view = "crewSettings")}
-          >
-            <Settings size={20} />
-          </button>
-        {/if}
-      </div>
-      {#if crewTab === "log" && mapId}
-        <FarmLog
-          {mapId}
-          {guest}
-          undo={undoLog}
-          on:look={(e) => dispatch("lookPlace", e.detail)}
-          on:crew={(e) => dispatch("logCrew", e.detail)}
-          on:trail={(e) => dispatch("logTrail", e.detail)}
-        />
-      {:else if crew.length || self || !guest}
-        <CrewRows
-          {crew}
-          {self}
-          selfDriver={driver}
-          {unreadBy}
-          {hideStale}
-          canInvite={!guest}
-          on:look={(e) => dispatch("lookCrew", e.detail)}
-          on:message={(e) => dispatch("messageCrew", e.detail)}
-          on:invite={() => dispatch("invite")}
-        />
-      {:else}
-        <p class="mn-empty">
-          Nobody else has joined this farm yet. Invite the crew from the
-          dashboard and they'll show up here.
-        </p>
-      {/if}
+      <CrewPanel
+        bind:tab={crewTab}
+        {crew}
+        {self}
+        selfDriver={driver}
+        {unreadBy}
+        {hideStale}
+        {guest}
+        {mapId}
+        {undoLog}
+        on:settings={() => (view = "crewSettings")}
+        on:look={(e) => dispatch("lookCrew", e.detail)}
+        on:message={(e) => dispatch("messageCrew", e.detail)}
+        on:invite={() => dispatch("invite")}
+        on:lookPlace={(e) => dispatch("lookPlace", e.detail)}
+        on:logCrew={(e) => dispatch("logCrew", e.detail)}
+        on:logTrail={(e) => dispatch("logTrail", e.detail)}
+      />
     {:else if view === "machine"}
       {#if trailOn || recording.phase === "found"}
         <p class="mn-warning">

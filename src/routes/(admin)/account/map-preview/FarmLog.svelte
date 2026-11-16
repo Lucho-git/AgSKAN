@@ -7,6 +7,15 @@
     | { kind: "remove"; id: string }
     | { kind: "edit"; id: string; iconClass: string; colour: string }
     | { kind: "move"; id: string; at: LngLat }
+
+  /**
+   * What this person has undone from the log, with what would do each over
+   * again, and the rows those undos and redos wrote to the log themselves
+   * (left out, so undoing something isn't one more thing in the list). Kept
+   * for the visit, so they outlast the list being closed and opened.
+   */
+  const undoneRows = new Map<number, LogUndo>()
+  const hiddenRows = new Set<number>()
 </script>
 
 <script lang="ts">
@@ -19,7 +28,8 @@
    *
    * A row that has a place on the map goes there when tapped. A trail
    * still being laid picks the machine laying it; a finished one opens that
-   * trail. What a pin row did can be undone from the row.
+   * trail. What a pin row did can be undone from the row, and then done
+   * over again from the strip at the top.
    */
   import { onDestroy, onMount } from "svelte"
   import { createEventDispatcher } from "svelte"
@@ -31,6 +41,7 @@
     MapPin,
     Move,
     Plus,
+    Redo2,
     Route,
     Trash2,
     Undo2,
@@ -92,7 +103,8 @@
   let timer: ReturnType<typeof setInterval>
   /** Rows being undone, and rows that have been. */
   let undoing: number | null = null
-  let undone = new Set<number>()
+  let undone = new Map(undoneRows)
+  let hidden = new Set(hiddenRows)
 
   const actionsNow = () =>
     KINDS.find((option) => option.key === kind)?.actions ?? null
@@ -147,8 +159,13 @@
       .map((entry) => entry.entity_id),
   )
   $: shown = entries.filter(
-    (entry) => !(entry.action === "trail.started" && over.has(entry.entity_id)),
+    (entry) =>
+      !hidden.has(entry.id) &&
+      !(entry.action === "trail.started" && over.has(entry.entity_id)),
   )
+  $: undoneShown = guest
+    ? []
+    : entries.filter((entry) => undone.has(entry.id)).slice(0, 3)
 
   const dayOf = (iso: string) => {
     const then = new Date(iso)
@@ -256,19 +273,71 @@
   }
   // Only the latest thing done to a pin can be undone: undoing an older
   // row would trample what came after it.
-  $: latest = entries.reduce((map, entry) => {
-    if (entry.action.startsWith("marker.") && !map.has(entry.entity_id))
-      map.set(entry.entity_id, entry.id)
-    return map
-  }, new Map<string, number>())
+  $: latest = entries
+    .filter((entry) => !hidden.has(entry.id))
+    .reduce((map, entry) => {
+      if (entry.action.startsWith("marker.") && !map.has(entry.entity_id))
+        map.set(entry.entity_id, entry.id)
+      return map
+    }, new Map<string, number>())
 
-  async function undoRow(entry: MapLogEntry) {
-    const what = undoFor(entry)
+  /** What doing a row over again would be, once it has been undone. */
+  function redoFor(entry: MapLogEntry): LogUndo | null {
+    const d = entry.details ?? {}
+    const id = entry.entity_id
+    if (!id) return null
+    if (entry.action === "marker.deleted") return { kind: "remove", id }
+    if (entry.action === "marker.placed" || entry.action === "marker.restored")
+      return { kind: "restore", id }
+    if (entry.action === "marker.edited" && d.icon)
+      return {
+        kind: "edit",
+        id,
+        iconClass: String(d.icon),
+        colour: String(d.marker_color || "default"),
+      }
+    if (entry.action === "marker.moved" && d.lng != null && d.lat != null)
+      return { kind: "move", id, at: [Number(d.lng), Number(d.lat)] }
+    return null
+  }
+
+  // An undo (or a redo) is itself written to the log by the database. Those
+  // rows are found once they arrive, and left out.
+  async function swallow(entity: string, after: number) {
+    for (const wait of [900, 2500]) {
+      await new Promise((done) => setTimeout(done, wait))
+      try {
+        const page = await fetchMapLogPage(mapId, { limit: 20 })
+        const made = page.filter(
+          (row) =>
+            row.id > after &&
+            row.entity_id === entity &&
+            row.action.startsWith("marker."),
+        )
+        if (made.length) {
+          for (const row of made) hiddenRows.add(row.id)
+          hidden = new Set(hiddenRows)
+          break
+        }
+      } catch {
+        // The next round looks again.
+      }
+    }
+    refresh()
+  }
+
+  /** Undo a row, or do an undone row over again. */
+  async function act(entry: MapLogEntry, redo: boolean) {
+    const what = redo ? undone.get(entry.id) : undoFor(entry)
     if (!what || undoing !== null) return
     undoing = entry.id
+    const newest = entries.reduce((most, row) => Math.max(most, row.id), 0)
     if (await undo(what)) {
-      undone = new Set([...undone, entry.id])
-      setTimeout(refresh, 1200)
+      const again = redo ? null : redoFor(entry)
+      if (again) undoneRows.set(entry.id, again)
+      else undoneRows.delete(entry.id)
+      undone = new Map(undoneRows)
+      swallow(entry.entity_id, newest)
     }
     undoing = null
   }
@@ -304,6 +373,29 @@
       Nothing here yet. Pins, trails and machine changes show up as they happen.
     </p>
   {:else}
+    {#if undoneShown.length}
+      <!-- What has been undone, and can be done over again. -->
+      <div class="redo">
+        <p><Undo2 size={12} /> Undone</p>
+        {#each undoneShown as entry (entry.id)}
+          <button
+            type="button"
+            disabled={undoing !== null}
+            on:click={() => act(entry, true)}
+          >
+            <span>{entry.summary}</span>
+            <b>
+              {#if undoing === entry.id}
+                <span class="mn-spin"><LoaderCircle size={12} /></span>
+              {:else}
+                <Redo2 size={12} />
+              {/if}
+              Redo
+            </b>
+          </button>
+        {/each}
+      </div>
+    {/if}
     <div class="rows">
       {#each days as group (group.day)}
         <p class="day">{group.day}</p>
@@ -317,6 +409,7 @@
           <div
             class="row"
             class:goes={!!to}
+            class:undone={undone.has(entry.id)}
             title={to === "crew"
               ? "Show this machine"
               : to === "trail"
@@ -440,7 +533,7 @@
                     type="button"
                     class="undo"
                     disabled={undoing !== null}
-                    on:click|stopPropagation={() => undoRow(entry)}
+                    on:click|stopPropagation={() => act(entry, false)}
                   >
                     {#if undoing === entry.id}
                       <span class="mn-spin"><LoaderCircle size={12} /></span>
@@ -621,6 +714,67 @@
     border-color: var(--lp-ink);
   }
   .undo:disabled {
+    opacity: 0.5;
+  }
+  /* A row that has been undone: still there, but struck out. */
+  .row.undone .art {
+    filter: grayscale(0.7);
+    opacity: 0.5;
+  }
+  .row.undone .what > span {
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
+  /* What can be done over again, at the top of the list. */
+  .redo {
+    display: grid;
+    gap: 4px;
+    padding: 8px 10px;
+    border: 1.5px dashed var(--lp-line);
+    border-radius: 14px;
+    background: var(--lp-paper);
+  }
+  .redo p {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--lp-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--lp-ink-soft);
+    text-transform: uppercase;
+  }
+  .redo button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 32px;
+    color: var(--lp-ink);
+    text-align: left;
+  }
+  .redo button span {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .redo button b {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    min-height: 26px;
+    padding: 0 10px;
+    border-radius: 99px;
+    background: var(--lp-ink);
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--lp-paper);
+  }
+  .redo button:disabled {
     opacity: 0.5;
   }
   @media (prefers-reduced-motion: reduce) {

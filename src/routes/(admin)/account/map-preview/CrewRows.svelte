@@ -3,9 +3,11 @@
    * The crew, one row each. An account is usually a machine ("H3",
    * "Wheels") that people take turns in, so its name sits over the machine's
    * picture and the name beside it is whoever is in it now (the driver they
-   * picked), when that is known. Then what they are doing, the job they are
-   * on, and how far off they are. Your own machine is first. Tapping a row
-   * finds them on the map; the button beside it opens their messages.
+   * picked), when that is known. Under the name, one line each and never
+   * wrapped: what they are doing (the trailing badge when a trail is being
+   * laid), then the paddock they are in with their speed. How far off they
+   * are sits beside the name. Your own machine is first. Tapping a row finds
+   * them on the map; the button beside it opens their messages.
    *
    * Whoever is on the map now (or laying a trail) sits on a light blue
    * shade; someone laying a trail also carries a badge in the colour the
@@ -13,7 +15,7 @@
    * decides it) so rows don't jump about.
    */
   import { createEventDispatcher } from "svelte"
-  import { MessageCircle, UserPlus } from "lucide-svelte"
+  import { MapPin, MessageCircle, UserPlus } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import { formatDistance } from "$lib/components/mapnext/format"
   import type { CrewRow } from "./liveEngine"
@@ -109,22 +111,33 @@
             {/if}
           </span>
           <span class="line">
-            <span class="doing">{person.doing}</span>
-            {#if person.speed > 0}
-              <span class="pace">{person.speed} km/h</span>
+            {#if person.trailing}
+              <span
+                class="job on"
+                style="background: {person.colour}; color: {onColour(
+                  person.colour,
+                )}"
+              >
+                <i></i>Trailing{person.operation
+                  ? ` · ${person.operation}`
+                  : ""}
+              </span>
+            {:else}
+              <span class="doing">{person.action}</span>
+              {#if person.operation}
+                <span class="job">{person.operation}</span>
+              {/if}
             {/if}
           </span>
-          {#if person.trailing}
-            <span
-              class="job on"
-              style="background: {person.colour}; color: {onColour(
-                person.colour,
-              )}"
-            >
-              <i></i>Trailing{person.operation ? ` · ${person.operation}` : ""}
+          {#if person.where || person.speed > 0}
+            <span class="line">
+              <span class="place">
+                {#if person.where}<MapPin size={12} />{person.where}{/if}
+              </span>
+              {#if person.speed > 0}
+                <span class="pace">{person.speed} km/h</span>
+              {/if}
             </span>
-          {:else if person.operation}
-            <span class="job">{person.operation}</span>
           {/if}
         </span>
       </button>
