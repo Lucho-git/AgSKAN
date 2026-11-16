@@ -20,8 +20,6 @@
   /** The step being added to (from 1), and how many there are. */
   export let step = 1
   export let steps = 1
-  /** How many places that step has so far. */
-  export let count = 0
   /** The viewer has a position. */
   export let hasFix = false
   /** Crew whose position is known. */
@@ -50,9 +48,7 @@
   <span class="tap"><Pointer size={18} /></span>
   <p>
     <b>Tap a paddock or a pin</b>
-    to add it{steps > 1 ? ` to step ${step}` : ""}{count
-      ? ` · ${count} added`
-      : ""}
+    to add it{steps > 1 ? ` to step ${step}` : ""}
   </p>
   <button
     type="button"

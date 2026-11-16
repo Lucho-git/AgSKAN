@@ -6,12 +6,22 @@
    * along a screen edge before it flips. It is drawn like the paddock's
    * menu: the same card, type and buttons.
    *
-   * It shows what the pin is, its note, and what is attached to it (areas
-   * and lines drawn on the map, and photos) straight away. Edit, Move and
-   * Add sit along the bottom; picking a drawing from the list picks it out
-   * on the map and the menu moves over to it.
+   * It shows what kind of pin it is, when it was placed or last changed
+   * and by whom, its note, and what is attached to it (areas and lines
+   * drawn on the map, and photos) straight away. Marker, Move and Add sit
+   * along the bottom; picking a drawing from the list picks it out on the
+   * map and the menu moves over to it, and its pencil changes its shape.
+   *
+   * Choosing a kind or a colour is tried on the pin as it is tapped, and
+   * saved once, when the choosing is over.
    */
-  import { createEventDispatcher, onDestroy, onMount, tick } from "svelte"
+  import {
+    createEventDispatcher,
+    onDestroy,
+    onMount,
+    tick,
+    type ComponentType,
+  } from "svelte"
   import {
     Camera,
     Check,
@@ -28,6 +38,8 @@
     Trash2,
     X,
   } from "lucide-svelte"
+  import vehicles from "$lib/vehicles"
+  import type { VehicleType } from "$lib/components/mapnext/machines"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import {
@@ -57,8 +69,8 @@
   export let pin: LivePin
   /** How the pin is drawn for this person (their colour settings applied). */
   export let look: PinLook
-  /** Metres from the viewer, when they are on the map. */
-  export let distance: number | null = null
+  /** Who last changed it: their name and what they drive, if known. */
+  export let who: { name: string; type: string; colour: string } | null = null
   export let guest = false
   export let choices: PinChoice[] = []
   export let choiceLook: (iconClass: string) => PinLook
@@ -90,6 +102,12 @@
     /** Pick out (or let go of) one of its drawings. */
     drawing: string | null
     removeDrawing: string
+    /** Change the shape of one of its drawings. */
+    editDrawing: string
+    /** Try a kind and colour on the pin without saving them. */
+    preview: { iconClass: string; colour: string }
+    /** Save whatever was being tried on. */
+    commit: void
     photo: File
     removePhoto: PinPhoto
     /** The map needs to sit here for the menu to have room beside the pin. */
@@ -153,6 +171,7 @@
     viewing = null
     armed = false
     settled = false
+    trying = null
   }
   $: if (!noting) note = pin.note
   $: if (viewing && !pin.photos.some((photo) => photo.id === viewing?.id))
@@ -197,11 +216,29 @@
   $: rock =
     pin.iconClass === "custom-svg-rock" ||
     pin.iconClass === "custom-svg-rock_pile"
-  $: facts = [
-    ...(pin.note ? [pinLabel(pin.iconClass)] : []),
-    `Dropped ${formatAgo(pin.t)}`,
-    ...(distance !== null ? [`${formatDistance(distance)} away`] : []),
-  ]
+  // The kind and colour being tried on while the Marker view is open: what
+  // the menu shows, and what is saved when the view is left.
+  let trying: { iconClass: string; colour: string } | null = null
+  $: kindNow = trying?.iconClass ?? pin.iconClass
+  $: colourNow = trying?.colour ?? (pin.colour || "default")
+  function tryOn(change: { iconClass?: string; colour?: string }) {
+    trying = { iconClass: kindNow, colour: colourNow, ...change }
+    dispatch("preview", trying)
+  }
+  function doneTrying() {
+    if (trying) dispatch("commit")
+    trying = null
+    view = "main"
+  }
+  // (Typed loosely: each machine's picture takes the same few props.)
+  let whoArt: ComponentType | null = null
+  $: whoArt =
+    who && who.type in vehicles
+      ? (vehicles[who.type as VehicleType] as ComponentType)
+      : null
+  $: when = pin.changed
+    ? `Edited ${formatAgo(pin.changed)}`
+    : `Placed ${formatAgo(pin.t)}`
 
   async function writeNote() {
     if (guest) return
@@ -303,7 +340,9 @@
   }
 
   function positionSmooth() {
-    smooth = !moving
+    // (Only once it has a place: gliding to its first one would bring it
+    // in from the corner of the screen.)
+    smooth = !moving && shown
     position()
     clearTimeout(smoothTimer)
     smoothTimer = setTimeout(() => (smooth = false), 320)
@@ -391,16 +430,39 @@
 >
   <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="pp-head" on:click={headTap}>
-    <PinArt {look} size={38} />
+    <PinArt look={trying ? { ...look, ...trying } : look} size={38} />
     <div class="about">
-      <h2>{pin.note || pinLabel(pin.iconClass)}</h2>
-      <p>{facts.join(" · ")}</p>
+      <h2>{pinLabel(kindNow)}</h2>
+      <p>
+        {#if who}
+          <span
+            class="who"
+            title="{pin.changed ? 'Changed' : 'Placed'} by {who.name}"
+          >
+            {#if whoArt}
+              <svelte:component
+                this={whoArt}
+                size="16px"
+                bodyColor={who.colour}
+                outlineColor="#ffffff"
+                wheelColor="#15261C"
+                loadColor="#F7DB5C"
+              />
+            {/if}
+            {who.name.trim().split(/\s+/)[0]}
+          </span>
+        {/if}
+        {when}
+      </p>
     </div>
     <button
       type="button"
       class="x"
       aria-label="Close"
-      on:click={() => dispatch("close")}
+      on:click={() => {
+        if (trying) dispatch("commit")
+        dispatch("close")
+      }}
     >
       <X size={18} />
     </button>
@@ -419,8 +481,12 @@
   {:else if view === "edit"}
     <!-- ── The marker itself: its colour, and what kind it is ── -->
     <div class="pp-sub">
-      <button type="button" class="back" on:click={() => (view = "main")}>
-        <ChevronLeft size={16} /> Back
+      <button type="button" class="back" on:click={doneTrying}>
+        {#if trying}
+          <Check size={15} strokeWidth={3} /> Done
+        {:else}
+          <ChevronLeft size={16} /> Back
+        {/if}
       </button>
       <span>Marker</span>
     </div>
@@ -428,22 +494,20 @@
       {#if !bin}
         <p class="pp-title">
           Colour ·
-          <b>{COLOUR_NAMES[overColour ?? (pin.colour || "default")] ?? ""}</b>
+          <b>{COLOUR_NAMES[overColour ?? colourNow] ?? ""}</b>
         </p>
         <div class="pp-colours" role="group" aria-label="Pin colour">
           {#each COLOURS as key}
             <button
               type="button"
-              class:selected={(pin.colour || "default") === key}
+              class:selected={colourNow === key}
               style="--swatch: {swatch(key)}"
               aria-label={COLOUR_NAMES[key] ?? key}
               title={COLOUR_NAMES[key] ?? key}
-              aria-pressed={(pin.colour || "default") === key}
+              aria-pressed={colourNow === key}
               on:pointerenter={() => (overColour = key)}
               on:pointerleave={() => (overColour = null)}
-              on:click={() =>
-                (pin.colour || "default") !== key &&
-                dispatch("change", { colour: key })}
+              on:click={() => colourNow !== key && tryOn({ colour: key })}
             ></button>
           {/each}
         </div>
@@ -451,9 +515,8 @@
       <p class="pp-title">
         Kind ·
         <b>
-          {choices.find(
-            (choice) => choice.iconClass === (overKind ?? pin.iconClass),
-          )?.label ?? pinLabel(pin.iconClass)}
+          {choices.find((choice) => choice.iconClass === (overKind ?? kindNow))
+            ?.label ?? pinLabel(kindNow)}
         </b>
       </p>
       <!-- Five across, pictures only, as the current viewer has them: the
@@ -462,20 +525,23 @@
         {#each choices as choice (choice.iconClass)}
           <button
             type="button"
-            class:selected={pin.iconClass === choice.iconClass}
+            class:selected={kindNow === choice.iconClass}
             aria-label={choice.label}
             title={choice.label}
-            aria-pressed={pin.iconClass === choice.iconClass}
+            aria-pressed={kindNow === choice.iconClass}
             on:pointerenter={() => (overKind = choice.iconClass)}
             on:pointerleave={() => (overKind = null)}
             on:click={() =>
-              choice.iconClass !== pin.iconClass &&
-              dispatch("change", { iconClass: choice.iconClass })}
+              choice.iconClass !== kindNow &&
+              tryOn({ iconClass: choice.iconClass })}
           >
             <PinArt
               look={{
                 ...choiceLook(choice.iconClass),
-                colour: pin.colour || choiceLook(choice.iconClass).colour,
+                colour:
+                  colourNow !== "default"
+                    ? colourNow
+                    : choiceLook(choice.iconClass).colour,
               }}
               size={36}
             />
@@ -686,6 +752,16 @@
               {#if !guest}
                 <button
                   type="button"
+                  class="pen"
+                  aria-label="Change the shape of this {drawing.kind === 'line'
+                    ? 'line'
+                    : 'area'}"
+                  on:click={() => dispatch("editDrawing", drawing.id)}
+                >
+                  <Pencil size={15} />
+                </button>
+                <button
+                  type="button"
                   class="bin"
                   aria-label="Remove this drawing"
                   on:click={() => dispatch("removeDrawing", drawing.id)}
@@ -783,7 +859,7 @@
       0 18px 38px -14px rgba(10, 25, 15, 0.75);
     color: var(--lp-ink);
     transform: translate(-50%, var(--y));
-    animation: pp-in 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: pp-in 0.2s ease-out;
   }
   .pp.up {
     --y: -100%;
@@ -806,7 +882,6 @@
   @keyframes pp-in {
     from {
       opacity: 0;
-      transform: translate(-50%, var(--y)) scale(0.94);
     }
   }
   .pp-head {
@@ -828,11 +903,25 @@
     white-space: nowrap;
   }
   .pp-head p {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     overflow: hidden;
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     color: var(--lp-ink-soft);
-    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* Who placed or changed it: their machine and first name. */
+  .pp-head .who {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px 1px 4px;
+    border-radius: 99px;
+    background: var(--lp-paper-2);
+    font-weight: 700;
+    color: var(--lp-ink);
   }
   .pp-head .x {
     display: flex;
@@ -1037,13 +1126,17 @@
     font-weight: 500;
     color: var(--lp-ink-soft);
   }
-  .pp-drawn .bin {
+  .pp-drawn .bin,
+  .pp-drawn .pen {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
+    width: 38px;
     height: 44px;
     color: var(--lp-rust);
+  }
+  .pp-drawn .pen {
+    color: var(--lp-ink);
   }
   .pp-photos {
     display: grid;

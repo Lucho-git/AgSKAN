@@ -40,8 +40,8 @@
   export let thread: Message[] = []
   export let loading = false
   export let sending = false
-  /** The place picked on the map, waiting to go with the next message. */
-  export let attached: { label: string; place: SharedPlace } | null = null
+  /** Places picked on the map, waiting to go with the next message. */
+  export let attached: { label: string; place: SharedPlace }[] = []
   /** The farm, for the picture on a job. */
   export let paddocks: Paddock[] = []
   export let drawings: PinDrawing[] = []
@@ -51,7 +51,7 @@
 
   const dispatch = createEventDispatcher<{
     open: string | null
-    send: { body: string; place: SharedPlace | null }
+    send: { body: string; places: SharedPlace[] }
     show: SharedPlace
     look: string
     /** Start putting a job together for this person. */
@@ -82,7 +82,9 @@
   /** The box is being typed in: the one-tap answers show. */
   let focused = false
   let threadEl: HTMLDivElement | undefined
-  let lastWith: string | null = null
+  // (Starting from who it is with now: on a phone this is made afresh
+  // each time the messages come back up, and must keep what is attached.)
+  let lastWith: string | null = withId
 
   $: byId = new Map(crew.map((person) => [person.id, person]))
   $: person = withId ? (byId.get(withId) ?? null) : null
@@ -92,7 +94,7 @@
   $: if (withId !== lastWith) {
     lastWith = withId
     draft = ""
-    attached = null
+    attached = []
     more = false
   }
   // Keep the newest message in view.
@@ -156,10 +158,13 @@
 
   function send(body = draft) {
     const text = body.trim()
-    if ((!text && !attached) || sending) return
-    dispatch("send", { body: text, place: attached?.place ?? null })
+    if ((!text && !attached.length) || sending) return
+    dispatch("send", {
+      body: text,
+      places: attached.map((one) => one.place),
+    })
     if (body === draft) draft = ""
-    attached = null
+    attached = []
     more = false
   }
 </script>
@@ -247,23 +252,19 @@
   </div>
 
   {#if person}
-    {#if attached}
+    {#each attached as one, i (i)}
       <p class="mn-attached">
-        <PlaceArt
-          type={attached.place.refType}
-          id={attached.place.refId}
-          size={22}
-        />
-        <span>{attached.label}</span>
+        <PlaceArt type={one.place.refType} id={one.place.refId} size={22} />
+        <span>{one.label}</span>
         <button
           type="button"
           aria-label="Don't send this place"
-          on:click={() => (attached = null)}
+          on:click={() => (attached = attached.filter((_, at) => at !== i))}
         >
           <X size={16} />
         </button>
       </p>
-    {/if}
+    {/each}
 
     {#if more}
       <div class="mn-more">
@@ -274,7 +275,8 @@
             dispatch("pickPlace")
           }}
         >
-          <MapPin size={18} /> Send a place
+          <MapPin size={18} />
+          {attached.length ? "Send another place" : "Send a place"}
           <span>Pick it on the map</span>
         </button>
         {#if !guest}
@@ -334,7 +336,7 @@
         type="submit"
         class="send"
         aria-label="Send"
-        disabled={sending || (!draft.trim() && !attached)}
+        disabled={sending || (!draft.trim() && !attached.length)}
       >
         <SendHorizontal size={22} />
       </button>

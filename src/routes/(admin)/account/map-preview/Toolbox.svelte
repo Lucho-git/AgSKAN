@@ -69,7 +69,6 @@
 
   export let view: ToolView = "home"
   export let wide = false
-  export let status: { tone: string; text: string }
   export let marker: VehicleMarkerData
   export let recording: RecorderState
   export let guest = false
@@ -345,20 +344,8 @@
 >
   {#if view === "home"}
     <header class="mn-panel-head">
-      <span class="mark"
-        ><img src="/images/logo.svg" alt="" width="30" height="30" /></span
-      >
       <span class="word">{farmName || "AgSKAN"}</span>
-      {#if wide}
-        <button
-          type="button"
-          class="mn-status {status.tone}"
-          disabled={status.tone !== "off"}
-          on:click={() => dispatch("locate")}
-        >
-          <span class="dot"></span>{status.text}
-        </button>
-      {:else}
+      {#if !wide}
         <button
           type="button"
           class="mn-icon-button"

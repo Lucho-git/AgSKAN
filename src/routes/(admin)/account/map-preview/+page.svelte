@@ -47,7 +47,7 @@
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import { IMAGERY, type BaseLook } from "$lib/components/mapnext/mapStyle"
   import { machineFor } from "$lib/components/mapnext/machines"
-  import { distanceM } from "$lib/components/mapnext/geo"
+  import type { LngLat } from "$lib/components/mapnext/geo"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
   import {
     PIN_DEFAULT,
@@ -115,6 +115,8 @@
   import Messages from "./Messages.svelte"
   import Jobs from "./Jobs.svelte"
   import TrailCard from "./TrailCard.svelte"
+  import TrailSetCard from "./TrailSetCard.svelte"
+  import ShapeCard from "./ShapeCard.svelte"
   import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import JobBuilder, { type JobDraft } from "./JobBuilder.svelte"
   import JobBar from "./JobBar.svelte"
@@ -348,7 +350,11 @@
 
   // ── Pins, all of them, and the lasso for removing several ──
   let pins: LivePin[] = []
-  let lasso: { phase: "drawing" | "confirm"; count: number } | null = null
+  let lasso: {
+    phase: "drawing" | "confirm"
+    count: number
+    purpose: "pins" | "ground"
+  } | null = null
 
   // ── Paddocks ──
   let paddockTrails: TrailInfo[] = []
@@ -358,31 +364,130 @@
   /** The paddock whose trails are all on show at once. */
   let through: string | null = null
   let throughStats: ThroughStats | null = null
+  /** The last figures for a paddock's trails, kept while they replay. */
+  let setStats: ThroughStats | null = null
+  $: if (throughStats) setStats = throughStats
   /**
    * A new paddock is being drawn: the farm it is for ("" for none in
    * particular). `null` when the draw tool is being used for anything else.
    */
   let paddockFor: string | null = null
+  /**
+   * Every trail through a paddock, being replayed one after another: which
+   * paddock, the trails oldest first, and the one playing now.
+   */
+  let setPlay: {
+    paddockId: string
+    name: string
+    trails: TrailInfo[]
+    index: number
+  } | null = null
+  /** The all-trails card is up for this paddock (its trails kept here). */
+  let trailSet: {
+    paddockId: string
+    name: string
+    trails: TrailInfo[]
+  } | null = null
+  // The card stays up for as long as that paddock's trails are all on show.
+  $: if (!setPlay && trailSet && through !== trailSet.paddockId) trailSet = null
+  function showSet() {
+    const paddock = selectedPaddock
+    if (!paddock) return
+    trailSet = {
+      paddockId: paddock.id,
+      name: paddock.name,
+      trails: [...paddockTrails].sort((a, b) => a.start - b.start),
+    }
+    engine?.showThrough(paddock.id)
+  }
+  /** Back from the set (or its replay) to the paddock with them all showing. */
+  function backToSet() {
+    const set = setPlay ?? trailSet
+    setPlay = null
+    if (!set) return
+    engine?.pickTrail(null)
+    const paddock = paddocks.find((p) => p.id === set.paddockId)
+    if (paddock) {
+      engine?.selectedPaddock.set(paddock)
+      trailSet = {
+        paddockId: set.paddockId,
+        name: set.name,
+        trails: set.trails,
+      }
+      engine?.showThrough(paddock.id)
+    }
+  }
+  function closeSet() {
+    setPlay = null
+    trailSet = null
+    engine?.showThrough(null)
+  }
+  function playSet() {
+    if (!trailSet) return
+    setPlay = { ...trailSet, index: -1 }
+    nextInSet()
+  }
+  // On to the next trail of the set: picked without the map moving, and
+  // run through quickly.
+  function nextInSet() {
+    const set = setPlay
+    if (!set || !engine) return
+    let i = set.index + 1
+    while (i < set.trails.length && !engine.pickTrail(set.trails[i].id, false))
+      i++
+    if (i >= set.trails.length) {
+      backToSet()
+      return
+    }
+    setPlay = { ...set, index: i }
+    engine.playReplay(8)
+  }
+  // On when one finishes; on, too, past one that can't be replayed at all
+  // (it has no recorded path), rather than waiting on it for ever.
+  $: if (
+    setPlay &&
+    setPlay.index >= 0 &&
+    (!replay ||
+      (replay.phase === "done" &&
+        replay.trailId === setPlay.trails[setPlay.index]?.id))
+  )
+    nextInSet()
+  // One trail of the set, opened on its own: the arrows then step through
+  // the paddock's trails as usual.
+  function openFromSet(id: string) {
+    const set = setPlay ?? trailSet
+    setPlay = null
+    trailSet = null
+    if (!set) return
+    const scope = { ids: set.trails.map((trail) => trail.id), name: set.name }
+    if (pickTrail(id)) trailScope = scope
+  }
   /** Asked for a new paddock: how to make it, and for which farm. */
   let paddockAsk: { farmId: string | null } | null = null
   /** The name being given to the paddock being built. */
   let newPaddockName = ""
-  function buildPaddock(trailId: string | null = null) {
-    const ask = paddockAsk
+  /** The colour of the pin drawing whose shape is being changed. */
+  let shapeColour: string | null = null
+  /** The farm a lassoed paddock is for, while the lasso is being drawn. */
+  let groundFor: { farmId: string | null } | null = null
+  function buildPaddock(start: LngLat[][][] | null = null) {
+    const ask = paddockAsk ?? groundFor
     if (!ask) return
-    let start = null
-    if (trailId) {
-      start = engine?.outlineOfTrail(trailId) ?? null
-      if (!start) {
-        say("That trail is still loading, or covers too little ground.")
-        return
-      }
-    }
     paddockAsk = null
+    groundFor = null
     newPaddockName = ""
     if (!wide) panelOpen = false
     stopPinning()
     engine?.newPaddock(ask.farmId, start)
+  }
+  // From where a trail went: a loop is drawn round the ground, and what
+  // the job's trails covered inside it becomes the outline to start from.
+  function lassoGround() {
+    groundFor = paddockAsk
+    paddockAsk = null
+    if (!wide) panelOpen = false
+    stopPinning()
+    engine?.startLasso("ground")
   }
 
   // ── Jobs ──
@@ -409,8 +514,8 @@
   let chatWith: string | null = null
   /** A place is being picked on the map to send to whoever the chat is with. */
   let placePick = false
-  /** The place picked, waiting in the conversation to be sent. */
-  let chatPlace: { label: string; place: SharedPlace } | null = null
+  /** The places picked, waiting in the conversation to be sent. */
+  let chatPlaces: { label: string; place: SharedPlace }[] = []
   let thread: Message[] = []
   let chatLoading = false
   let chatSending = false
@@ -461,12 +566,21 @@
   $: if (phase === "join" && step === "locate" && gps === "live") enterMap()
   // Keep "centred" meaning centred in the part of the map that isn't covered.
   $: engine?.setInsets(wide ? 352 : 0, wide ? 0 : 76)
-  $: pinDistance = selectedPin ? distanceFromMe(selectedPin, readout) : null
-
-  // `fix` is only here so the distance refreshes as the viewer moves.
-  function distanceFromMe(pin: LivePin, fix: Readout) {
-    const mine = engine?.myPosition()
-    return mine && fix.hasFix ? distanceM(mine, pin.at) : null
+  // Who last changed the picked pin, with what they drive.
+  $: pinWho = whoIs(selectedPin?.by ?? null, crew, self)
+  function whoIs(id: string | null, others: CrewRow[], me: CrewRow | null) {
+    if (!id) return null
+    const person =
+      others.find((row) => row.id === id) ?? (id === userId ? me : null)
+    return person
+      ? {
+          name: id === userId ? myName || "You" : person.name,
+          type: person.type as string,
+          colour: person.colour,
+        }
+      : id === userId
+        ? { name: myName || "You", type: "", colour: "" }
+        : null
   }
 
   onMount(() => {
@@ -507,6 +621,7 @@
     engine = created
     // Holding a finger on the map drops the default pin there (or the one
     // whose button is pressed), as the current viewer does.
+    created.onGround = (outline) => buildPaddock(outline)
     created.onHold = (at) => {
       if (guest || pinning) return
       const kind = armedPin ?? quickKinds[0]
@@ -1066,8 +1181,29 @@
     openPanel("messages")
   }
   function attachPlace(place: { label: string; place: SharedPlace }) {
-    chatPlace = place
+    // Another place is added to those already waiting (the same one twice
+    // is still one).
+    const same = (one: { place: SharedPlace }) =>
+      one.place.refId
+        ? one.place.refId === place.place.refId
+        : !place.place.refId &&
+          one.place.at[0] === place.place.at[0] &&
+          one.place.at[1] === place.place.at[1]
+    if (!chatPlaces.some(same)) chatPlaces = [...chatPlaces, place].slice(0, 6)
     endPlacePick()
+  }
+  // A message carries one place: several go as several messages, the words
+  // with the first.
+  async function sendChat(body: string, places: SharedPlace[]) {
+    const to = chatWith
+    if (!to || !messenger) return
+    const online = crew.find((person) => person.id === to)?.online ?? false
+    if (!places.length) {
+      await messenger.send(to, body, null, online)
+      return
+    }
+    for (let i = 0; i < places.length; i++)
+      if (!(await messenger.send(to, i ? "" : body, places[i], online))) return
   }
   function sendWhereIAm() {
     const mine = engine?.myPosition()
@@ -1624,6 +1760,8 @@
     !!selectedCrew ||
     !!selectedPaddock ||
     !!selectedTrail ||
+    !!trailSet ||
+    !!setPlay ||
     !!measure ||
     mineSelected
 
@@ -1853,16 +1991,14 @@
   {:else if phase === "map"}
     <!-- ── On the map ── -->
     <div class="mn-corner top-left">
-      {#if !wide}
-        <button
-          type="button"
-          class="mn-status {status.tone}"
-          disabled={status.tone !== "off"}
-          on:click={askForLocation}
-        >
-          <span class="dot"></span>{status.text}
-        </button>
-      {/if}
+      <button
+        type="button"
+        class="mn-status {status.tone}"
+        disabled={status.tone !== "off"}
+        on:click={askForLocation}
+      >
+        <span class="dot"></span>{status.text}
+      </button>
       {#if trailOn}
         <button
           type="button"
@@ -1917,7 +2053,6 @@
         <JobBar
           step={jobDraft.current + 1}
           steps={jobDraft.steps.length}
-          count={jobDraft.steps[jobDraft.current]?.items.length ?? 0}
           hasFix={readout.hasFix}
           crew={crew.filter((row) => row.placed && !row.me)}
           on:line={() => drawForJob("line")}
@@ -2204,23 +2339,35 @@
             </span>
           </button>
         </div>
+        <div class="mn-keep">
+          <button
+            type="button"
+            disabled={!trails.length}
+            on:click={lassoGround}
+          >
+            <strong>From where a trail went</strong>
+            <span>
+              {trails.length
+                ? "Draw a loop round the worked ground on the map. Every trail of the job inside the loop makes the boundary."
+                : "The job on show has no finished trails. Pick another job below."}
+            </span>
+          </button>
+        </div>
         <Dropdown
-          label="From a trail"
-          placeholder={trails.length
-            ? "The ground one of this job's trails covered"
-            : "This job has no finished trails"}
-          title="Take the boundary from"
-          disabled={!trails.length}
-          options={trails.slice(0, 40).map((trail) => ({
-            value: trail.id,
-            label: `${day(trail.start)} · ${trail.operator || "No operator"}`,
-            note: [
-              ...(trail.machine ? [machineFor(trail.machine).label] : []),
-              `${trail.width} m wide`,
-              ...(trail.ha !== null ? [`${formatHa(trail.ha)} ha`] : []),
-            ].join(" · "),
+          label="Trails of"
+          placeholder="No job"
+          title="Use the trails of"
+          disabled={trailOn}
+          value={operation?.id ?? ""}
+          options={operations.map((option) => ({
+            value: option.id,
+            label: option.name,
+            note: option.year ? String(option.year) : "",
           }))}
-          on:change={(e) => buildPaddock(e.detail)}
+          on:change={(e) => {
+            const next = operations.find((option) => option.id === e.detail)
+            if (next) chooseOperation(next)
+          }}
         />
         <div class="mn-keep">
           <button type="button" disabled>
@@ -2230,6 +2377,20 @@
             </span>
           </button>
         </div>
+      </div>
+    {:else if boundaryEdit?.shape}
+      <!-- ── Changing a line or an area that is drawn on a pin ── -->
+      <div in:rise>
+        <ShapeCard
+          edit={boundaryEdit}
+          colour={shapeColour}
+          on:removeCorner={() => engine?.removeEditCorner()}
+          on:undo={() => engine?.undoEdit()}
+          on:cancel={() => engine?.cancelEdit()}
+          on:save={async () => {
+            if (await engine?.saveShape()) say("Drawing changed")
+          }}
+        />
       </div>
     {:else if boundaryEdit}
       <!-- ── Changing a paddock's boundary ── -->
@@ -2268,6 +2429,29 @@
           on:close={endJob}
           on:post={giveJob}
         />
+      </div>
+    {:else if lasso?.purpose === "ground"}
+      <!-- ── A loop round the ground a trail covered ── -->
+      <div class="mn-card" in:rise>
+        <p class="lp-eyebrow">New paddock from a trail</p>
+        <h2 class="mn-card-title">Draw a loop round the worked ground.</h2>
+        <p class="mn-card-text">
+          Drag a line on the map right round it. Whatever the trails of
+          {operation?.name ?? "this job"} covered inside the loop becomes the boundary;
+          the map stays still while you draw.
+        </p>
+        <div class="mn-card-actions one">
+          <button
+            type="button"
+            class="lp-btn lp-btn-ghost"
+            on:click={() => {
+              groundFor = null
+              engine?.cancelLasso()
+            }}
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     {:else if lasso}
       <!-- ── Rounding up pins to remove ── -->
@@ -2633,6 +2817,24 @@
           Stop and save it from here
         </button>
       </div>
+    {:else if setPlay || (trailSet && !selectedTrail)}
+      <!-- ── Every trail through a paddock, together ── -->
+      {@const set = setPlay ?? trailSet}
+      {#if set}
+        <div in:rise>
+          <TrailSetCard
+            name={set.name}
+            trails={set.trails}
+            stats={throughStats ?? setStats}
+            playing={setPlay ? setPlay.index : null}
+            {replay}
+            on:close={() => (setPlay ? backToSet() : closeSet())}
+            on:pick={(e) => openFromSet(e.detail)}
+            on:play={playSet}
+            on:stop={backToSet}
+          />
+        </div>
+      {/if}
     {:else if selectedTrail}
       <!-- ── A trail, picked out: what it was, and a replay of it ── -->
       <div in:rise>
@@ -3018,7 +3220,16 @@
         <PinCard
           pin={selectedPin}
           look={engine.pinLook(selectedPin)}
-          distance={pinDistance}
+          who={pinWho}
+          on:preview={(e) =>
+            selectedPin && engine?.previewPin(selectedPin.id, e.detail)}
+          on:commit={() => engine?.commitPreview()}
+          on:editDrawing={(e) => {
+            shapeColour =
+              pinDrawings.find((drawing) => drawing.id === e.detail)?.colour ??
+              null
+            engine?.editDrawing(e.detail)
+          }}
           {guest}
           choices={pinChoices}
           {choiceLook}
@@ -3175,10 +3386,7 @@
           {pickedFeature}
           allTrails={through === selectedPaddock.id}
           stats={through === selectedPaddock.id ? throughStats : null}
-          on:allTrails={(e) =>
-            engine?.showThrough(
-              e.detail ? (selectedPaddock?.id ?? null) : null,
-            )}
+          on:allTrails={showSet}
           on:feature={(e) =>
             selectedPaddock &&
             engine?.pickFeature(selectedPaddock.id, e.detail)}
@@ -3248,7 +3456,6 @@
       <Toolbox
         bind:view={toolView}
         {wide}
-        {status}
         {marker}
         {recording}
         {guest}
@@ -3393,7 +3600,7 @@
             {thread}
             loading={chatLoading}
             sending={chatSending}
-            bind:attached={chatPlace}
+            bind:attached={chatPlaces}
             on:pickPlace={pickPlace}
             {paddocks}
             {drawings}
@@ -3407,14 +3614,7 @@
             on:finishJob={(e) => board?.finish(e.detail)}
             on:cancelJob={(e) => board?.cancel(e.detail)}
             on:open={(e) => messenger?.open(e.detail)}
-            on:send={(e) =>
-              chatWith &&
-              messenger?.send(
-                chatWith,
-                e.detail.body,
-                e.detail.place,
-                crew.find((person) => person.id === chatWith)?.online ?? false,
-              )}
+            on:send={(e) => sendChat(e.detail.body, e.detail.places)}
             on:show={(e) => {
               engine?.showPlace(e.detail)
               if (!wide) closePanel()

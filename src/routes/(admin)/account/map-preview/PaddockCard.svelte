@@ -21,6 +21,7 @@
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
+  import { drawColour } from "$lib/components/mapnext/palette"
   import { formatHa } from "$lib/components/mapnext/format"
   import { sizeOf, type ThroughStats } from "./liveEngine"
   import type { FarmName, Paddock, PaddockPatch, TrailInfo } from "./liveData"
@@ -403,38 +404,64 @@
             ? ` · ${operation}`
             : ""}
         </p>
-        <div class="row">
-          <button
-            type="button"
-            class="all"
-            aria-pressed={allTrails}
-            on:click={() => dispatch("allTrails", !allTrails)}
-          >
-            <Layers size={17} />
-            {allTrails
-              ? "Showing in this paddock"
-              : trails.length === 1
-                ? "Show it in this paddock"
-                : `Show all ${trails.length} in this paddock`}
-          </button>
-          <Dropdown
-            look="pill"
-            title="Open a trail"
-            options={trails.map((trail) => ({
-              value: trail.id,
-              label:
-                when(trail.start) +
-                (trail.operator ? ` · ${trail.operator.split(/\s+/)[0]}` : ""),
-              note: [
-                ...(trail.machine ? [machineFor(trail.machine).label] : []),
-                ...(trail.ha !== null ? [`${formatHa(trail.ha)} ha`] : []),
-              ].join(" · "),
-            }))}
-            on:change={(e) => dispatch("trail", e.detail)}
-          >
-            {trails.length === 1 ? "Open it" : "Open one"}
-          </Dropdown>
-        </div>
+        {#if trails.length === 1}
+          <!-- Only one: it is simply offered. -->
+          <div class="row">
+            <button
+              type="button"
+              class="all"
+              on:click={() => dispatch("trail", trails[0].id)}
+            >
+              <i style="background: {drawColour(trails[0].colour)}"></i>
+              Open it · {when(trails[0].start)}{trails[0].operator
+                ? ` · ${trails[0].operator.split(/\s+/)[0]}`
+                : ""}
+            </button>
+          </div>
+        {:else}
+          <div class="row">
+            <button
+              type="button"
+              class="all"
+              on:click={() => dispatch("allTrails", true)}
+            >
+              <Layers size={17} /> Show all {trails.length}
+            </button>
+            <Dropdown
+              look="pill"
+              title="Open a trail"
+              options={trails.map((trail) => ({
+                value: trail.id,
+                label:
+                  when(trail.start) +
+                  (trail.operator
+                    ? ` · ${trail.operator.split(/\s+/)[0]}`
+                    : ""),
+                note: [
+                  ...(trail.machine ? [machineFor(trail.machine).label] : []),
+                  ...(trail.ha !== null ? [`${formatHa(trail.ha)} ha`] : []),
+                ].join(" · "),
+              }))}
+              on:change={(e) => dispatch("trail", e.detail)}
+            >
+              Open one
+            </Dropdown>
+          </div>
+          <!-- The latest few, as many as fit on one line. -->
+          <div class="recent">
+            {#each trails.slice(0, 6) as trail (trail.id)}
+              <button
+                type="button"
+                on:click={() => dispatch("trail", trail.id)}
+              >
+                <i style="background: {drawColour(trail.colour)}"></i>
+                {when(trail.start)}{trail.operator
+                  ? ` · ${trail.operator.split(/\s+/)[0]}`
+                  : ""}
+              </button>
+            {/each}
+          </div>
+        {/if}
         {#if allTrails && stats}
           <!-- What they add up to, inside the fence only. -->
           <div class="mn-stats">

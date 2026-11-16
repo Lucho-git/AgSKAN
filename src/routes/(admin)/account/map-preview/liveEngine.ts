@@ -407,6 +407,11 @@ export type BoundaryEdit = {
   saving: boolean
   /** This is a new paddock being drawn, not an existing one being changed. */
   creating: boolean
+  /**
+   * It is not a paddock at all but a line or an area drawn on a pin: what
+   * it is, how many corners it has, and how long a line is.
+   */
+  shape: { kind: "polygon" | "line"; corners: number; metres: number } | null
   /** The outline as it stands, for a picture of it. */
   polygons: LngLat[][][]
 }
@@ -427,6 +432,13 @@ type Editing = {
   joining: boolean
   /** A new paddock is being made: the farm it is for. */
   creating: { farmId: string | null } | null
+  /** A line or an area on a pin is being changed, not a paddock. */
+  shape: {
+    drawingId: string
+    pinId: string
+    kind: "polygon" | "line"
+    colour: string
+  } | null
   drag: {
     at: [number, number, number]
     from: [number, number]
@@ -772,7 +784,11 @@ export class LiveEngine {
   readonly lasso: Writable<{
     phase: "drawing" | "confirm"
     count: number
+    /** Rounding up pins to remove, or ground a trail covered. */
+    purpose: "pins" | "ground"
   } | null> = writable(null)
+  /** What the ground inside a lasso comes back as (the page builds on it). */
+  onGround: (outline: LngLat[][][]) => void = () => {}
   private lassoed: string[] = []
   private stopLasso: (() => void) | null = null
   /** The finished trails of the job on show that cross the picked paddock. */
@@ -870,6 +886,9 @@ export class LiveEngine {
   private slowTick = 0
   private trailTick = 0
   private followPausedUntil = 0
+  /** A kind and colour being tried on the picked pin, not yet saved. */
+  private trying: { id: string; iconClass: string; colour: string } | null =
+    null
   /** When a long press on the map last went off. */
   private heldAt = -1e9
   /** What a long press on the map does (the page drops the default pin). */
@@ -1143,6 +1162,8 @@ export class LiveEngine {
       if (!this.armed) this.map.getCanvas().style.cursor = ""
     })
     this.selectedPin.subscribe((pin) => {
+      // Letting go of a pin saves whatever was being tried on it.
+      if (this.trying && this.trying.id !== pin?.id) this.commitPreview()
       // Letting go of a pin while moving it puts it back.
       if (this.move && pin?.id !== this.move.id) this.endMove(false)
       this.showPicked(pin)
@@ -1686,6 +1707,7 @@ export class LiveEngine {
       drawingsAlways: true,
       photos: [],
       by: null,
+      changed: null,
     }
     this.draft = draft
     this.showPicked(draft)
@@ -2458,6 +2480,34 @@ export class LiveEngine {
     } catch {
       this.problem.set("That pin couldn't be put back.")
     }
+  }
+
+  /**
+   * Try a kind and a colour on the picked pin without saving them: stepping
+   * through the choices then makes one change (and one line in the farm's
+   * log) when the choosing is over, not one for every tap on the way.
+   */
+  previewPin(id: string, look: { iconClass: string; colour: string }) {
+    const pin = this.pinsById.get(id)
+    if (!pin || this.picked?.id !== id) return
+    this.trying = { id, ...look }
+    this.picked.view.$set({
+      image: pinImageKey(this.pinLook({ ...pin, ...look })),
+    })
+  }
+
+  /** Save what was being tried on (if it differs from what the pin is). */
+  commitPreview() {
+    const trying = this.trying
+    this.trying = null
+    const pin = trying ? this.pinsById.get(trying.id) : null
+    if (!trying || !pin) return
+    if (pin.iconClass === trying.iconClass && pin.colour === trying.colour)
+      return
+    this.updatePin(trying.id, {
+      iconClass: trying.iconClass,
+      colour: trying.colour,
+    })
   }
 
   /** Put back what a row of the farm's log did to a pin. */
@@ -3239,7 +3289,7 @@ export class LiveEngine {
    * the way it was driven, the others fade back, and the map moves to it.
    * `null` lets it go.
    */
-  pickTrail(id: string | null) {
+  pickTrail(id: string | null, look = true) {
     const info = id ? get(this.trails).find((t) => t.id === id) : null
     if (!info && !get(this.selectedTrail)) return false
     this.stopReplay()
@@ -3258,7 +3308,7 @@ export class LiveEngine {
     }
     this.paintPicked()
     this.keepMarching()
-    if (info) this.lookAtTrail(info.id)
+    if (info && look) this.lookAtTrail(info.id)
     return true
   }
 
@@ -3283,7 +3333,7 @@ export class LiveEngine {
   }
 
   /** Play the picked trail back (or carry on, or start again at the end). */
-  async playReplay() {
+  async playReplay(rate = 1) {
     const info = get(this.selectedTrail)
     if (!info) return
     const running = this.replaying
@@ -3298,7 +3348,7 @@ export class LiveEngine {
       phase: "loading",
       progress: 0,
       time: info.start,
-      rate: 1,
+      rate,
       timed: false,
     })
     const timeline = await loadTrailTimeline(info).catch(() => null)
@@ -3399,7 +3449,7 @@ export class LiveEngine {
       phase: "playing",
       progress: 0,
       time: points[0].t,
-      rate: 1,
+      rate,
       timed: timeline.timed,
     })
   }
@@ -4157,9 +4207,85 @@ export class LiveEngine {
     }
   }
 
+  /**
+   * Change a line or an area that is drawn on a pin, in the same editor:
+   * corners drag, a dot between two makes a new one, a tapped corner can be
+   * taken away. Saved, it replaces the drawing.
+   */
+  editDrawing(id: string) {
+    const drawing = get(this.drawings).find((d) => d.id === id)
+    if (!drawing) return false
+    const points = (
+      drawing.kind === "line"
+        ? drawing.geometry.coordinates
+        : (drawing.geometry.coordinates as LngLat[][])[0].slice(0, -1)
+    ) as LngLat[]
+    if (points.length < 2) return false
+    return this.openEditor(
+      {
+        id: "",
+        name: drawing.kind === "line" ? "Line" : "Area",
+        ha: 0,
+        farm: null,
+        farmId: null,
+        crop: "",
+        variety: "",
+        colour: drawing.colour,
+        polygons: [[points.map((at) => [at[0], at[1]] as LngLat)]],
+        bbox: bboxOf([[points]]),
+        features: [],
+        prior: null,
+      },
+      null,
+      {
+        drawingId: drawing.id,
+        pinId: drawing.pinId,
+        kind: drawing.kind,
+        colour: drawing.colour,
+      },
+    )
+  }
+
+  /** Save the line or area being changed back onto its pin. */
+  async saveShape() {
+    const edit = this.editing
+    const shape = edit?.shape
+    if (!edit || !shape || edit.saving) return false
+    const points = edit.rings[0]?.[0] ?? []
+    if (points.length < (shape.kind === "line" ? 2 : 3)) return false
+    edit.saving = true
+    this.tellEdit()
+    try {
+      // (There is no call that changes a drawing's shape, so the new one
+      // goes on and the old one comes off.)
+      await createDrawing({
+        mapId: this.mapId,
+        userId: this.userId,
+        pinId: shape.pinId,
+        kind: shape.kind,
+        points,
+        colour: shape.colour,
+      })
+      await deleteDrawing(shape.drawingId, this.userId)
+    } catch {
+      edit.saving = false
+      this.tellEdit()
+      this.problem.set(
+        navigator.onLine
+          ? "That didn't save. Try again."
+          : "No signal: that didn't save.",
+      )
+      return false
+    }
+    this.cancelEdit()
+    await this.refreshDrawings()
+    return true
+  }
+
   private openEditor(
     paddock: Paddock,
     creating: { farmId: string | null } | null,
+    shape: Editing["shape"] = null,
   ) {
     this.cancelEdit(false)
     if (get(this.measure)) this.setMeasuring(false)
@@ -4190,6 +4316,7 @@ export class LiveEngine {
             const d = Math.hypot(a.x - at[0], a.y - at[1])
             if (d < reach && (!corner || d < corner.d))
               corner = { at: [p, r, c], d }
+            if (edit.shape?.kind === "line" && c === ring.length - 1) return
             const b = this.map.project(ring[(c + 1) % ring.length])
             if (Math.hypot(a.x - b.x, a.y - b.y) < 44) return
             const m = Math.hypot(
@@ -4274,6 +4401,7 @@ export class LiveEngine {
       apart: false,
       joining: false,
       creating,
+      shape,
       drag: null,
       was: outlineHa(paddock.polygons),
       dirty: false,
@@ -4432,7 +4560,10 @@ export class LiveEngine {
       {
         type: "Feature",
         properties: { kind: "shape" },
-        geometry: { type: "MultiPolygon", coordinates: closeRings(edit.rings) },
+        geometry:
+          edit.shape?.kind === "line"
+            ? { type: "LineString", coordinates: edit.rings[0]?.[0] ?? [] }
+            : { type: "MultiPolygon", coordinates: closeRings(edit.rings) },
       },
     ]
     const adding = edit.adding
@@ -4473,6 +4604,7 @@ export class LiveEngine {
               edit.picked[2] === c
             features.push(point(corner, { kind: "corner", picked }))
             // A dot between corners far enough apart to press between.
+            if (edit.shape?.kind === "line" && c === ring.length - 1) return
             const next = ring[(c + 1) % ring.length]
             const a = this.map.project(corner)
             const b = this.map.project(next)
@@ -4509,7 +4641,8 @@ export class LiveEngine {
         picked && ring
           ? {
               hole: picked[1] > 0,
-              canRemoveCorner: ring.length > 3,
+              canRemoveCorner:
+                ring.length > (edit.shape?.kind === "line" ? 2 : 3),
               canRemoveRing: picked[1] > 0 || edit.rings.length > 1,
             }
           : null,
@@ -4528,6 +4661,16 @@ export class LiveEngine {
           : null,
       steps: edit.history.length,
       creating: !!edit.creating,
+      shape: edit.shape
+        ? {
+            kind: edit.shape.kind,
+            corners: edit.rings[0]?.[0]?.length ?? 0,
+            metres: (edit.rings[0]?.[0] ?? []).reduce(
+              (sum, at, i, all) => (i ? sum + distanceM(all[i - 1], at) : sum),
+              0,
+            ),
+          }
+        : null,
       changed: edit.creating
         ? polygons.length > 0
         : JSON.stringify(polygons) !== edit.original ||
@@ -4556,7 +4699,7 @@ export class LiveEngine {
     const picked = edit?.picked
     if (!edit || !picked) return
     const ring = edit.rings[picked[0]][picked[1]]
-    if (ring.length <= 3) return
+    if (ring.length <= (edit.shape?.kind === "line" ? 2 : 3)) return
     this.rememberEdit()
     ring.splice(picked[2], 1)
     edit.picked = null
@@ -4701,6 +4844,9 @@ export class LiveEngine {
     this.drawPaddocks()
     const paddock = this.paddocks.find((p) => p.id === edit.paddock.id)
     if (reselect && paddock) this.selectedPaddock.set(paddock)
+    // A drawing on a pin: back to the pin it is on.
+    const pin = edit.shape ? this.pinsById.get(edit.shape.pinId) : null
+    if (reselect && pin) this.selectedPin.set(pin)
   }
 
   private listPaddocks(paddocks: Paddock[]) {
@@ -4995,13 +5141,13 @@ export class LiveEngine {
   // The current viewer's bulk delete: drag a line round the pins, see which
   // it caught, confirm.
 
-  startLasso() {
+  startLasso(purpose: "pins" | "ground" = "pins") {
     this.cancelLasso()
     this.clearSelection()
     this.armPin(null)
     this.map.dragPan.disable()
     this.map.getCanvas().style.cursor = "crosshair"
-    this.lasso.set({ phase: "drawing", count: 0 })
+    this.lasso.set({ phase: "drawing", count: 0, purpose })
     const container = this.map.getContainer() as HTMLElement
     let path: LngLat[] | null = null
     const pointOf = (e: MouseEvent | TouchEvent): LngLat | null => {
@@ -5045,6 +5191,50 @@ export class LiveEngine {
         draw([])
         return
       }
+      if (purpose === "ground") {
+        // Every stretch of the job's trails that lies inside the loop, each
+        // as wide as the machine that laid it, makes the outline.
+        const parts: LngLat[][] = []
+        const widths: number[] = []
+        for (const feature of this.history) {
+          const properties = (
+            feature as { properties: { segment?: string; width?: number } }
+          ).properties
+          if (properties.segment === "pause") continue
+          for (const part of partsOf(feature)) {
+            let run: LngLat[] = []
+            const end = () => {
+              if (run.length > 1) {
+                parts.push(run)
+                widths.push(Number(properties.width) || 0)
+              }
+              run = []
+            }
+            for (const at of part)
+              if (pointInPolygon(at, [ring])) run.push(at)
+              else end()
+            end()
+          }
+        }
+        let outline: LngLat[][][] | null = null
+        try {
+          outline = parts.length ? outlineOfPath(parts, widths) : null
+        } catch {
+          outline = null
+        }
+        draw([])
+        if (!outline) {
+          this.problem.set(
+            parts.length
+              ? "The trail inside that covers too little ground for a boundary."
+              : "No trail inside that. Draw right round the ground it covered.",
+          )
+          return
+        }
+        this.cancelLasso()
+        this.onGround(outline)
+        return
+      }
       const caught = [...this.pinsById.values()].filter((pin) =>
         pointInPolygon(pin.at, [ring]),
       )
@@ -5069,7 +5259,7 @@ export class LiveEngine {
       ])
       this.map.dragPan.enable()
       this.map.getCanvas().style.cursor = ""
-      this.lasso.set({ phase: "confirm", count: caught.length })
+      this.lasso.set({ phase: "confirm", count: caught.length, purpose })
     }
     container.addEventListener("mousedown", down, true)
     container.addEventListener("touchstart", down, {
@@ -5104,7 +5294,8 @@ export class LiveEngine {
 
   /** Go back to drawing the lasso again. */
   redoLasso() {
-    if (get(this.lasso)) this.startLasso()
+    const lasso = get(this.lasso)
+    if (lasso) this.startLasso(lasso.purpose)
   }
 
   /** Remove every pin the lasso caught. Resolves with the ones removed. */

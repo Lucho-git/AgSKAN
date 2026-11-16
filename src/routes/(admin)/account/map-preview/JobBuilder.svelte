@@ -214,7 +214,7 @@
     >
       <ClipboardList size={18} />
       {!draft.title.trim()
-        ? "Say what needs doing"
+        ? "Name the job"
         : !places
           ? "Add a place"
           : draft.to

@@ -392,6 +392,8 @@ export type LivePin = {
   photos: PinPhoto[]
   /** Who last changed it (the map keeps no record of who dropped it). */
   by: string | null
+  /** When it was last changed (ms), if that was after it was dropped. */
+  changed: number | null
 }
 
 /** A photo attached to a pin: where its file is kept. */
@@ -432,7 +434,17 @@ function pinFromRow(row: Row): LivePin | null {
       "always",
     photos: photosOf(row.marker_data?.properties),
     by: row.update_user_id ? String(row.update_user_id) : null,
+    changed: changedAt(m.created_at, row.updated_at),
   }
+}
+
+/** When a pin was changed, if that was more than a minute after it was made. */
+function changedAt(created: unknown, updated: unknown) {
+  const made = created ? new Date(String(created)).getTime() : NaN
+  const then = updated ? new Date(String(updated)).getTime() : NaN
+  return Number.isFinite(then) && Number.isFinite(made) && then - made > 60_000
+    ? then
+    : null
 }
 
 const PIN_COLUMNS =
@@ -2319,10 +2331,14 @@ export function mergeOutlines(
  */
 export function outlineOfPath(
   parts: LngLat[][],
-  width: number,
+  /** One width for all of it, or one for each part. */
+  width: number | number[],
 ): LngLat[][][] | null {
   const all = parts.flat()
   if (all.length < 2) return null
+  const widths = parts.map((_, i) =>
+    Math.max(2, (Array.isArray(width) ? width[i] : width) || 0),
+  )
   const flat = projector(all[0])
   const lines = parts.map((part) => part.map((at) => flat.toXY(at)))
   let minX = Infinity
@@ -2336,8 +2352,10 @@ export function outlineOfPath(
       if (y < minY) minY = y
       if (y > maxY) maxY = y
     }
-  const swath = Math.max(2, width || 0)
-  let cell = Math.min(6, Math.max(2.5, swath / 5))
+  // The widest machine sets how much is closed up; the narrowest, how
+  // fine the grid is.
+  const swath = Math.max(...widths)
+  let cell = Math.min(6, Math.max(2.5, Math.min(...widths) / 5))
   // Passes are a swath apart; a strip narrower than about one of them left
   // between two is a miss, not a gap, and the scallops where the passes
   // end at the headland are squared off the same way.
@@ -2353,8 +2371,8 @@ export function outlineOfPath(
 
   // Lay the passes down, a disc at a time, wider than the machine by
   // `close` (taken off again below).
-  const reach = Math.round((swath / 2 + close) / cell)
-  for (const line of lines)
+  lines.forEach((line, part) => {
+    const reach = Math.round((widths[part] / 2 + close) / cell)
     for (let i = 1; i < line.length; i++) {
       const [ax, ay] = line[i - 1]
       const [bx, by] = line[i]
@@ -2375,6 +2393,7 @@ export function outlineOfPath(
         }
       }
     }
+  })
   // Take the extra back off: a cell stays only if every cell within
   // `close` of it is filled (done along the rows, then down the columns).
   const k = Math.round(close / cell)
