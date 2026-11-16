@@ -726,6 +726,44 @@ export type CrewProfile = {
   /** A guest looking at the map, not one of the crew. */
   guest: boolean
   operation: string | null
+  /** Who is in the machine now: the driver this account has picked. */
+  driver: string | null
+}
+
+/**
+ * Who is in each machine, by account: the driver each account has picked on
+ * this map (the current viewer's operator sessions). Empty when it can't be
+ * read, which only means the rows show the accounts' own names.
+ */
+async function loadDrivers(mapId: string) {
+  const drivers = new Map<string, string>()
+  try {
+    const [sessions, operators] = await Promise.all([
+      supabase
+        .from("operator_sessions")
+        .select("operator_id, account_id, started_at")
+        .eq("map_id", mapId)
+        .is("ended_at", null),
+      supabase.from("map_operators").select("id, name").eq("map_id", mapId),
+    ])
+    const names = new Map(
+      ((operators.data ?? []) as Row[]).map((o) => [
+        String(o.id),
+        String(o.name ?? "").trim(),
+      ]),
+    )
+    // (Should an account have two open, the one picked last is said.)
+    const open = ((sessions.data ?? []) as Row[]).sort((a, b) =>
+      String(a.started_at ?? "").localeCompare(String(b.started_at ?? "")),
+    )
+    for (const session of open) {
+      const name = names.get(String(session.operator_id))
+      if (name) drivers.set(String(session.account_id), name)
+    }
+  } catch {
+    // Left empty.
+  }
+  return drivers
 }
 
 /** `vehicle_state.coordinates` is a Postgres point: the text "(lng,lat)". */
@@ -793,7 +831,7 @@ export async function loadMyVehicle(userId: string) {
 
 /** Everyone connected to this map, and where each was last seen. */
 export async function loadCrew(mapId: string, userId: string) {
-  const [profiles, states] = await Promise.all([
+  const [profiles, states, drivers] = await Promise.all([
     supabase
       .from("profiles")
       .select(
@@ -801,6 +839,7 @@ export async function loadCrew(mapId: string, userId: string) {
       )
       .eq("master_map_id", mapId),
     supabase.from("vehicle_state").select("*").eq("master_map_id", mapId),
+    loadDrivers(mapId),
   ])
   if (profiles.error) throw new Error(profiles.error.message)
   if (states.error) throw new Error(states.error.message)
@@ -811,6 +850,7 @@ export async function loadCrew(mapId: string, userId: string) {
       name: p.full_name || (p.map_role === "viewer" ? "Visitor" : "Someone"),
       guest: p.map_role === "viewer",
       operation: p.operations?.name ?? null,
+      driver: drivers.get(String(p.id)) ?? null,
     }))
   const connected = new Set(crew.map((p) => p.id))
   const vehicles = ((states.data ?? []) as Row[])

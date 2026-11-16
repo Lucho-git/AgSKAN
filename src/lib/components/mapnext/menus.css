@@ -2982,3 +2982,121 @@
 .mn-quickpins .slot.armed .pin::after {
   display: none;
 }
+
+/* ── Thirteenth pass ────────────────────────────────────────────────────── */
+/* A crew row: the account's name sits over its machine, and the name beside
+   it is whoever is in the machine. How far off and how fast share the
+   name's line and the status's, so the badge under them has the row's
+   whole width and nothing is pushed off the side. */
+.mn-crew button {
+  gap: 0.55rem;
+  padding: 0.4rem 0.6rem 0.4rem 0.35rem;
+}
+.mn-crew .unit {
+  display: grid;
+  flex-shrink: 0;
+  justify-items: center;
+  gap: 3px;
+  width: 62px;
+}
+.mn-crew .acct {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-crew .line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.mn-crew .who strong {
+  min-width: 0;
+  font-size: 0.95rem;
+}
+.mn-crew .who .doing {
+  min-width: 0;
+  font-size: 0.8rem;
+}
+/* (What they are doing runs to a second line before it is cut short.) */
+.mn-crew .line .doing {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+.mn-crew .line .far,
+.mn-crew .line .pace {
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.mn-crew .guest {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--lp-line);
+  border-radius: 99px;
+  font-family: var(--lp-mono);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--lp-ink-soft);
+}
+.mn-crew .job {
+  font-size: 0.62rem;
+}
+
+/* The change-pin card: every kind of pin in a grid that wraps, as many
+   across as fit. It scrolls down for the rest, never sideways. */
+.mn.wide .mn-card.pickpin {
+  max-width: 46rem;
+}
+.mn-card .mn-kinds.wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+  max-height: min(44dvh, 19.9rem);
+  margin: 10px -6px 0;
+  padding: 2px 6px 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.mn-card .mn-kinds.wrap::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+.mn-card .mn-kinds.wrap::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: var(--lp-line);
+}
+.mn-card .mn-kinds.wrap .mn-kind {
+  justify-content: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 2px 5px;
+  border-radius: 13px;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  white-space: normal;
+}
+.mn-card .mn-kinds.wrap .mn-kind span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+/* (Another button already drops this kind.) */
+.mn-card .mn-kinds.wrap .mn-kind.used {
+  opacity: 0.45;
+}

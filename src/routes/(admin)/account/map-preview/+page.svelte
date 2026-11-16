@@ -237,7 +237,6 @@
   let panelOpen = false
   let toolView: ToolView = "home"
   let pinning = false
-  let showAllPins = false
   let wide = false
   let online = true
   let secure = true
@@ -301,6 +300,14 @@
     if (target?.closest?.(".mn-quickpins")) return
     disarmPin()
   }
+  // The change-pin card offers every kind, most used first, after the one
+  // the button drops now.
+  $: slotChoices = pinSlot
+    ? [
+        ...pinChoices.filter((choice) => choice.iconClass === pinSlot),
+        ...pinChoices.filter((choice) => choice.iconClass !== pinSlot),
+      ]
+    : pinChoices
   $: quickPins = [
     ...pinChoices.filter((choice) => choice.iconClass === pinKind),
     ...pinChoices.filter((choice) => choice.iconClass !== pinKind).slice(0, 9),
@@ -1040,7 +1047,6 @@
     stopAsk = false
     pinSlot = slot ?? quickKinds[0]
     pinning = true
-    showAllPins = false
     disarmPin()
   }
 
@@ -1052,7 +1058,6 @@
   function choosePin(iconClass: string) {
     pinKind = iconClass
     save("pin", iconClass)
-    showAllPins = false
     if (pinning && pinSlot) {
       // The button takes the new kind (two buttons never drop the same).
       setQuick(
@@ -2589,35 +2594,30 @@
       </div>
     {:else if pinning}
       <!-- ── Which kind of pin a button drops ── -->
-      <div class="mn-card" in:rise>
+      <div class="mn-card pickpin" in:rise>
         <div class="mn-card-head">
           <p class="lp-eyebrow">Change pin</p>
           <p class="mn-hint">
             Which pin should the {pinSlot ? pinName(pinSlot) : ""} button drop?
           </p>
         </div>
-        <div class="mn-kinds" class:all={showAllPins}>
-          {#each showAllPins ? pinChoices : quickPins as choice (choice.iconClass)}
+        <!-- Every kind, in a grid that wraps: it scrolls down, not across. -->
+        <div class="mn-kinds wrap">
+          {#each slotChoices as choice (choice.iconClass)}
             <button
               type="button"
               class="mn-kind"
               class:selected={pinSlot === choice.iconClass}
+              class:used={pinSlot !== choice.iconClass &&
+                quickKinds.includes(choice.iconClass)}
               aria-pressed={pinSlot === choice.iconClass}
+              title={choice.label}
               on:click={() => choosePin(choice.iconClass)}
             >
-              <PinArt look={choiceLook(choice.iconClass)} size={34} />
-              {choice.label}
+              <PinArt look={choiceLook(choice.iconClass)} size={32} />
+              <span>{choice.label}</span>
             </button>
           {/each}
-          {#if !showAllPins}
-            <button
-              type="button"
-              class="mn-kind more"
-              on:click={() => (showAllPins = true)}
-            >
-              All pins
-            </button>
-          {/if}
         </div>
         <div class="mn-card-actions">
           <button
@@ -3324,6 +3324,9 @@
               </h2>
               <p>
                 {[
+                  ...(selectedCrew.driver
+                    ? [`${selectedCrew.driver} driving`]
+                    : []),
                   selectedCrew.machineLabel,
                   selectedCrew.doing,
                   ...(selectedCrew.trailing

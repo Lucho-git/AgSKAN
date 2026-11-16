@@ -533,6 +533,7 @@
           <CrewRows
             {crew}
             {self}
+            selfDriver={driver}
             {unreadBy}
             {hideStale}
             canInvite={!guest}
@@ -695,6 +696,7 @@
         <CrewRows
           {crew}
           {self}
+          selfDriver={driver}
           {unreadBy}
           {hideStale}
           canInvite={!guest}

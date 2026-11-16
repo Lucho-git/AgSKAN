@@ -163,7 +163,10 @@ export type Readout = {
 
 export type CrewRow = {
   id: string
+  /** The account's name (often a machine: "H3", "Wheels"). */
   name: string
+  /** Who is in the machine now, when the account has picked a driver. */
+  driver: string | null
   guest: boolean
   type: VehicleType
   machineLabel: string
@@ -2785,6 +2788,7 @@ export class LiveEngine {
       rows.push({
         id,
         name: entry.profile.name,
+        driver: entry.profile.guest ? null : entry.profile.driver,
         guest: entry.profile.guest,
         type: spec.type,
         machineLabel: spec.label,
@@ -2883,6 +2887,8 @@ export class LiveEngine {
     this.self.set({
       id: ME,
       name: "You",
+      // (The page knows who the viewer is driving as, and says it.)
+      driver: null,
       guest: false,
       type: spec.type,
       machineLabel: spec.label,
