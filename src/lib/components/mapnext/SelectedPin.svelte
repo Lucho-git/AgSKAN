@@ -22,6 +22,7 @@
 </script>
 
 <div class="mn-picked" class:leaving style="--big: {big}px" aria-hidden="true">
+  <span class="halo"></span>
   <img {src} alt="" width={big} height={big} />
   <span class="ring"></span>
 </div>
@@ -44,16 +45,32 @@
     width: 100%;
     height: 100%;
   }
-  /* Just outside the pin's own disc. */
+  /* A clean white edge round the pin, as the current viewer has it… */
   .ring {
     position: absolute;
-    inset: 0;
+    inset: -1px;
     border: 3px solid #fff;
     border-radius: 50%;
-    box-shadow:
-      0 0 0 1.5px rgba(21, 38, 28, 0.6),
-      0 0 6px 1px #fff,
-      0 0 14px 3px rgba(247, 219, 92, 0.95);
+    box-shadow: 0 1px 6px rgba(10, 25, 15, 0.45);
+  }
+  /* …and a soft white halo that swells out of it and fades, over and over. */
+  .halo {
+    position: absolute;
+    inset: -1px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.55);
+    animation: mn-pick-halo 2.2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  }
+  @keyframes mn-pick-halo {
+    0% {
+      opacity: 0.75;
+      transform: scale(1);
+    }
+    70%,
+    100% {
+      opacity: 0;
+      transform: scale(1.75);
+    }
   }
   /* From the size it has in the layer, past its resting size, and back. */
   @keyframes mn-pick-pop {
@@ -74,7 +91,8 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .mn-picked,
-    .mn-picked.leaving {
+    .mn-picked.leaving,
+    .halo {
       animation: none;
     }
   }

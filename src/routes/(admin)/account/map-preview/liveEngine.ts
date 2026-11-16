@@ -356,6 +356,8 @@ export type ThroughStats = {
   km: number
   /** Hectares of it that a trail has been over (overlaps counted once). */
   ha: number
+  /** Hectares of that which more than one of the trails went over. */
+  twice: number
   /** The paddock's own hectares. */
   of: number
   /** Who drove them. */
@@ -363,6 +365,46 @@ export type ThroughStats = {
   /** First and last, ms. */
   from: number
   to: number
+}
+
+/** Several trails being replayed together, on one clock. */
+export type SetReplayState = {
+  phase: "loading" | "playing" | "paused" | "done"
+  /** How far through, 0 to 1. */
+  progress: number
+  /** The time of day it has reached (ms). */
+  time: number
+  rate: number
+  /** While loading: how many trails are ready, of how many. */
+  loaded: number
+  total: number
+  /** Who is working at this moment. */
+  active: string[]
+}
+
+type SetTrack = {
+  info: TrailInfo
+  colour: string
+  points: { at: LngLat; t: number; axis: number; part: number }[]
+  /** Where it begins and ends on the shared clock. */
+  from: number
+  to: number
+  index: number
+  vehicle: Vehicle | null
+}
+
+type SetRun = {
+  tracks: SetTrack[]
+  /** Real time against the shared clock, where idle time was cut out. */
+  breaks: { real: number; axis: number }[]
+  total: number
+  cursor: number
+  /** Seconds the whole set takes at 1×. */
+  seconds: number
+  drawn: number
+  told: number
+  /** The trails already finished, as last drawn. */
+  done: string
 }
 
 /** A drawing picked out: one on a pin, or one kept on a paddock. */
@@ -411,7 +453,12 @@ export type BoundaryEdit = {
    * It is not a paddock at all but a line or an area drawn on a pin: what
    * it is, how many corners it has, and how long a line is.
    */
-  shape: { kind: "polygon" | "line"; corners: number; metres: number } | null
+  shape: {
+    kind: "polygon" | "line"
+    corners: number
+    metres: number
+    colour: string
+  } | null
   /** The outline as it stands, for a picture of it. */
   polygons: LngLat[][][]
 }
@@ -432,12 +479,18 @@ type Editing = {
   joining: boolean
   /** A new paddock is being made: the farm it is for. */
   creating: { farmId: string | null } | null
-  /** A line or an area on a pin is being changed, not a paddock. */
+  /**
+   * A line or an area is being changed, not a paddock: one drawn on a pin,
+   * or one kept on a paddock.
+   */
   shape: {
-    drawingId: string
-    pinId: string
+    on:
+      | { pin: string; drawingId: string }
+      | { paddock: string; featureId: string; label: string }
     kind: "polygon" | "line"
     colour: string
+    /** The colour it had to begin with. */
+    was: string
   } | null
   drag: {
     at: [number, number, number]
@@ -678,6 +731,39 @@ function soften(hex: string, amount = 0.45) {
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] || name
 
+/**
+ * What goes on the tag over each machine: short, and different for each.
+ * A name with a number in it ("Tablet 4", "Header 2") becomes its initials
+ * and the number ("T4", "H2"), as the current viewer has it; anyone else
+ * is their first name, with the first letter of their surname when two
+ * people share one ("Adam S", "Adam J").
+ */
+export function shortTags(names: string[]): Map<string, string> {
+  const tags = new Map<string, string>()
+  const first = (name: string) => {
+    const words = name.trim().split(/\s+/).filter(Boolean)
+    const numbers = words.filter((word) => /^\d+$/.test(word))
+    const others = words.filter((word) => !/^\d+$/.test(word))
+    if (numbers.length && others.length)
+      return (
+        others.map((word) => word[0].toUpperCase()).join("") + numbers.join("")
+      )
+    return others[0] ?? words[0] ?? name
+  }
+  for (const name of names) tags.set(name, first(name))
+  // Two the same: tell them apart by the next word along.
+  const count = new Map<string, number>()
+  for (const tag of tags.values()) count.set(tag, (count.get(tag) ?? 0) + 1)
+  for (const name of names) {
+    const tag = tags.get(name) as string
+    if ((count.get(tag) ?? 0) < 2) continue
+    const words = name.trim().split(/\s+/).filter(Boolean)
+    if (words.length > 1 && !/\d/.test(tag))
+      tags.set(name, `${words[0]} ${words[words.length - 1][0].toUpperCase()}`)
+  }
+  return tags
+}
+
 export class LiveEngine {
   readonly map: MapboxMap
   readonly gps: Writable<GpsState> = writable("idle")
@@ -799,6 +885,9 @@ export class LiveEngine {
   readonly pickedDrawing: Writable<PickedShape | null> = writable(null)
   /** The paddock whose trails are all being shown at once, if one is. */
   readonly through: Writable<string | null> = writable(null)
+  /** Several trails replaying together (a paddock's, or a whole job's). */
+  readonly setReplay: Writable<SetReplayState | null> = writable(null)
+  private setRun: SetRun | null = null
   /** What those trails add up to inside it. */
   readonly throughStats: Writable<ThroughStats | null> = writable(null)
   private throughIds: string[] = []
@@ -1551,6 +1640,19 @@ export class LiveEngine {
       .addTo(this.map)
     marker.getElement().style.zIndex = "1"
     setTimeout(() => marker.remove(), 1400)
+  }
+
+  /** A word that rises and fades where something just happened to a pin. */
+  private flag(at: LngLat, text: string, gone = false) {
+    const el = document.createElement("div")
+    el.className = gone ? "mn-flag gone" : "mn-flag"
+    el.innerHTML = "<i></i><b></b>"
+    ;(el.lastChild as HTMLElement).textContent = text
+    const marker = new mapboxgl.Marker({ element: el })
+      .setLngLat(at)
+      .addTo(this.map)
+    marker.getElement().style.zIndex = "6"
+    setTimeout(() => marker.remove(), 1500)
   }
 
   /**
@@ -2445,6 +2547,7 @@ export class LiveEngine {
       this.dropped.update((n) => n + 1)
       this.drawPins()
       this.ripple(pin.at)
+      this.flag(pin.at, "Placed")
       return pin
     } catch {
       this.problem.set(
@@ -2460,6 +2563,7 @@ export class LiveEngine {
     const pin = this.pinsById.get(id)
     if (!pin) return null
     this.forgetPin(id)
+    this.flag(pin.at, "Deleted", true)
     try {
       await removePin(id)
       return pin
@@ -2477,6 +2581,7 @@ export class LiveEngine {
       await restorePin(pin.id)
       this.pinsById.set(pin.id, pin)
       this.drawPins()
+      this.flag(pin.at, "Put back")
     } catch {
       this.problem.set("That pin couldn't be put back.")
     }
@@ -2551,8 +2656,12 @@ export class LiveEngine {
 
   private tagFor(entry: CrewEntry) {
     if (this.shown.vehicleLabels === false) return ""
+    const tags = shortTags(
+      [...this.crewById.values()].map((other) => other.profile.name),
+    )
     const name =
-      firstName(entry.profile.name) + (entry.profile.guest ? " (guest)" : "")
+      (tags.get(entry.profile.name) ?? firstName(entry.profile.name)) +
+      (entry.profile.guest ? " (guest)" : "")
     const age = entry.state ? Date.now() - entry.state.t : 0
     return age > AWAY_AFTER ? `${name} · ${Math.floor(age / DAY)}d` : name
   }
@@ -3111,7 +3220,7 @@ export class LiveEngine {
   private paintPicked() {
     if (!get(this.ready)) return
     const picked = get(this.selectedTrail)
-    if (!picked && get(this.through))
+    if (!picked && (get(this.through) || this.setRun))
       showThrough(this.map, this.throughIds, this.base)
     else
       paintPickedTrail(
@@ -3120,6 +3229,418 @@ export class LiveEngine {
         this.base,
         !!this.replaying,
       )
+  }
+
+  // ── Several trails replayed together ───────────────────────────────────
+  // One clock runs through all of them in the order they happened. Two
+  // machines that were working at the same time are on the map at the same
+  // time; the hours when nobody was working are cut down to a moment.
+
+  /** Play (or carry on, or start again at the end). */
+  async playSet(trails: TrailInfo[], rate = 4) {
+    const going = this.setRun
+    if (going) {
+      if (going.cursor >= going.total) going.cursor = 0
+      this.setReplay.update((s) => (s ? { ...s, phase: "playing" } : s))
+      return
+    }
+    if (get(this.setReplay)) return
+    if (get(this.selectedTrail)) this.pickTrail(null)
+    const wanted = [...trails].sort((a, b) => a.start - b.start)
+    this.setReplay.set({
+      phase: "loading",
+      progress: 0,
+      time: wanted[0]?.start ?? Date.now(),
+      rate,
+      loaded: 0,
+      total: wanted.length,
+      active: [],
+    })
+    const tracks: SetTrack[] = []
+    for (let i = 0; i < wanted.length; i += 4) {
+      const batch = wanted.slice(i, i + 4)
+      const loaded = await Promise.all(
+        batch.map((info) => loadTrailTimeline(info).catch(() => null)),
+      )
+      // Stopped while it was loading.
+      if (!get(this.setReplay)) return
+      loaded.forEach((timeline, k) => {
+        const info = batch[k]
+        if (!timeline?.parts.length) return
+        const points: SetTrack["points"] = []
+        if (timeline.timed)
+          timeline.parts.forEach((part, index) =>
+            part.forEach((point) =>
+              points.push({ at: point.at, t: point.t, axis: 0, part: index }),
+            ),
+          )
+        else {
+          // No times kept: an even pace from its start to its finish.
+          const lengths = timeline.parts.map((part) =>
+            part.reduce(
+              (sum, point, j) =>
+                j ? sum + distanceM(part[j - 1].at, point.at) : sum,
+              0,
+            ),
+          )
+          const whole = lengths.reduce((sum, length) => sum + length, 0) || 1
+          const took = Math.max(60_000, (info.end ?? info.start) - info.start)
+          let before = 0
+          timeline.parts.forEach((part, index) => {
+            let along = 0
+            part.forEach((point, j) => {
+              if (j) along += distanceM(part[j - 1].at, point.at)
+              points.push({
+                at: point.at,
+                t: info.start + ((before + along) / whole) * took,
+                axis: 0,
+                part: index,
+              })
+            })
+            before += lengths[index]
+          })
+        }
+        if (points.length > 1)
+          tracks.push({
+            info,
+            colour: drawColour(info.colour),
+            points,
+            from: 0,
+            to: 0,
+            index: 0,
+            vehicle: null,
+          })
+      })
+      this.setReplay.update((s) =>
+        s ? { ...s, loaded: Math.min(wanted.length, i + 4) } : s,
+      )
+    }
+    if (!tracks.length) {
+      this.setReplay.set(null)
+      this.problem.set("None of these trails has a recorded path to replay.")
+      return
+    }
+    // The shared clock: real time, with any stretch where nobody moved for
+    // more than a few seconds cut down to those few seconds.
+    const CUT = 6000
+    const times = new Float64Array(
+      tracks.reduce((sum, track) => sum + track.points.length, 0),
+    )
+    let n = 0
+    for (const track of tracks)
+      for (const point of track.points) times[n++] = point.t
+    times.sort()
+    const breaks: SetRun["breaks"] = [{ real: times[0], axis: 0 }]
+    let axis = 0
+    for (let i = 1; i < times.length; i++) {
+      const gap = times[i] - times[i - 1]
+      axis += Math.min(gap, CUT)
+      if (gap > CUT) breaks.push({ real: times[i], axis })
+    }
+    const onClock = (t: number) => {
+      let lo = 0
+      let hi = breaks.length - 1
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1
+        if (breaks[mid].real <= t) lo = mid
+        else hi = mid - 1
+      }
+      return breaks[lo].axis + (t - breaks[lo].real)
+    }
+    for (const track of tracks) {
+      for (const point of track.points) point.axis = onClock(point.t)
+      track.from = track.points[0].axis
+      track.to = track.points[track.points.length - 1].axis
+    }
+    this.setRun = {
+      tracks,
+      breaks,
+      total: Math.max(1, axis),
+      cursor: 0,
+      // An hour's work goes by in a quarter of a minute at 1×.
+      seconds: clamp(axis / 1000 / 240, 12, 150),
+      drawn: -1,
+      told: 0,
+      done: "?",
+    }
+    this.throughIds = tracks.map((track) => track.info.id)
+    this.map.getSource(THROUGH_SOURCE)?.setData(collection([]))
+    this.paintPicked()
+    this.setReplay.update((s) => (s ? { ...s, phase: "playing" } : s))
+  }
+
+  pauseSet() {
+    this.setReplay.update((s) =>
+      s?.phase === "playing" ? { ...s, phase: "paused" } : s,
+    )
+  }
+
+  /** Jump to a point in it (0 to 1), and hold there. */
+  seekSet(progress: number) {
+    const run = this.setRun
+    if (!run) return
+    run.cursor = clamp(progress, 0, 1) * run.total
+    this.setReplay.update((s) =>
+      s ? { ...s, phase: s.phase === "playing" ? "playing" : "paused" } : s,
+    )
+  }
+
+  setSetRate(rate: number) {
+    this.setReplay.update((s) => (s ? { ...s, rate } : s))
+  }
+
+  /** End it and put the trails back as they were. */
+  stopSet() {
+    const run = this.setRun
+    this.setRun = null
+    if (!get(this.setReplay) && !run) return
+    this.setReplay.set(null)
+    for (const track of run?.tracks ?? []) {
+      track.vehicle?.view.$destroy()
+      track.vehicle?.marker.remove()
+    }
+    this.map.getSource(REPLAY_SOURCE)?.setData(collection([]))
+    // A paddock's trails go back to all showing; otherwise the job's do.
+    const paddock = get(this.through)
+    if (paddock) {
+      this.through.set(null)
+      this.showThrough(paddock)
+    } else {
+      this.throughIds = []
+      this.map.getSource(THROUGH_SOURCE)?.setData(collection([]))
+      this.paintPicked()
+    }
+  }
+
+  private stepSet(dt: number, now: number) {
+    const run = this.setRun
+    const state = get(this.setReplay)
+    if (!run || !state) return
+    if (state.phase === "playing")
+      run.cursor = Math.min(
+        run.total,
+        run.cursor + dt * (run.total / run.seconds) * state.rate,
+      )
+    const bearing = this.map.getBearing()
+    const active: SetTrack[] = []
+    for (const track of run.tracks) {
+      const working = run.cursor >= track.from && run.cursor < track.to
+      if (!working) {
+        if (track.vehicle) {
+          track.vehicle.view.$destroy()
+          track.vehicle.marker.remove()
+          track.vehicle = null
+        }
+        track.index = run.cursor < track.from ? 0 : track.points.length - 1
+        continue
+      }
+      active.push(track)
+      const points = track.points
+      const last = points.length - 1
+      while (
+        track.index < last - 1 &&
+        points[track.index + 1].axis <= run.cursor
+      )
+        track.index++
+      while (track.index > 0 && points[track.index].axis > run.cursor)
+        track.index--
+      const a = points[track.index]
+      const b = points[Math.min(track.index + 1, last)]
+      let at = a.at
+      if (b.part === a.part && b.axis > a.axis) {
+        const f = clamp((run.cursor - a.axis) / (b.axis - a.axis), 0, 1)
+        at = [lerp(a.at[0], b.at[0], f), lerp(a.at[1], b.at[1], f)]
+      }
+      if (!track.vehicle) {
+        track.vehicle = this.mountVehicle(
+          machineFor(track.info.machine).type,
+          track.colour,
+          firstName(track.info.operator ?? "") || "Trail",
+          at,
+          false,
+        )
+        track.vehicle.marker.getElement().style.zIndex = "5"
+        this.onZoom()
+      }
+      const vehicle = track.vehicle
+      vehicle.pos = at
+      vehicle.marker.setLngLat(at)
+      // It points the way the path runs over the next few points.
+      const ahead = points[Math.min(last, track.index + 3)]
+      if (ahead.part === a.part && distanceM(a.at, ahead.at) > 2)
+        vehicle.heading = bearingDeg(a.at, ahead.at)
+      vehicle.eased = Number.isNaN(vehicle.eased)
+        ? vehicle.heading
+        : easeHeading(vehicle.eased, vehicle.heading, 1 - Math.exp(-dt * 12))
+      this.turnTo(vehicle, vehicle.eased - bearing)
+    }
+
+    if (now - run.told < 90) return
+    run.told = now
+    if (run.cursor !== run.drawn) {
+      run.drawn = run.cursor
+      // What is finished is drawn once; only what is being laid is redrawn.
+      const lineOf = (track: SetTrack, upTo: number, tip: LngLat | null) => {
+        const features: unknown[] = []
+        let coords: LngLat[] = []
+        let part = track.points[0].part
+        for (let i = 0; i <= upTo; i++) {
+          const point = track.points[i]
+          if (point.part !== part) {
+            if (coords.length > 1)
+              features.push(line(coords, track.colour, track.info.width))
+            coords = []
+            part = point.part
+          }
+          coords.push(point.at)
+        }
+        if (tip) coords.push(tip)
+        if (coords.length > 1)
+          features.push(line(coords, track.colour, track.info.width))
+        return features
+      }
+      const finished = run.tracks.filter((track) => run.cursor >= track.to)
+      const key = finished.map((track) => track.info.id).join()
+      if (key !== run.done) {
+        run.done = key
+        this.map.getSource(THROUGH_SOURCE)?.setData(
+          collection(
+            finished.flatMap((track) =>
+              lineOf(track, track.points.length - 1, null).map((feature) => ({
+                ...(feature as object),
+                properties: {
+                  ...(feature as { properties: object }).properties,
+                  part: "in",
+                },
+              })),
+            ),
+          ),
+        )
+      }
+      this.map
+        .getSource(REPLAY_SOURCE)
+        ?.setData(
+          collection(
+            active.flatMap((track) =>
+              lineOf(track, track.index, track.vehicle?.pos ?? null),
+            ),
+          ),
+        )
+    }
+    // The time of day the clock has reached.
+    let at = run.breaks[0]
+    for (const mark of run.breaks) {
+      if (mark.axis > run.cursor) break
+      at = mark
+    }
+    const done = run.cursor >= run.total
+    this.setReplay.update((s) =>
+      s
+        ? {
+            ...s,
+            progress: run.cursor / run.total,
+            time: at.real + (run.cursor - at.axis),
+            active: active.map(
+              (track) => firstName(track.info.operator ?? "") || "Someone",
+            ),
+            phase: done && s.phase === "playing" ? "done" : s.phase,
+          }
+        : s,
+    )
+  }
+
+  /**
+   * What a set of trails adds up to over all the ground they covered (a
+   * whole job's, with no paddock to keep to): the same figures a paddock's
+   * trails get, measured more coarsely over the larger area.
+   */
+  statsFor(trails: TrailInfo[]): ThroughStats | null {
+    const ids = new Map(trails.map((trail, i) => [trail.id, i + 1]))
+    const runs: { points: LngLat[]; width: number; who: number }[] = []
+    let w = Infinity
+    let s = Infinity
+    let east = -Infinity
+    let n = -Infinity
+    for (const feature of this.history) {
+      const properties = (
+        feature as {
+          properties: { id: string; segment?: string; width?: number }
+        }
+      ).properties
+      const who = ids.get(properties.id)
+      if (!who || properties.segment === "pause") continue
+      for (const part of partsOf(feature)) {
+        runs.push({ points: part, width: Number(properties.width) || 0, who })
+        for (const [lng, lat] of part) {
+          if (lng < w) w = lng
+          if (lng > east) east = lng
+          if (lat < s) s = lat
+          if (lat > n) n = lat
+        }
+      }
+    }
+    if (!runs.length) return null
+    const flat = projector([w, s])
+    const far = flat.toXY([east, n])
+    const cell = clamp(Math.sqrt((far[0] * far[1]) / 250000), 3, 20)
+    const cols = Math.max(1, Math.ceil(far[0] / cell) + 4)
+    const rows = Math.max(1, Math.ceil(far[1] / cell) + 4)
+    const grid = new Uint8Array(cols * rows)
+    const owner = new Uint16Array(cols * rows)
+    let metres = 0
+    for (const run of runs) {
+      const reach = Math.max(0, Math.round(run.width / 2 / cell - 0.25))
+      let before = flat.toXY(run.points[0])
+      for (let i = 1; i < run.points.length; i++) {
+        const now = flat.toXY(run.points[i])
+        const length = Math.hypot(now[0] - before[0], now[1] - before[1])
+        metres += length
+        const steps = Math.max(1, Math.ceil(length / (cell * 0.7)))
+        for (let step = 0; step <= steps; step++) {
+          const cx = Math.floor(
+            (before[0] + ((now[0] - before[0]) * step) / steps) / cell,
+          )
+          const cy = Math.floor(
+            (before[1] + ((now[1] - before[1]) * step) / steps) / cell,
+          )
+          for (let dy = -reach; dy <= reach; dy++)
+            for (let dx = -reach; dx <= reach; dx++) {
+              if (dx * dx + dy * dy > reach * reach + reach) continue
+              const gx = cx + dx + 2
+              const gy = cy + dy + 2
+              if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) continue
+              const i2 = gy * cols + gx
+              if (!owner[i2]) {
+                owner[i2] = run.who
+                grid[i2] = 1
+              } else if (owner[i2] !== run.who) grid[i2] = 2
+            }
+        }
+        before = now
+      }
+    }
+    let covered = 0
+    let twice = 0
+    for (let i = 0; i < grid.length; i++) {
+      if (grid[i]) covered++
+      if (grid[i] === 2) twice++
+    }
+    return {
+      trails: trails.length,
+      km: metres / 1000,
+      ha: (covered * cell * cell) / 10000,
+      twice: (twice * cell * cell) / 10000,
+      of: 0,
+      drivers: [
+        ...new Set(
+          trails
+            .map((trail) => (trail.operator ?? "").trim().split(/\s+/)[0])
+            .filter(Boolean),
+        ),
+      ],
+      from: Math.min(...trails.map((trail) => trail.start)),
+      to: Math.max(...trails.map((trail) => trail.end ?? trail.start)),
+    }
   }
 
   /**
@@ -3135,7 +3656,13 @@ export class LiveEngine {
     const source = this.map.getSource(THROUGH_SOURCE)
     const mask = this.map.getSource(THROUGH_MASK_SOURCE)
     if (!paddock) {
-      if (!get(this.through)) return
+      const was = get(this.through)
+      // A replay of the set ends with it.
+      if (this.setRun || get(this.setReplay)) {
+        this.through.set(null)
+        this.stopSet()
+      }
+      if (!was) return
       this.through.set(null)
       this.throughStats.set(null)
       this.throughIds = []
@@ -3155,9 +3682,13 @@ export class LiveEngine {
     const cell = clamp(Math.sqrt((far[0] * far[1]) / 60000), 3, 14)
     const cols = Math.max(1, Math.ceil(far[0] / cell))
     const rows = Math.max(1, Math.ceil(far[1] / cell))
+    // Each cell: 1 once a trail has been over it, 2 once a second trail
+    // has (a trail crossing its own path is not an overlap between trails).
     const grid = new Uint8Array(cols * rows)
+    const owner = new Uint16Array(cols * rows)
+    const order = new Map([...ids].map((id, i) => [id, i + 1]))
     let metres = 0
-    const cover = (run: LngLat[], width: number) => {
+    const cover = (run: LngLat[], width: number, who: number) => {
       const reach = Math.max(0, Math.round(width / 2 / cell - 0.25))
       const stamp = (x: number, y: number) => {
         const cx = Math.floor(x / cell)
@@ -3167,8 +3698,12 @@ export class LiveEngine {
             if (dx * dx + dy * dy > reach * reach + reach) continue
             const gx = cx + dx
             const gy = cy + dy
-            if (gx >= 0 && gy >= 0 && gx < cols && gy < rows)
-              grid[gy * cols + gx] = 1
+            if (gx < 0 || gy < 0 || gx >= cols || gy >= rows) continue
+            const i = gy * cols + gx
+            if (!owner[i]) {
+              owner[i] = who
+              grid[i] = 1
+            } else if (owner[i] !== who) grid[i] = 2
           }
       }
       let before = flat.toXY(run[0])
@@ -3213,7 +3748,11 @@ export class LiveEngine {
             geometry: { type: "LineString", coordinates: run },
           })
           if (within)
-            cover(run, Number((properties as { width?: number }).width) || 0)
+            cover(
+              run,
+              Number((properties as { width?: number }).width) || 0,
+              order.get(properties.id) ?? 1,
+            )
         }
         part.forEach((at, i) => {
           const here = inside(at)
@@ -3258,17 +3797,22 @@ export class LiveEngine {
       polygon.map((ring) => ring.map((at) => flat.toXY(at))),
     )
     let covered = 0
+    let twice = 0
     for (let gy = 0; gy < rows; gy++)
       for (let gx = 0; gx < cols; gx++) {
-        if (!grid[gy * cols + gx]) continue
+        const mark = grid[gy * cols + gx]
+        if (!mark) continue
         const at: [number, number] = [(gx + 0.5) * cell, (gy + 0.5) * cell]
-        if (rings.some((polygon) => pointInPolygon(at, polygon))) covered++
+        if (!rings.some((polygon) => pointInPolygon(at, polygon))) continue
+        covered++
+        if (mark === 2) twice++
       }
     const whole = paddock.ha > 0 ? paddock.ha : outlineHa(paddock.polygons)
     this.throughStats.set({
       trails: through.length,
       km: metres / 1000,
       ha: Math.min(whole, (covered * cell * cell) / 10000),
+      twice: Math.min(whole, (twice * cell * cell) / 10000),
       of: whole,
       drivers: [
         ...new Set(
@@ -3290,6 +3834,7 @@ export class LiveEngine {
    * `null` lets it go.
    */
   pickTrail(id: string | null, look = true) {
+    if (id && (this.setRun || get(this.setReplay))) this.stopSet()
     const info = id ? get(this.trails).find((t) => t.id === id) : null
     if (!info && !get(this.selectedTrail)) return false
     this.stopReplay()
@@ -4238,12 +4783,54 @@ export class LiveEngine {
       },
       null,
       {
-        drawingId: drawing.id,
-        pinId: drawing.pinId,
+        on: { pin: drawing.pinId, drawingId: drawing.id },
         kind: drawing.kind,
         colour: drawing.colour,
+        was: drawing.colour,
       },
     )
+  }
+
+  /** The same, for a line or an area that is kept on a paddock. */
+  editFeature(paddockId: string, featureId: string) {
+    const paddock = this.paddocks.find((p) => p.id === paddockId)
+    const feature = paddock?.features.find((f) => f.id === featureId)
+    if (!paddock || !feature || feature.coordinates.length < 2) return false
+    return this.openEditor(
+      {
+        id: "",
+        name: feature.label || (feature.kind === "line" ? "Line" : "Area"),
+        ha: 0,
+        farm: null,
+        farmId: null,
+        crop: "",
+        variety: "",
+        colour: feature.colour,
+        polygons: [[feature.coordinates.map((at) => [at[0], at[1]] as LngLat)]],
+        bbox: bboxOf([[feature.coordinates]]),
+        features: [],
+        prior: null,
+      },
+      null,
+      {
+        on: {
+          paddock: paddock.id,
+          featureId: feature.id,
+          label: feature.label,
+        },
+        kind: feature.kind,
+        colour: feature.colour,
+        was: feature.colour,
+      },
+    )
+  }
+
+  /** Give the line or area being changed another colour. */
+  setShapeColour(colour: string) {
+    const edit = this.editing
+    if (!edit?.shape) return
+    edit.shape.colour = colour
+    this.touchEdit()
   }
 
   /** Save the line or area being changed back onto its pin. */
@@ -4256,17 +4843,35 @@ export class LiveEngine {
     edit.saving = true
     this.tellEdit()
     try {
-      // (There is no call that changes a drawing's shape, so the new one
-      // goes on and the old one comes off.)
-      await createDrawing({
-        mapId: this.mapId,
-        userId: this.userId,
-        pinId: shape.pinId,
-        kind: shape.kind,
-        points,
-        colour: shape.colour,
-      })
-      await deleteDrawing(shape.drawingId, this.userId)
+      if ("pin" in shape.on) {
+        // (There is no call that changes a drawing's shape, so the new one
+        // goes on and the old one comes off.)
+        await createDrawing({
+          mapId: this.mapId,
+          userId: this.userId,
+          pinId: shape.on.pin,
+          kind: shape.kind,
+          points,
+          colour: shape.colour,
+        })
+        await deleteDrawing(shape.on.drawingId, this.userId)
+      } else {
+        const features = await changePaddockFeatures(
+          shape.on.paddock,
+          [
+            {
+              id: `${shape.on.featureId}-${Date.now().toString(36)}`,
+              kind: shape.kind,
+              label: shape.on.label,
+              colour: shape.colour,
+              coordinates: points,
+              t: Date.now(),
+            },
+          ],
+          [shape.on.featureId],
+        )
+        this.setPaddock(shape.on.paddock, { features })
+      }
     } catch {
       edit.saving = false
       this.tellEdit()
@@ -4278,7 +4883,7 @@ export class LiveEngine {
       return false
     }
     this.cancelEdit()
-    await this.refreshDrawings()
+    if ("pin" in shape.on) await this.refreshDrawings()
     return true
   }
 
@@ -4316,7 +4921,7 @@ export class LiveEngine {
             const d = Math.hypot(a.x - at[0], a.y - at[1])
             if (d < reach && (!corner || d < corner.d))
               corner = { at: [p, r, c], d }
-            if (edit.shape?.kind === "line" && c === ring.length - 1) return
+            if (edit.shape) return
             const b = this.map.project(ring[(c + 1) % ring.length])
             if (Math.hypot(a.x - b.x, a.y - b.y) < 44) return
             const m = Math.hypot(
@@ -4475,7 +5080,12 @@ export class LiveEngine {
       this.joinAt(at)
       return
     }
-    if (edit.adding) edit.adding.points.push(at)
+    if (edit.shape) {
+      // A drawing: a tap puts another point on the end of it.
+      this.rememberEdit()
+      edit.rings[0][0].push(at)
+      edit.picked = null
+    } else if (edit.adding) edit.adding.points.push(at)
     else edit.picked = null
     this.touchEdit()
   }
@@ -4603,8 +5213,9 @@ export class LiveEngine {
               edit.picked[1] === r &&
               edit.picked[2] === c
             features.push(point(corner, { kind: "corner", picked }))
-            // A dot between corners far enough apart to press between.
-            if (edit.shape?.kind === "line" && c === ring.length - 1) return
+            // A dot between corners far enough apart to press between
+            // (a paddock's boundary only: a drawing is added to by tapping).
+            if (edit.shape) return
             const next = ring[(c + 1) % ring.length]
             const a = this.map.project(corner)
             const b = this.map.project(next)
@@ -4664,6 +5275,7 @@ export class LiveEngine {
       shape: edit.shape
         ? {
             kind: edit.shape.kind,
+            colour: edit.shape.colour,
             corners: edit.rings[0]?.[0]?.length ?? 0,
             metres: (edit.rings[0]?.[0] ?? []).reduce(
               (sum, at, i, all) => (i ? sum + distanceM(all[i - 1], at) : sum),
@@ -4673,7 +5285,8 @@ export class LiveEngine {
         : null,
       changed: edit.creating
         ? polygons.length > 0
-        : JSON.stringify(polygons) !== edit.original ||
+        : (!!edit.shape && edit.shape.colour !== edit.shape.was) ||
+          JSON.stringify(polygons) !== edit.original ||
           edit.absorbed.length > 0,
       saving: edit.saving,
       polygons,
@@ -4844,9 +5457,15 @@ export class LiveEngine {
     this.drawPaddocks()
     const paddock = this.paddocks.find((p) => p.id === edit.paddock.id)
     if (reselect && paddock) this.selectedPaddock.set(paddock)
-    // A drawing on a pin: back to the pin it is on.
-    const pin = edit.shape ? this.pinsById.get(edit.shape.pinId) : null
+    // A drawing: back to the pin or the paddock it is on.
+    const on = edit.shape?.on
+    const pin = on && "pin" in on ? this.pinsById.get(on.pin) : null
     if (reselect && pin) this.selectedPin.set(pin)
+    const owner =
+      on && "paddock" in on
+        ? this.paddocks.find((p) => p.id === on.paddock)
+        : null
+    if (reselect && owner) this.selectedPaddock.set(owner)
   }
 
   private listPaddocks(paddocks: Paddock[]) {
@@ -6396,6 +7015,7 @@ export class LiveEngine {
     }
 
     this.stepReplay(dt, now)
+    this.stepSet(dt, now)
     this.stepMove(dt)
     this.stepSim(dt, now)
     this.stepGuide(now)
@@ -6485,6 +7105,8 @@ export class LiveEngine {
       if (entry.vehicle) resize(entry.vehicle)
     if (this.mine) resize(this.mine)
     if (this.replaying) resize(this.replaying.vehicle)
+    for (const track of this.setRun?.tracks ?? [])
+      if (track.vehicle) resize(track.vehicle)
     if (this.sim) resize(this.sim.vehicle)
     // The dots between a boundary's corners come and go with the zoom.
     if (this.editing) this.editing.dirty = true

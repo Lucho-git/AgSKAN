@@ -1,38 +1,43 @@
 <script lang="ts">
   /**
-   * Every trail through one paddock, taken together: the trail card with
-   * all of them picked. Its figures are for inside the paddock's fence
-   * only. Replay runs them one after another, quickly, in the order they
-   * were driven: the paddock being worked. Stepping left or right, or
+   * A set of trails taken together (every trail through one paddock, or a
+   * whole job's): the trail card with all of them picked. Its figures are
+   * for the set, with how much ground more than one trail went over.
+   *
+   * Replay runs them on one clock, in the order they happened: machines
+   * that were working at the same time are on the map at the same time,
+   * and the bar can be dragged to any moment. Stepping left or right, or
    * tapping a block, goes into that one trail as usual.
    */
-  import { createEventDispatcher, tick } from "svelte"
+  import { createEventDispatcher } from "svelte"
   import {
     ChevronLeft,
     ChevronRight,
     Layers,
+    LoaderCircle,
+    Pause,
     Play,
-    Square,
+    RotateCcw,
     X,
   } from "lucide-svelte"
   import { formatHa } from "$lib/components/mapnext/format"
   import { drawColour } from "$lib/components/mapnext/palette"
-  import type { ReplayState, ThroughStats } from "./liveEngine"
+  import type { SetReplayState, ThroughStats } from "./liveEngine"
   import type { TrailInfo } from "./liveData"
 
-  /** The paddock they all go through. */
-  export let name = ""
+  /** Where they all are: "through Dam", "in Harvest 26". */
+  export let where = ""
   export let trails: TrailInfo[] = []
   export let stats: ThroughStats | null = null
-  /** Which one is being replayed (counting from the oldest), if any is. */
-  export let playing: number | null = null
-  export let replay: ReplayState | null = null
+  export let replay: SetReplayState | null = null
 
   const dispatch = createEventDispatcher<{
     close: void
     pick: string
     play: void
-    stop: void
+    pause: void
+    seek: number
+    rate: void
   }>()
 
   const clock = (t: number) =>
@@ -57,13 +62,10 @@
     },
     [],
   )
-  $: now = playing !== null ? (ordered[playing] ?? null) : null
-  $: done =
-    playing !== null && ordered.length
-      ? (playing +
-          (replay && replay.trailId === now?.id ? replay.progress : 0)) /
-        ordered.length
-      : 0
+  // While it replays, a block is lit once the clock has reached its trail.
+  $: going = !!replay && replay.phase !== "loading"
+  $: overlap =
+    stats && stats.ha > 0 ? Math.round((stats.twice / stats.ha) * 100) : 0
 
   // The blocks are squeezed to fit, as on a single trail's card.
   let room = 0
@@ -78,17 +80,6 @@
   $: squeeze = room && wanted > spare ? Math.max(0.05, spare / wanted) : 1
   $: widthOf = (t: TrailInfo) =>
     Math.max(4, Math.floor(natural(t, longest) * squeeze))
-
-  let strip: HTMLDivElement | null = null
-  function centre(el: HTMLDivElement) {
-    const at = el.querySelector<HTMLElement>(".now")
-    if (at && el.scrollWidth > el.clientWidth + 1)
-      el.scrollLeft = at.offsetLeft - el.clientWidth / 2
-  }
-  $: if (strip && now && squeeze) {
-    const el = strip
-    tick().then(() => centre(el))
-  }
 </script>
 
 <div class="mn-card mn-menu mn-trailset">
@@ -96,12 +87,20 @@
     <span class="mark"><Layers size={24} /></span>
     <div class="about">
       <h2>All {ordered.length} trails</h2>
-      <p>through {name}</p>
+      <p>
+        {where}{stats
+          ? ` · ${shortDay(stats.from)}${
+              shortDay(stats.to) !== shortDay(stats.from)
+                ? ` to ${shortDay(stats.to)}`
+                : ""
+            }`
+          : ""}
+      </p>
     </div>
     <button
       type="button"
       class="mn-icon-button"
-      aria-label="Back to the paddock"
+      aria-label="Close"
       on:click={() => dispatch("close")}
     >
       <X size={22} />
@@ -109,7 +108,6 @@
   </div>
 
   {#if stats}
-    <!-- What they add up to, inside the fence only. -->
     <div class="mn-stats">
       <div>
         <strong>{formatHa(stats.ha)} ha</strong>
@@ -121,15 +119,11 @@
       </div>
       <div>
         <strong>{stats.km.toFixed(stats.km < 10 ? 1 : 0)} km</strong>
-        <span>driven in here</span>
+        <span>driven</span>
       </div>
       <div>
-        <strong>
-          {shortDay(stats.from)}{shortDay(stats.to) !== shortDay(stats.from)
-            ? ` to ${shortDay(stats.to)}`
-            : ""}
-        </strong>
-        <span>{stats.drivers.join(", ") || "No operator"}</span>
+        <strong>{overlap}%</strong>
+        <span>gone over twice · {formatHa(stats.twice)} ha</span>
       </div>
     </div>
   {/if}
@@ -144,7 +138,7 @@
     >
       <ChevronLeft size={22} />
     </button>
-    <div class="strip" bind:this={strip} bind:clientWidth={room}>
+    <div class="strip" bind:clientWidth={room}>
       {#each days as group (group.label)}
         <div class="day">
           <span>{group.label}</span>
@@ -152,8 +146,7 @@
             {#each group.trails as t (t.id)}
               <button
                 type="button"
-                class:now={now?.id === t.id}
-                class:waiting={playing !== null && ordered.indexOf(t) > playing}
+                class:waiting={going && !!replay && t.start > replay.time}
                 aria-label="{t.operator || 'Trail'}, {clock(t.start)}"
                 title="{t.operator || 'Trail'} · {clock(t.start)}"
                 style="width: {widthOf(t)}px; --c: {drawColour(t.colour)}"
@@ -175,37 +168,70 @@
     </button>
   </div>
 
-  <!-- ── The paddock being worked, one trail after another ── -->
+  <!-- ── All of them replayed on one clock ── -->
   <div class="replay">
     <button
       type="button"
       class="play"
-      aria-label={playing !== null ? "Stop the replay" : "Replay them all"}
-      on:click={() => dispatch(playing !== null ? "stop" : "play")}
+      aria-label={replay?.phase === "playing"
+        ? "Pause the replay"
+        : replay?.phase === "done"
+          ? "Replay again"
+          : "Replay them all"}
+      disabled={replay?.phase === "loading"}
+      on:click={() => dispatch(replay?.phase === "playing" ? "pause" : "play")}
     >
-      {#if playing !== null}
-        <Square size={18} fill="currentColor" />
+      {#if replay?.phase === "loading"}
+        <span class="mn-spin"><LoaderCircle size={22} /></span>
+      {:else if replay?.phase === "playing"}
+        <Pause size={22} fill="currentColor" />
+      {:else if replay?.phase === "done"}
+        <RotateCcw size={22} />
       {:else}
         <Play size={22} fill="currentColor" />
       {/if}
     </button>
-    {#if playing !== null && now}
-      <div class="going">
-        <strong>
-          {playing + 1} of {ordered.length} · {(now.operator || "No operator")
-            .trim()
-            .split(/\s+/)[0]}
-        </strong>
-        <span>{shortDay(now.start)} · {clock(now.start)}</span>
-        <i style="--done: {(done * 100).toFixed(1)}%"></i>
-      </div>
-    {:else}
+    {#if replay?.phase === "loading"}
       <span class="idle">
-        Replay: watch {name} being worked, a trail at a time
+        Getting the trails ready · {replay.loaded} of {replay.total}
       </span>
+    {:else if replay}
+      <input
+        class="mn-scrub"
+        type="range"
+        min="0"
+        max="1"
+        step="0.001"
+        value={replay.progress}
+        aria-label="Position in the replay"
+        style="--done: {(replay.progress * 100).toFixed(1)}%"
+        on:input={(e) => dispatch("seek", Number(e.currentTarget.value))}
+      />
+      <span class="at">
+        <b>{clock(replay.time)}</b>
+        <small>{shortDay(replay.time)}</small>
+      </span>
+      <button
+        type="button"
+        class="rate"
+        aria-label="Replay speed: {replay.rate} times"
+        on:click={() => dispatch("rate")}
+      >
+        {replay.rate}×
+      </button>
+    {:else}
+      <span class="idle">Replay: watch them all being laid, together</span>
     {/if}
   </div>
-  <p class="set">Tap a block, or an arrow, to open one trail on its own.</p>
+  <p class="set">
+    {#if replay && replay.phase !== "loading"}
+      {replay.active.length
+        ? `${replay.active.join(", ")} working`
+        : "Nobody working at this moment"}
+    {:else}
+      Tap a block, or an arrow, to open one trail on its own.
+    {/if}
+  </p>
 </div>
 
 <style>
@@ -283,14 +309,10 @@
     border-radius: 4px;
     background: var(--c);
     box-shadow: inset 0 0 0 1px rgba(21, 38, 28, 0.35);
+    transition: opacity 0.2s;
   }
   .day button.waiting {
-    opacity: 0.35;
-  }
-  .day button.now {
-    box-shadow:
-      0 0 0 1.5px var(--lp-card),
-      0 0 0 3.5px var(--lp-ink);
+    opacity: 0.3;
   }
   .replay {
     display: flex;
@@ -309,38 +331,44 @@
     background: var(--lp-ink);
     color: var(--lp-paper);
   }
+  .replay .mn-scrub {
+    flex: 1;
+    min-width: 0;
+  }
   .idle {
     flex: 1;
     font-size: 0.9rem;
     color: var(--lp-ink-soft);
   }
-  .going {
+  .at {
     display: grid;
-    flex: 1;
-    gap: 1px;
-    min-width: 0;
-  }
-  .going strong {
-    font-size: 0.95rem;
-    font-weight: 800;
-  }
-  .going span {
+    flex-shrink: 0;
+    justify-items: end;
     font-family: var(--lp-mono);
-    font-size: 0.74rem;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .at b {
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+  .at small {
+    font-size: 0.66rem;
     color: var(--lp-ink-soft);
   }
-  .going i {
-    height: 5px;
-    margin-top: 4px;
+  .rate {
+    flex-shrink: 0;
+    min-width: 44px;
+    height: 36px;
+    border: 1.5px solid var(--lp-line);
     border-radius: 99px;
-    background: linear-gradient(
-      to right,
-      var(--lp-ink) var(--done),
-      var(--lp-line) var(--done)
-    );
+    font-family: var(--lp-mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--lp-ink);
   }
   .set {
-    font-size: 0.74rem;
+    font-size: 0.76rem;
     color: var(--lp-ink-soft);
     text-align: center;
   }

@@ -36,6 +36,8 @@
   const dispatch = createEventDispatcher<{
     /** Give this kind a button on the map, or take its button away. */
     quick: { iconClass: string; on: boolean }
+    /** Make this kind the default pin. */
+    quickDefault: string
     pinKind: string
     dropPins: void
     colour: { iconClass: string; colour: string }
@@ -230,25 +232,41 @@
     <!-- The kinds with a button of their own, bottom right of the map. -->
     <section class="mn-quickset">
       <p class="lp-eyebrow">Pin buttons on the map</p>
-      <div class="chips">
+      <ul class="rows">
         {#each quick as iconClass, i (iconClass)}
-          <span>
-            <PinArt look={choiceLook(iconClass)} size={26} />
-            {pinChoices.find((choice) => choice.iconClass === iconClass)
-              ?.label ?? "Pin"}
-            {#if i === 0}<small>hold the map</small>{/if}
+          <li>
+            <PinArt look={choiceLook(iconClass)} size={30} />
+            <strong>
+              {pinChoices.find((choice) => choice.iconClass === iconClass)
+                ?.label ?? "Pin"}
+            </strong>
+            {#if i === 0}
+              <em>Default</em>
+            {:else}
+              <button
+                type="button"
+                class="make"
+                on:click={() => dispatch("quickDefault", iconClass)}
+              >
+                Make default
+              </button>
+            {/if}
             {#if quick.length > 1}
               <button
                 type="button"
+                class="off"
                 aria-label="Take this button off the map"
                 on:click={() => dispatch("quick", { iconClass, on: false })}
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             {/if}
-          </span>
+          </li>
         {/each}
-      </div>
+      </ul>
+      <p class="mn-note">
+        The default is the one a long press on the map drops.
+      </p>
       {#if !quick.includes(pinKind) && quick.length < 5}
         <button
           type="button"

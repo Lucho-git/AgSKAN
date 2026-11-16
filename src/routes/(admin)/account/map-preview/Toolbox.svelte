@@ -171,6 +171,8 @@
     newFarm: string
     /** Give a kind of pin a button on the map, or take it away. */
     quickPin: { iconClass: string; on: boolean }
+    /** Make a kind of pin the default one. */
+    quickDefault: string
     /** Go to a place the log points at. */
     lookPlace: LngLat
   }>()
@@ -732,6 +734,7 @@
         {guest}
         quick={quickPinKinds}
         on:quick={(e) => dispatch("quickPin", e.detail)}
+        on:quickDefault={(e) => dispatch("quickDefault", e.detail)}
         on:pinKind={(e) => dispatch("pinKind", e.detail)}
         on:dropPins={() => dispatch("dropPins")}
         on:colour={(e) => dispatch("typeColour", e.detail)}

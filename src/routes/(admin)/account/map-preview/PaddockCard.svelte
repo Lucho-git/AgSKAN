@@ -60,6 +60,8 @@
     /** Pick out (or let go of) something kept on it. */
     feature: string | null
     removeFeature: string
+    /** Change the shape or colour of something kept on it. */
+    editFeature: string
     /** Pick one of its trails out. */
     trail: string
     /** Show all of its trails at once, or stop. */
@@ -382,6 +384,14 @@
               </span>
             </button>
             {#if !guest}
+              <button
+                type="button"
+                class="pen"
+                aria-label="Change {feature.label || 'this'}"
+                on:click={() => dispatch("editFeature", feature.id)}
+              >
+                <Pencil size={16} />
+              </button>
               <button
                 type="button"
                 aria-label="Remove {feature.label || 'this'}"

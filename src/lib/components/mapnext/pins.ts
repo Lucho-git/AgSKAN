@@ -132,7 +132,7 @@ export function pinSvg(key: string, size = 96): string {
       glyph.tint === "fill"
         ? `<g fill="${look.art}" color="${look.art}">${glyph.content}</g>`
         : glyph.content
-    art = `<svg x="-9" y="-9" width="18" height="18" viewBox="${glyph.viewBox}">${inner}</svg>`
+    art = `<svg x="-9.5" y="-9.5" width="19" height="19" viewBox="${glyph.viewBox}">${inner}</svg>`
   } else {
     art = `<svg x="-8.5" y="-8.5" width="17" height="17" viewBox="0 0 24 24">${defaultPin(look.art)}</svg>`
   }
@@ -155,7 +155,15 @@ export function pinSvg(key: string, size = 96): string {
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${size}" height="${size}" viewBox="-16 -16 32 32">` +
     (look.defs ? `<defs>${look.defs}</defs>` : "") +
     `<circle cy="1" r="14.4" fill="${INK}" opacity="0.22"/>` +
-    `<circle r="13.6" fill="${look.fill}" stroke="${bin ? "#C9C4B0" : look.ring}" stroke-width="${bin ? 3.6 : 2.2}"/>` +
+    // Colour right to the edge, no ring (a bin keeps its rim: the gauge
+    // runs round it; a white pin gets a hair of an edge so it has one).
+    (bin
+      ? `<circle r="13.6" fill="${look.fill}" stroke="#C9C4B0" stroke-width="3.6"/>`
+      : `<circle r="14.7" fill="${look.fill}"${
+          colour === "white"
+            ? ` stroke="rgba(21,38,28,0.3)" stroke-width="0.7"`
+            : ""
+        }/>`) +
     gauge +
     art +
     tick +

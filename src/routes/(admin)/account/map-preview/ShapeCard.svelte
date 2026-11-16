@@ -1,28 +1,33 @@
 <script lang="ts">
   /**
-   * Changing the shape of a line or an area that is drawn on a pin. On the
-   * map every corner has a handle to drag, and a small dot sits between
-   * corners to drag out into a new one; a tapped corner can be taken away.
-   * Nothing changes until Save.
+   * Changing a line or an area that is drawn on a pin or kept on a paddock.
+   * It works the way drawing it did: a tap on the map adds a point to the
+   * end, Undo takes the last change back, and a corner can be dragged to
+   * move it. Its colour is changed here too. Nothing changes until Save.
    */
   import { createEventDispatcher } from "svelte"
-  import { Check, Hand, Trash2, Undo2, X } from "lucide-svelte"
+  import { Check, Hand, Undo2, X } from "lucide-svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
   import type { BoundaryEdit } from "./liveEngine"
+  import { DRAWING_COLOURS } from "./liveData"
 
   export let edit: BoundaryEdit
-  export let colour: string | null = null
 
   const dispatch = createEventDispatcher<{
-    removeCorner: void
+    colour: string
     undo: void
     cancel: void
     save: void
   }>()
 
   $: line = edit.shape?.kind === "line"
+  $: colour = edit.shape?.colour ?? DRAWING_COLOURS[0]
   $: ring = edit.polygons[0]?.[0] ?? []
+  // Its own colour is offered even if it isn't one of the usual six.
+  $: colours = DRAWING_COLOURS.includes(colour)
+    ? DRAWING_COLOURS
+    : [colour, ...DRAWING_COLOURS]
 </script>
 
 <div class="mn-card mn-menu mn-boundary">
@@ -41,7 +46,7 @@
           ? formatDistance(edit.shape?.metres ?? 0)
           : `${formatHa(edit.ha)} ha`}
       </h2>
-      <p>{edit.shape?.corners ?? 0} corners</p>
+      <p>{edit.shape?.corners ?? 0} points</p>
     </div>
     <button
       type="button"
@@ -54,28 +59,36 @@
   </div>
 
   <p class="mn-move-hint">
-    <Hand size={17} /> Drag a corner to move it. Drag a small dot to make a new corner.
+    <Hand size={17} /> Tap the map to add a point, or drag one to move it.
   </p>
 
-  <div class="mn-menu-actions">
+  <div
+    class="mn-swatches"
+    style="--across: {colours.length}"
+    role="group"
+    aria-label="Colour"
+  >
+    {#each colours as option}
+      <button
+        type="button"
+        class:selected={colour.toLowerCase() === option.toLowerCase()}
+        style="--swatch: {option}"
+        aria-label="Colour {option}"
+        aria-pressed={colour.toLowerCase() === option.toLowerCase()}
+        on:click={() => dispatch("colour", option)}
+      ></button>
+    {/each}
+  </div>
+
+  <div class="mn-card-actions three">
     <button
       type="button"
-      disabled={!edit.picked?.canRemoveCorner}
-      on:click={() => dispatch("removeCorner")}
-    >
-      <Trash2 size={18} />
-      {edit.picked ? "Remove corner" : "Tap a corner to remove it"}
-    </button>
-    <button
-      type="button"
+      class="lp-btn lp-btn-ghost"
       disabled={!edit.steps}
       on:click={() => dispatch("undo")}
     >
-      <Undo2 size={18} /> Undo
+      <Undo2 size={17} /> Undo
     </button>
-  </div>
-
-  <div class="mn-card-actions">
     <button
       type="button"
       class="lp-btn lp-btn-ghost"
@@ -86,7 +99,7 @@
     <button
       type="button"
       class="lp-btn lp-btn-primary"
-      disabled={!edit.steps || edit.saving}
+      disabled={!edit.changed || edit.saving}
       on:click={() => dispatch("save")}
     >
       <Check size={18} strokeWidth={3} />

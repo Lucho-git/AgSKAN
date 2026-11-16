@@ -12,6 +12,7 @@
   import {
     ChevronLeft,
     ChevronRight,
+    Layers,
     LoaderCircle,
     Navigation,
     Pause,
@@ -52,6 +53,8 @@
     mark: "centre" | "arrows"
     follow: boolean
     remove: void
+    /** Back to all of the set together. */
+    all: void
   }>()
 
   const clock = (t: number) =>
@@ -228,10 +231,10 @@
           <ChevronRight size={22} />
         </button>
       </div>
-      <p class="set">
-        {ordered.length} trails{scope ? ` through ${scope}` : " in this job"},
-        oldest on the left
-      </p>
+      <button type="button" class="set" on:click={() => dispatch("all")}>
+        <Layers size={14} />
+        All {ordered.length} together{scope ? ` · through ${scope}` : ""}
+      </button>
     </div>
   {/if}
 
@@ -364,9 +367,19 @@
     min-width: 0;
   }
   .set {
-    font-size: 0.74rem;
-    color: var(--lp-ink-soft);
-    text-align: center;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 34px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+  }
+  .set:hover {
+    border-color: var(--lp-ink);
   }
   .strip-row {
     display: flex;

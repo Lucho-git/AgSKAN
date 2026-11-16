@@ -2649,3 +2649,293 @@
 .mn-ptrails .recent button:hover {
   border-color: var(--lp-ink);
 }
+
+/* ── Tenth pass ─────────────────────────────────────────────────────────── */
+/* A pin button is the pin itself, with small badges laid over it: a plus
+   to say it drops one; armed, a "Drop" tab and a pencil to change it. */
+.mn-quickpins .slot {
+  position: relative;
+  display: flex;
+}
+.mn-quickpins .pin {
+  position: relative;
+  display: flex;
+  border-radius: 50%;
+  filter: drop-shadow(0 6px 10px rgba(10, 25, 15, 0.55));
+  transition: transform 0.15s ease-out;
+}
+.mn-quickpins .pin:active {
+  transform: scale(0.94);
+}
+.mn-quickpins .plus {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #15261c;
+  color: #fff;
+}
+/* Armed: a white ring breathing round it, as round a picked pin. */
+.mn-quickpins .slot.armed .pin {
+  transform: scale(1.08);
+}
+.mn-quickpins .slot.armed .pin::before {
+  position: absolute;
+  inset: -3px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  content: "";
+}
+.mn-quickpins .slot.armed .pin::after {
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  content: "";
+  animation: mn-pick-ring 2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+@keyframes mn-pick-ring {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+.mn-quickpins .drop {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  padding: 2px 9px 3px;
+  border: 2px solid #fff;
+  border-radius: 99px;
+  background: #15261c;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  color: #f7db5c;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+}
+.mn-quickpins .change {
+  position: absolute;
+  top: -8px;
+  right: auto;
+  left: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 0;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #15261c;
+  box-shadow: 0 4px 10px rgba(10, 25, 15, 0.5);
+  color: #fff;
+  transform: none;
+}
+/* A word that rises and fades on the map where a pin was placed or
+   deleted… */
+.mn-flag {
+  position: relative;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.mn-flag b {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: #1f8a4c;
+  box-shadow: 0 4px 12px rgba(10, 25, 15, 0.5);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: mn-flag-rise 1.4s ease-out both;
+}
+.mn-flag i {
+  position: absolute;
+  top: -22px;
+  left: -22px;
+  width: 44px;
+  height: 44px;
+  border: 3px solid #1f8a4c;
+  border-radius: 50%;
+  animation: mn-flag-ring 0.7s ease-out both;
+}
+.mn-flag.gone b {
+  background: var(--lp-rust, #c2410c);
+}
+.mn-flag.gone i {
+  border-color: var(--lp-rust, #c2410c);
+  animation-name: mn-flag-shut;
+}
+@keyframes mn-flag-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.85);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -26px);
+  }
+}
+@keyframes mn-flag-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+/* (A deleted pin's ring closes in instead of opening out.) */
+@keyframes mn-flag-shut {
+  0% {
+    opacity: 0.9;
+    transform: scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+/* …and a badge that rises from the button that did it. */
+.mn-floater {
+  position: fixed;
+  z-index: 70;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: #1f8a4c;
+  box-shadow: 0 4px 12px rgba(10, 25, 15, 0.45);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: mn-floater 1s ease-out both;
+}
+.mn-floater.gone {
+  background: var(--lp-rust, #c2410c);
+}
+@keyframes mn-floater {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60%);
+  }
+  15% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -64px);
+  }
+}
+/* The Pins tool: each button's row says which is the default. */
+.mn-quickset .rows {
+  display: grid;
+  gap: 5px;
+}
+.mn-quickset .rows li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 4px 0 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 13px;
+}
+.mn-quickset .rows strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-quickset .rows em {
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+  color: var(--lp-paper);
+}
+.mn-quickset .rows .make {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-quickset .rows .make:hover {
+  border-color: var(--lp-ink);
+}
+.mn-quickset .rows .off {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--lp-ink-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-quickpins .slot.armed .pin::after {
+    animation: none;
+  }
+}
+
+.mn-drawn button.pen {
+  color: var(--lp-ink);
+}
+
+/* A hint about what the map does right now: the hand keeps its size and
+   the words sit beside it, on one line where they fit. */
+.mn-move-hint {
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  text-align: left;
+}
+.mn-move-hint svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}

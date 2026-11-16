@@ -174,8 +174,7 @@
     </div>
   {:else}
     <p class="mn-move-hint">
-      <Hand size={17} /> Drag a corner to move it. Drag a small dot to make a new
-      corner.
+      <Hand size={17} /> Drag a corner to move it, or a dot to add one.
     </p>
 
     {#if edit.picked}

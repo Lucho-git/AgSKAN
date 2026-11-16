@@ -21,6 +21,8 @@
     LoaderCircle,
     LocateFixed,
     MessageCircle,
+    Pencil,
+    Plus,
     Navigation,
     Check,
     Trash2,
@@ -74,6 +76,7 @@
     type BoundaryEdit,
     type PickedShape,
     type ThroughStats,
+    type SetReplayState,
     type ToolView,
   } from "./liveEngine"
   import {
@@ -282,6 +285,7 @@
     // Pressed again: down it goes, where the machine is.
     changeShown = false
     engine?.dropPin(iconClass)
+    floatUp(`+ ${pinName(iconClass)}`)
   }
   function disarmPin() {
     armedPin = null
@@ -289,6 +293,9 @@
   }
   // A tap anywhere but on the pin buttons lets go of them.
   function tapAway(event: Event) {
+    const press = event as PointerEvent
+    if (typeof press.clientX === "number")
+      lastTap = { x: press.clientX, y: press.clientY }
     if (!armedPin) return
     const target = event.target as HTMLElement | null
     if (target?.closest?.(".mn-quickpins")) return
@@ -343,7 +350,12 @@
   /** A pin being placed by dragging, before it exists. */
   let placing: { iconClass: string; colour: string } | null = null
   /** Stepping through trails is kept to these (the ones through a paddock). */
-  let trailScope: { ids: string[]; name: string } | null = null
+  let trailScope: {
+    ids: string[]
+    name: string
+    /** The paddock they all go through, when that is what they share. */
+    paddockId?: string | null
+  } | null = null
   /** The invite card: its link once it has been made. */
   let invite: { link: string | null } | null = null
   let copied = ""
@@ -373,101 +385,106 @@
    */
   let paddockFor: string | null = null
   /**
-   * Every trail through a paddock, being replayed one after another: which
-   * paddock, the trails oldest first, and the one playing now.
+   * A set of trails taken together: every trail through one paddock, or (no
+   * paddock) the whole of the job on show.
    */
-  let setPlay: {
-    paddockId: string
-    name: string
-    trails: TrailInfo[]
-    index: number
-  } | null = null
-  /** The all-trails card is up for this paddock (its trails kept here). */
   let trailSet: {
-    paddockId: string
+    paddockId: string | null
     name: string
+    where: string
     trails: TrailInfo[]
   } | null = null
-  // The card stays up for as long as that paddock's trails are all on show.
-  $: if (!setPlay && trailSet && through !== trailSet.paddockId) trailSet = null
+  /** Those trails being replayed together. */
+  let setReplay: SetReplayState | null = null
+  /** A whole job's figures (a paddock's come from the engine as it shows them). */
+  let jobStats: ThroughStats | null = null
+  // A paddock's set stays up for as long as its trails are all on show.
+  $: if (trailSet?.paddockId && !setReplay && through !== trailSet.paddockId)
+    trailSet = null
   function showSet() {
     const paddock = selectedPaddock
     if (!paddock) return
     trailSet = {
       paddockId: paddock.id,
       name: paddock.name,
+      where: `through ${paddock.name}`,
       trails: [...paddockTrails].sort((a, b) => a.start - b.start),
     }
     engine?.showThrough(paddock.id)
   }
-  /** Back from the set (or its replay) to the paddock with them all showing. */
-  function backToSet() {
-    const set = setPlay ?? trailSet
-    setPlay = null
-    if (!set) return
+  function showJobSet() {
+    if (!engine || !trails.length) return
+    engine.clearSelection()
+    const name = operation?.name ?? "this job"
+    trailSet = {
+      paddockId: null,
+      name,
+      where: `in ${name}`,
+      trails: [...trails].sort((a, b) => a.start - b.start),
+    }
+    jobStats = engine.statsFor(trails)
+  }
+  // From one trail back to all of them: the paddock's, if that is where it
+  // was opened from, else the job's.
+  function allFromTrail() {
+    const scope = trailScope
+    const paddock = scope?.paddockId
+      ? paddocks.find((p) => p.id === scope.paddockId)
+      : null
     engine?.pickTrail(null)
-    const paddock = paddocks.find((p) => p.id === set.paddockId)
     if (paddock) {
       engine?.selectedPaddock.set(paddock)
-      trailSet = {
-        paddockId: set.paddockId,
-        name: set.name,
-        trails: set.trails,
-      }
-      engine?.showThrough(paddock.id)
-    }
+      showSet()
+    } else showJobSet()
   }
   function closeSet() {
-    setPlay = null
+    const set = trailSet
     trailSet = null
-    engine?.showThrough(null)
+    engine?.stopSet()
+    if (set?.paddockId) engine?.showThrough(null)
   }
-  function playSet() {
-    if (!trailSet) return
-    setPlay = { ...trailSet, index: -1 }
-    nextInSet()
-  }
-  // On to the next trail of the set: picked without the map moving, and
-  // run through quickly.
-  function nextInSet() {
-    const set = setPlay
-    if (!set || !engine) return
-    let i = set.index + 1
-    while (i < set.trails.length && !engine.pickTrail(set.trails[i].id, false))
-      i++
-    if (i >= set.trails.length) {
-      backToSet()
-      return
-    }
-    setPlay = { ...set, index: i }
-    engine.playReplay(8)
-  }
-  // On when one finishes; on, too, past one that can't be replayed at all
-  // (it has no recorded path), rather than waiting on it for ever.
-  $: if (
-    setPlay &&
-    setPlay.index >= 0 &&
-    (!replay ||
-      (replay.phase === "done" &&
-        replay.trailId === setPlay.trails[setPlay.index]?.id))
-  )
-    nextInSet()
   // One trail of the set, opened on its own: the arrows then step through
-  // the paddock's trails as usual.
+  // the set's trails as usual.
   function openFromSet(id: string) {
-    const set = setPlay ?? trailSet
-    setPlay = null
-    trailSet = null
+    const set = trailSet
     if (!set) return
-    const scope = { ids: set.trails.map((trail) => trail.id), name: set.name }
-    if (pickTrail(id)) trailScope = scope
+    engine?.stopSet()
+    const scope = {
+      ids: set.trails.map((trail) => trail.id),
+      name: set.name,
+      paddockId: set.paddockId,
+    }
+    trailSet = null
+    if (pickTrail(id)) trailScope = set.paddockId ? scope : null
+  }
+  const SET_RATES = [1, 2, 4, 8]
+  function nextSetRate() {
+    if (!setReplay) return
+    engine?.setSetRate(
+      SET_RATES[(SET_RATES.indexOf(setReplay.rate) + 1) % SET_RATES.length],
+    )
+  }
+
+  // A badge that rises from wherever a button was just pressed and fades:
+  // "+ Rock" off a pin button, "Deleted" off the delete button.
+  let lastTap = { x: 0, y: 0 }
+  let floaters: {
+    id: number
+    x: number
+    y: number
+    text: string
+    gone: boolean
+  }[] = []
+  let floated = 0
+  function floatUp(text: string, gone = false) {
+    const id = ++floated
+    floaters = [...floaters, { id, ...lastTap, text, gone }]
+    setTimeout(() => (floaters = floaters.filter((f) => f.id !== id)), 1100)
   }
   /** Asked for a new paddock: how to make it, and for which farm. */
   let paddockAsk: { farmId: string | null } | null = null
   /** The name being given to the paddock being built. */
   let newPaddockName = ""
-  /** The colour of the pin drawing whose shape is being changed. */
-  let shapeColour: string | null = null
   /** The farm a lassoed paddock is for, while the lasso is being drawn. */
   let groundFor: { farmId: string | null } | null = null
   function buildPaddock(start: LngLat[][][] | null = null) {
@@ -645,6 +662,7 @@
       created.crewTrail.subscribe((v) => (crewTrail = v)),
       created.placing.subscribe((v) => (placing = v)),
       created.replay.subscribe((v) => (replay = v)),
+      created.setReplay.subscribe((v) => (setReplay = v)),
       created.guide.subscribe((v) => (guide = v)),
       created.boundary.subscribe((v) => (boundaryEdit = v)),
       created.paddockList.subscribe((v) => (paddocks = v)),
@@ -1049,6 +1067,7 @@
   async function removeSelectedPin() {
     const pin = selectedPin
     if (!pin || !engine) return
+    floatUp("Deleted", true)
     const removed = await engine.removePin(pin.id)
     if (removed)
       say("Pin removed", {
@@ -1761,7 +1780,6 @@
     !!selectedPaddock ||
     !!selectedTrail ||
     !!trailSet ||
-    !!setPlay ||
     !!measure ||
     mineSelected
 
@@ -2208,35 +2226,35 @@
                the machine is. A tap anywhere else lets go of it. -->
           <div class="mn-quickpins" class:many={quickKinds.length > 1}>
             {#each [...quickKinds].reverse() as kind (kind)}
-              <div class="slot">
-                {#if armedPin === kind && changeShown}
-                  <button
-                    type="button"
-                    class="change"
-                    transition:fade={{ duration: 160 }}
-                    on:click={() => startPinning(kind)}
-                  >
-                    Change pin
-                  </button>
-                {/if}
+              <div class="slot" class:armed={armedPin === kind}>
                 <button
                   type="button"
-                  class="mn-pin-button"
-                  class:armed={armedPin === kind}
+                  class="pin"
                   aria-label={armedPin === kind
                     ? `Drop a ${pinName(kind)} pin here`
                     : `${pinName(kind)} pin`}
                   on:click={() => pinTap(kind)}
                 >
-                  <PinArt look={choiceLook(kind)} size={wide ? 34 : 30} />
-                  <span>
-                    {armedPin === kind
-                      ? readout.hasFix
-                        ? "Drop here"
-                        : "Drop"
-                      : pinName(kind)}
-                  </span>
+                  <PinArt look={choiceLook(kind)} size={wide ? 54 : 50} />
+                  {#if armedPin === kind}
+                    <span class="drop">Drop</span>
+                  {:else}
+                    <span class="plus"
+                      ><Plus size={12} strokeWidth={3.5} /></span
+                    >
+                  {/if}
                 </button>
+                {#if armedPin === kind && changeShown}
+                  <button
+                    type="button"
+                    class="change"
+                    aria-label="Change which pin this button drops"
+                    transition:fade={{ duration: 160 }}
+                    on:click={() => startPinning(kind)}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                {/if}
               </div>
             {/each}
           </div>
@@ -2383,8 +2401,7 @@
       <div in:rise>
         <ShapeCard
           edit={boundaryEdit}
-          colour={shapeColour}
-          on:removeCorner={() => engine?.removeEditCorner()}
+          on:colour={(e) => engine?.setShapeColour(e.detail)}
           on:undo={() => engine?.undoEdit()}
           on:cancel={() => engine?.cancelEdit()}
           on:save={async () => {
@@ -2817,24 +2834,22 @@
           Stop and save it from here
         </button>
       </div>
-    {:else if setPlay || (trailSet && !selectedTrail)}
-      <!-- ── Every trail through a paddock, together ── -->
-      {@const set = setPlay ?? trailSet}
-      {#if set}
-        <div in:rise>
-          <TrailSetCard
-            name={set.name}
-            trails={set.trails}
-            stats={throughStats ?? setStats}
-            playing={setPlay ? setPlay.index : null}
-            {replay}
-            on:close={() => (setPlay ? backToSet() : closeSet())}
-            on:pick={(e) => openFromSet(e.detail)}
-            on:play={playSet}
-            on:stop={backToSet}
-          />
-        </div>
-      {/if}
+    {:else if trailSet && !selectedTrail}
+      <!-- ── A set of trails, together ── -->
+      <div in:rise>
+        <TrailSetCard
+          where={trailSet.where}
+          trails={trailSet.trails}
+          stats={trailSet.paddockId ? (throughStats ?? setStats) : jobStats}
+          replay={setReplay}
+          on:close={closeSet}
+          on:pick={(e) => openFromSet(e.detail)}
+          on:play={() => trailSet && engine?.playSet(trailSet.trails)}
+          on:pause={() => engine?.pauseSet()}
+          on:seek={(e) => engine?.seekSet(e.detail)}
+          on:rate={nextSetRate}
+        />
+      </div>
     {:else if selectedTrail}
       <!-- ── A trail, picked out: what it was, and a replay of it ── -->
       <div in:rise>
@@ -2871,6 +2886,7 @@
           on:follow={(e) =>
             selectedTrail && followTrail(selectedTrail, e.detail)}
           on:remove={deleteTrail}
+          on:all={allFromTrail}
         />
       </div>
     {:else if placing}
@@ -3224,12 +3240,7 @@
           on:preview={(e) =>
             selectedPin && engine?.previewPin(selectedPin.id, e.detail)}
           on:commit={() => engine?.commitPreview()}
-          on:editDrawing={(e) => {
-            shapeColour =
-              pinDrawings.find((drawing) => drawing.id === e.detail)?.colour ??
-              null
-            engine?.editDrawing(e.detail)
-          }}
+          on:editDrawing={(e) => engine?.editDrawing(e.detail)}
           {guest}
           choices={pinChoices}
           {choiceLook}
@@ -3404,6 +3415,9 @@
                 offerBoundaryUndo(paddock.id, paddock.name),
               )
           }}
+          on:editFeature={(e) =>
+            selectedPaddock &&
+            engine?.editFeature(selectedPaddock.id, e.detail)}
           on:removeFeature={async (e) => {
             if (
               selectedPaddock &&
@@ -3416,6 +3430,7 @@
             const scope = {
               ids: paddockTrails.map((trail) => trail.id),
               name: selectedPaddock?.name ?? "the paddock",
+              paddockId: selectedPaddock?.id ?? null,
             }
             if (pickTrail(e.detail)) trailScope = scope
           }}
@@ -3431,6 +3446,15 @@
         />
       </div>
     {/if}
+
+    {#each floaters as floater (floater.id)}
+      <span
+        class="mn-floater"
+        class:gone={floater.gone}
+        style="left: {floater.x}px; top: {floater.y}px"
+        aria-hidden="true">{floater.text}</span
+      >
+    {/each}
 
     {#if snack && !pinning}
       <div class="mn-snack" role="status" in:rise>
@@ -3529,6 +3553,11 @@
           say("Tap the pin button to drop it here, or hold the map")
         }}
         quickPinKinds={quickKinds}
+        on:quickDefault={(e) =>
+          setQuick([
+            e.detail,
+            ...quickKinds.filter((kind) => kind !== e.detail),
+          ])}
         on:quickPin={(e) =>
           setQuick(
             e.detail.on

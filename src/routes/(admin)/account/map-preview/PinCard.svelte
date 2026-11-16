@@ -225,8 +225,21 @@
     trying = { iconClass: kindNow, colour: colourNow, ...change }
     dispatch("preview", trying)
   }
+  $: changedLook =
+    !!trying &&
+    (trying.iconClass !== pin.iconClass ||
+      trying.colour !== (pin.colour || "default"))
   function doneTrying() {
     if (trying) dispatch("commit")
+    trying = null
+    view = "main"
+  }
+  // Back to how the pin was, nothing saved.
+  function cancelTrying() {
+    dispatch("preview", {
+      iconClass: pin.iconClass,
+      colour: pin.colour || "default",
+    })
     trying = null
     view = "main"
   }
@@ -279,6 +292,8 @@
   let top = -9999
   let up = false
   let shown = false
+  /** It has been on screen, in place, for a couple of frames. */
+  let ready = false
   let smooth = false
   let smoothTimer: ReturnType<typeof setTimeout>
   let frame = 0
@@ -340,9 +355,9 @@
   }
 
   function positionSmooth() {
-    // (Only once it has a place: gliding to its first one would bring it
-    // in from the corner of the screen.)
-    smooth = !moving && shown
+    // (Only once it has been drawn where it belongs: gliding to its first
+    // place would bring it flying in from the corner of the screen.)
+    smooth = !moving && ready
     position()
     clearTimeout(smoothTimer)
     smoothTimer = setTimeout(() => (smooth = false), 320)
@@ -400,6 +415,7 @@
     tick().then(() => {
       position()
       makeRoom()
+      requestAnimationFrame(() => requestAnimationFrame(() => (ready = true)))
     })
   })
   onDestroy(() => {
@@ -424,6 +440,7 @@
   class:smooth
   class:moving
   class:hidden={!shown}
+  class:unplaced={!ready}
   style="left: {left}px; top: {top}px"
   role="dialog"
   aria-label={pin.note || pinLabel(pin.iconClass)}
@@ -481,12 +498,12 @@
   {:else if view === "edit"}
     <!-- ── The marker itself: its colour, and what kind it is ── -->
     <div class="pp-sub">
-      <button type="button" class="back" on:click={doneTrying}>
-        {#if trying}
-          <Check size={15} strokeWidth={3} /> Done
-        {:else}
-          <ChevronLeft size={16} /> Back
-        {/if}
+      <button
+        type="button"
+        class="back"
+        on:click={() => (trying ? cancelTrying() : (view = "main"))}
+      >
+        <ChevronLeft size={16} /> Back
       </button>
       <span>Marker</span>
     </div>
@@ -549,6 +566,15 @@
         {/each}
       </div>
     </div>
+    {#if changedLook}
+      <!-- Something has been changed: one plain button to keep it. -->
+      <div class="pp-foot two">
+        <button type="button" on:click={cancelTrying}>Cancel</button>
+        <button type="button" class="go" on:click={doneTrying}>
+          <Check size={18} strokeWidth={3} /> Confirm
+        </button>
+      </div>
+    {/if}
   {:else if view === "add"}
     <!-- ── Adding to the pin: something drawn, or a photo ── -->
     <div class="pp-sub">
@@ -873,6 +899,10 @@
   .pp.hidden {
     opacity: 0;
     pointer-events: none;
+  }
+  /* Until it has been drawn in place it never glides anywhere. */
+  .pp.unplaced {
+    transition: none !important;
   }
   .pp.moving {
     box-shadow:
