@@ -2968,3 +2968,17 @@
   /* (Under the status chip and the Tools button on a phone.) */
   top: calc(var(--mn-top) + 52px);
 }
+
+/* ── Twelfth pass ───────────────────────────────────────────────────────── */
+/* An armed pin button wears the same ring and glow as a picked pin: tight
+   on its edge, steady, no pulsing. */
+.mn-quickpins .slot.armed .pin::before {
+  inset: 0;
+  border: 3px solid #fff;
+  box-shadow:
+    0 0 6px #fff,
+    0 0 12px #f8fafc;
+}
+.mn-quickpins .slot.armed .pin::after {
+  display: none;
+}

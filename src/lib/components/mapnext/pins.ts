@@ -28,6 +28,8 @@ type Glyph = { viewBox: string; content: string; tint: "fill" | "keep" }
 type GlyphSet = Record<string, Glyph>
 
 const INK = "#15261C"
+// The art on a pin is pure black, as the current viewer draws it.
+const ART = "#000000"
 
 let glyphsPromise: Promise<GlyphSet> | null = null
 let glyphs: GlyphSet | null = null
@@ -102,17 +104,17 @@ export const PIN_DEFAULT = "#7dd3fc"
  * "white" is the plain white disc.
  */
 function disc(key: string) {
-  if (!key) return { defs: "", fill: PIN_DEFAULT, art: INK, ring: INK }
-  if (key === "white") return { defs: "", fill: "#fff", art: INK, ring: INK }
+  if (!key) return { defs: "", fill: PIN_DEFAULT, art: ART, ring: INK }
+  if (key === "white") return { defs: "", fill: "#f1f5f9", art: ART, ring: INK }
   if (key === "rainbow")
-    return { defs: RAINBOW, fill: "url(#rb)", art: INK, ring: INK }
+    return { defs: RAINBOW, fill: "url(#rb)", art: ART, ring: INK }
   const fill = key === "black" ? INK : markerColor(key, "circle-fill").dark
   // The picture is ink on every colour, so a kind of pin reads the same
   // whatever colour it is given; only on a black disc does it turn white.
   return {
     defs: "",
     fill,
-    art: key === "black" ? "#fff" : INK,
+    art: key === "black" ? "#fff" : ART,
     ring: key === "black" ? "#fff" : INK,
   }
 }
@@ -132,9 +134,9 @@ export function pinSvg(key: string, size = 96): string {
       glyph.tint === "fill"
         ? `<g fill="${look.art}" color="${look.art}">${glyph.content}</g>`
         : glyph.content
-    art = `<svg x="-9.5" y="-9.5" width="19" height="19" viewBox="${glyph.viewBox}">${inner}</svg>`
+    art = `<svg x="-11.28" y="-11.28" width="22.56" height="22.56" viewBox="${glyph.viewBox}">${inner}</svg>`
   } else {
-    art = `<svg x="-8.5" y="-8.5" width="17" height="17" viewBox="0 0 24 24">${defaultPin(look.art)}</svg>`
+    art = `<svg x="-10" y="-10" width="20" height="20" viewBox="0 0 24 24">${defaultPin(look.art)}</svg>`
   }
 
   // Grain bins carry a gauge round the rim: how full they are.
@@ -154,12 +156,13 @@ export function pinSvg(key: string, size = 96): string {
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${size}" height="${size}" viewBox="-16 -16 32 32">` +
     (look.defs ? `<defs>${look.defs}</defs>` : "") +
-    `<circle cy="1" r="14.4" fill="${INK}" opacity="0.22"/>` +
-    // Colour right to the edge, no ring (a bin keeps its rim: the gauge
+    // The current viewer's pin exactly: a disc of flat colour that all but
+    // fills the image (49.5 of 52.5), no ring and no shadow under it, with
+    // the picture fitted to 74 of its 105 (a bin keeps its rim: the gauge
     // runs round it; a white pin gets a hair of an edge so it has one).
     (bin
       ? `<circle r="13.6" fill="${look.fill}" stroke="#C9C4B0" stroke-width="3.6"/>`
-      : `<circle r="14.7" fill="${look.fill}"${
+      : `<circle r="15.09" fill="${look.fill}"${
           colour === "white"
             ? ` stroke="rgba(21,38,28,0.3)" stroke-width="0.7"`
             : ""

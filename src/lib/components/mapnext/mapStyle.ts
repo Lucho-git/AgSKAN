@@ -205,7 +205,8 @@ export function showArrowsTo(map: MapboxMap, metres: number | null) {
  * drawn at three times its size on screen and only ever scaled down a
  * little, which is what keeps it sharp.
  */
-const PIN_SCALE = 0.78
+// (36.75px on screen: the current viewer's 105 at icon-size 0.35.)
+const PIN_SCALE = 36.75 / 48
 
 /** How many pixels across a pin is drawn (its image is 48px at scale 1). */
 export const pinPixels = () => 48 * PIN_SCALE

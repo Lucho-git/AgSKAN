@@ -1,8 +1,9 @@
 <script lang="ts">
   /**
    * The pin someone has tapped, shown the way the current viewer shows it:
-   * a copy of the pin springs up to 1.3 times its size inside a thin bright
-   * ring, and eases back down when it is let go. Mounted in a Mapbox marker
+   * a copy of the pin springs up to 1.3 times its size (overshooting to 1.4
+   * on the way) with a tight white ring on its edge and a soft white glow,
+   * and eases back down when it is let go. Mounted in a Mapbox marker
    * over the pin's place (the pin in the layer itself is hidden meanwhile);
    * taps pass through to the map.
    */
@@ -22,7 +23,6 @@
 </script>
 
 <div class="mn-picked" class:leaving style="--big: {big}px" aria-hidden="true">
-  <span class="halo"></span>
   <img {src} alt="" width={big} height={big} />
   <span class="ring"></span>
 </div>
@@ -45,32 +45,19 @@
     width: 100%;
     height: 100%;
   }
-  /* A clean white edge round the pin, as the current viewer has it… */
+  /* The current viewer's selection, measure for measure: a tight white ring
+     that sits ON the pin's edge (no gap between them), with a soft white
+     glow in two layers round it. Its numbers there are a 2.5px ring and
+     5px / 10px of glow on a pin that is then scaled by 1.3; this is laid
+     out at the popped size, so they are those times 1.3. */
   .ring {
     position: absolute;
-    inset: -1px;
-    border: 3px solid #fff;
+    inset: 0;
+    border: 3.25px solid #fff;
     border-radius: 50%;
-    box-shadow: 0 1px 6px rgba(10, 25, 15, 0.45);
-  }
-  /* …and a soft white halo that swells out of it and fades, over and over. */
-  .halo {
-    position: absolute;
-    inset: -1px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.55);
-    animation: mn-pick-halo 2.2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
-  }
-  @keyframes mn-pick-halo {
-    0% {
-      opacity: 0.75;
-      transform: scale(1);
-    }
-    70%,
-    100% {
-      opacity: 0;
-      transform: scale(1.75);
-    }
+    box-shadow:
+      0 0 6.5px #fff,
+      0 0 13px #f8fafc;
   }
   /* From the size it has in the layer, past its resting size, and back. */
   @keyframes mn-pick-pop {
@@ -91,8 +78,7 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .mn-picked,
-    .mn-picked.leaving,
-    .halo {
+    .mn-picked.leaving {
       animation: none;
     }
   }
