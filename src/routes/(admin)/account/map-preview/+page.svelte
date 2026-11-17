@@ -261,8 +261,10 @@
   let pinPick: string | null = null
   /** My trail is paused: driving shows dotted and isn't coverage. */
   let trailPaused = false
-  /** The grain bin whose card is open (its pin's id). */
+  /** The grain bin whose card is open without its pin picked (its id). */
   let binOpen: string | null = null
+  /** A bin opened as an ordinary pin, for its note, photos and moving. */
+  let plainPin: string | null = null
   let pinning = false
   let wide = false
   let online = true
@@ -1544,7 +1546,16 @@
   }
 
   // ── Grain bins ──
-  $: binPin = binOpen ? (pins.find((pin) => pin.id === binOpen) ?? null) : null
+  // A bin has one menu, its own: from its button on the map, or by
+  // picking the bin itself (unless it has been opened as an ordinary pin).
+  $: binPin = binOpen
+    ? (pins.find((pin) => pin.id === binOpen) ?? null)
+    : selectedPin &&
+        isGrainBinIcon(selectedPin.iconClass) &&
+        plainPin !== selectedPin.id
+      ? selectedPin
+      : null
+  $: if (plainPin && selectedPin?.id !== plainPin) plainPin = null
   // Picking anything else on the map puts the bin's card away.
   $: if (binOpen && (selectedPin || selectedCrew || selectedPaddock))
     binOpen = null
@@ -2229,18 +2240,6 @@
           <span class="dot"></span>{status.text}
         </button>
       </div>
-      {#if trailOn}
-        <button
-          type="button"
-          class="mn-chip trail"
-          class:paused={trailPaused}
-          on:click={() => (stopAsk = true)}
-        >
-          <span class="dot"></span>{trailPaused ? "Paused" : "Trail"} · {formatHa(
-            readout.ha,
-          )} ha
-        </button>
-      {/if}
       {#if broadcast}
         <button
           type="button"
@@ -2522,8 +2521,9 @@
               {/if}
             </button>
             {#if trailOn}
+              <!-- (The one place a running trail says how it is going.) -->
               <span class="mn-trailpill" class:paused={trailPaused}>
-                {trailPaused ? "Paused" : "Trailing"}
+                {trailPaused ? "Paused" : `${formatHa(readout.ha)} ha`}
               </span>
             {/if}
           </div>
@@ -3432,7 +3432,10 @@
             look={engine.pinLook(binPin)}
             {guest}
             known={grainsKnown}
-            on:close={() => (binOpen = null)}
+            on:close={() => {
+              binOpen = null
+              engine?.selectedPin.set(null)
+            }}
             on:find={() =>
               binPin &&
               engine?.showPlace({
@@ -3440,6 +3443,16 @@
                 refType: "marker",
                 refId: binPin.id,
               })}
+            on:pin={() => {
+              if (!binPin) return
+              plainPin = binPin.id
+              if (selectedPin?.id !== binPin.id)
+                engine?.showPlace({
+                  at: [0, 0],
+                  refType: "marker",
+                  refId: binPin.id,
+                })
+            }}
             on:change={(e) => binPin && engine?.updatePin(binPin.id, e.detail)}
           />
         </div>
@@ -3454,7 +3467,7 @@
           on:preview={(e) =>
             selectedPin && engine?.previewPin(selectedPin.id, e.detail)}
           on:commit={() => engine?.commitPreview()}
-          on:bin={() => selectedPin && openBin(selectedPin.id)}
+          on:bin={() => (plainPin = null)}
           on:editDrawing={(e) => engine?.editDrawing(e.detail)}
           {guest}
           choices={pinChoices}

@@ -406,12 +406,7 @@ export function breathe(map: MapboxMap, level: number) {
   map.setPaintProperty(
     "mv-paddock-picked-glow",
     "line-opacity",
-    0.15 + 0.5 * level,
-  )
-  map.setPaintProperty(
-    "mv-paddock-picked-fill",
-    "fill-opacity",
-    0.16 + 0.12 * level,
+    0.2 + 0.4 * level,
   )
   map.setPaintProperty(
     "mv-picked-trail-glow",
@@ -808,7 +803,10 @@ export function buildStyle() {
         type: "fill",
         source: FARM_SOURCE,
         filter: ["==", ["get", "id"], ""],
-        paint: { "fill-color": "#F7DB5C", "fill-opacity": 0.22 },
+        // (Kept for the layer order, but clear: a picked paddock is marked
+        // by its border alone, so nothing tints the ground when one is
+        // tapped.)
+        paint: { "fill-color": "#ffffff", "fill-opacity": 0 },
       },
       // What people have drawn and attached to pins: over the paddocks,
       // under the trails. An area is filled in its colour; outlines and lines
@@ -1063,8 +1061,8 @@ export function buildStyle() {
         filter: ["==", ["get", "id"], ""],
         layout: { "line-join": "round" },
         paint: {
-          "line-color": "#F7DB5C",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 8, 16, 18],
+          "line-color": "#ffffff",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 8, 16, 16],
           "line-blur": 8,
           "line-opacity": 0.4,
         },
@@ -1088,8 +1086,8 @@ export function buildStyle() {
         filter: ["==", ["get", "id"], ""],
         layout: { "line-join": "round" },
         paint: {
-          "line-color": "#F7DB5C",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.8, 16, 3.6],
+          "line-color": "#ffffff",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 11, 2.2, 16, 4],
         },
       },
       // What has been kept on a paddock: an area or a line with a name,

@@ -3419,3 +3419,59 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ── Sixteenth pass ─────────────────────────────────────────────────────── */
+/* The buttons on the map in AgSKAN's own colours: yellow with a black edge
+   and black on it. One that is switched on turns the other way round,
+   black with yellow on it. (A running trail's button stays red: it is the
+   one that stops something.) */
+.mn-tools-button,
+.mn-crew-button,
+.mn-follow,
+.mn-trail-button,
+.mn-pause {
+  border: 2px solid #15261c;
+  background: #f7db5c;
+  color: #15261c;
+  box-shadow: 0 8px 20px -10px rgba(10, 25, 15, 0.85);
+}
+.mn-tools-button .dots i {
+  border-color: #f7db5c;
+}
+.mn-crew-button b {
+  border-color: #15261c;
+}
+.mn-follow.follow,
+.mn-follow.cab {
+  border-color: #15261c;
+  background: #15261c;
+  color: #f7db5c;
+}
+.mn-trail-button .rec {
+  background: #15261c;
+}
+.mn-trail-button.on {
+  background: #d95d39;
+  color: #fff;
+  box-shadow: 0 8px 20px -10px rgba(120, 40, 15, 0.9);
+}
+.mn-pause.paused {
+  background: #15261c;
+  color: #f7db5c;
+  box-shadow: 0 8px 20px -10px rgba(10, 25, 15, 0.85);
+  animation: mn-pause-pulse-y 2s ease-in-out infinite;
+}
+@keyframes mn-pause-pulse-y {
+  50% {
+    box-shadow: 0 0 0 9px rgba(247, 219, 92, 0.38);
+  }
+}
+.mn-trailpill.paused {
+  background: #15261c;
+  color: #f7db5c;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-pause.paused {
+    animation: none;
+  }
+}

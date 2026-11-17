@@ -660,26 +660,12 @@
           </div>
         {/if}
         {#if bin}
-          <label class="mn-slider">
-            <span class="pp-title">How full · {Math.round(pin.fill)}%</span>
-            <input
-              class="mn-scrub"
-              type="range"
-              min="0"
-              max="100"
-              step="5"
-              value={pin.fill}
-              style="--done: {pin.fill}%"
-              on:change={(e) =>
-                dispatch("change", { fill: Number(e.currentTarget.value) })}
-            />
-          </label>
           <button
             type="button"
             class="pp-binset"
             on:click={() => dispatch("bin")}
           >
-            Tonnes and bin settings
+            Back to the bin: its level and settings
           </button>
         {/if}
       {/if}

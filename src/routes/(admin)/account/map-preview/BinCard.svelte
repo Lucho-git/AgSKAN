@@ -1,14 +1,18 @@
 <script lang="ts">
   /**
-   * A grain bin (a field bin or a mother bin), opened from its button on the
-   * map, from its pin, or from the Pins tool. Two sides: how much is in it,
-   * changed in tonnes; and its settings, which are what it holds, the colour
-   * it is drawn in, how much it takes, and whether it has a button on the
-   * map. Everything is saved as it is changed.
+   * A grain bin (a field bin or a mother bin): the one menu a bin has,
+   * whether it is opened by tapping the bin, from its button on the map, or
+   * from the Pins tool. It is kept small, after the current viewer's bin
+   * panel: how much is in it, and one line to change that (add, take or set
+   * a number of tonnes). The cog swaps that line for the bin's settings:
+   * what goes in it and how much it takes, with suggestions that only show
+   * while a box is being typed in, and the rest folded under "More".
+   * Everything is saved as it is changed.
    */
   import { createEventDispatcher } from "svelte"
-  import { LocateFixed, Minus, Plus, X } from "lucide-svelte"
+  import { Check, LocateFixed, Settings, X } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
+  import Dropdown from "$lib/components/mapnext/Dropdown.svelte"
   import {
     grainBinDefaultCapacity,
     grainBinName,
@@ -30,9 +34,9 @@
     /** Go to it on the map. */
     find: void
     change: PinPatch
+    /** Open it as an ordinary pin: its note, photos, moving and removing. */
+    pin: void
   }>()
-
-  let tab: "level" | "settings" = "level"
 
   const GRAINS = ["Wheat", "Barley", "Canola", "Oats", "Lupins", "Peas"]
   const COLOURS = [
@@ -47,6 +51,11 @@
   ]
   const SIZES = [30, 60, 100, 150, 300]
   const MOST = 5000
+  const MODES = [
+    { value: "add", label: "Add" },
+    { value: "take", label: "Take" },
+    { value: "set", label: "Set to" },
+  ]
 
   const round = (t: number) => Math.round(t * 100) / 100
   /** "62", "7.5": whole tonnes once there are ten of them. */
@@ -59,52 +68,111 @@
       : grainBinDefaultCapacity(pin.iconClass)
   $: fill = Math.max(0, Math.min(100, pin.fill || 0))
   $: tonnes = round((capacity * fill) / 100)
-  $: free = round(capacity - tonnes)
   $: name = pin.note || grainBinName(pin.iconClass)
   $: tint = markerColor(siloColorKey(pin.grainColour), "circle-fill").dark
-  $: step = capacity <= 60 ? 0.5 : 1
   $: holding = pin.grainType.trim()
-  $: offers = [...new Set([...known, ...GRAINS])]
-    .filter((grain) => grain.toLowerCase() !== holding.toLowerCase())
-    .slice(0, 8)
 
-  // The box for what it holds follows the bin, and is saved when left.
-  let grain = pin.grainType
-  let grainOf = pin.id
-  let grainSaved = pin.grainType
-  $: if (pin.id !== grainOf || pin.grainType !== grainSaved) {
-    grainOf = pin.id
-    grainSaved = pin.grainType
-    grain = pin.grainType
+  // ── The level: add, take or set a number of tonnes ──
+  let settings = false
+  let mode = "add"
+  let amount: number | null = null
+  /** What happened, when it wasn't quite what was typed. */
+  let said = ""
+  function apply() {
+    const t = Number(amount)
+    if (amount === null || !Number.isFinite(t) || t < 0) return
+    if (t === 0 && mode !== "set") return
+    const want = mode === "add" ? tonnes + t : mode === "take" ? tonnes - t : t
+    const next = Math.max(0, Math.min(capacity, want))
+    said =
+      want > capacity
+        ? `It only takes ${show(capacity)} t, so it is full.`
+        : want < 0
+          ? `There were only ${show(tonnes)} t in it, so it is empty.`
+          : ""
+    if (next !== tonnes) dispatch("change", { fill: (next / capacity) * 100 })
+    amount = null
   }
+
+  // ── Settings ──
+  /** The box being typed in: its suggestions show only meanwhile. */
+  let typing: "grain" | "size" | null = null
+  let leaving: ReturnType<typeof setTimeout>
+  const enter = (box: "grain" | "size") => {
+    clearTimeout(leaving)
+    typing = box
+  }
+  // (A moment's grace, so a tap on a suggestion lands before they go.)
+  const leave = () => {
+    clearTimeout(leaving)
+    leaving = setTimeout(() => (typing = null), 160)
+  }
+  let more = false
+
+  // The boxes follow the bin, and are saved when left.
+  let grain = pin.grainType
+  let size: number | null = capacity
+  let shownFor = `${pin.id}|${pin.grainType}|${capacity}`
+  $: if (shownFor !== `${pin.id}|${pin.grainType}|${capacity}`) {
+    shownFor = `${pin.id}|${pin.grainType}|${capacity}`
+    grain = pin.grainType
+    size = capacity
+  }
+  $: offers = [...new Set([...known, ...GRAINS])]
+    .filter((offer) => offer.toLowerCase() !== grain.trim().toLowerCase())
+    .slice(0, 6)
   function saveGrain(value = grain) {
     const next = value.trim().slice(0, 40)
     grain = next
     if (next !== pin.grainType) dispatch("change", { grainType: next })
   }
-
-  function setTonnes(next: number) {
-    const t = Math.max(0, Math.min(capacity, next))
-    if (t !== tonnes) dispatch("change", { fill: (t / capacity) * 100 })
-  }
   // A new size keeps the tonnes that are in it (as far as they fit).
-  function setCapacity(next: number) {
-    const size = Math.max(1, Math.min(MOST, Math.round(next)))
-    if (size === capacity) return
+  function saveSize(value: number | null = size) {
+    const wanted = Math.round(Number(value))
+    if (!Number.isFinite(wanted) || wanted < 1) {
+      size = capacity
+      return
+    }
+    const next = Math.min(MOST, wanted)
+    size = next
+    if (next === capacity) return
     dispatch("change", {
-      capacity: size,
-      fill: Math.min(100, (tonnes / size) * 100),
+      capacity: next,
+      fill: Math.min(100, (tonnes / next) * 100),
     })
   }
 </script>
 
 <div class="mn-card mn-menu mn-bin" style="--c: {tint}">
   <div class="head">
-    <span class="art"><PinArt {look} size={46} /></span>
+    <span class="art"><PinArt {look} size={44} /></span>
     <div class="about">
       <h2>{name}</h2>
-      <p>{holding || "Nothing said to be in it"} · holds {show(capacity)} t</p>
+      <p>
+        {holding || "Nothing said to be in it"} ·
+        <b>{show(tonnes)}</b> of {show(capacity)} t
+      </p>
     </div>
+    {#if !guest}
+      <button
+        type="button"
+        class="mn-icon-button"
+        class:on={settings}
+        aria-label="Bin settings"
+        aria-pressed={settings}
+        on:click={() => (settings = !settings)}
+      >
+        <Settings size={20} />
+      </button>
+    {/if}
+    <button
+      type="button"
+      class="mn-icon-button"
+      aria-label="Find it on the map"
+      on:click={() => dispatch("find")}
+    >
+      <LocateFixed size={20} />
+    </button>
     <button
       type="button"
       class="mn-icon-button"
@@ -115,132 +183,118 @@
     </button>
   </div>
 
-  {#if !guest}
-    <div class="mn-tabs" role="tablist" aria-label="Level and settings">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={tab === "level"}
-        on:click={() => (tab = "level")}
-      >
-        Level
-      </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={tab === "settings"}
-        on:click={() => (tab = "settings")}
-      >
-        Settings
-      </button>
-    </div>
-  {/if}
+  <div class="bar" aria-label="{Math.round(fill)}% full">
+    <i style="width: {fill}%"></i>
+    <span>{Math.round(fill)}%</span>
+  </div>
 
-  {#if tab === "level" || guest}
-    <!-- ── How much is in it ── -->
-    <div class="gauge">
-      <p>
-        <b>{show(tonnes)} t</b>
-        <span>{Math.round(fill)}% full · room for {show(free)} t</span>
-      </p>
-      <div class="bar" aria-hidden="true"><i style="width: {fill}%"></i></div>
-    </div>
-    {#if !guest}
-      <input
-        class="mn-scrub"
-        type="range"
-        min="0"
-        max={capacity}
-        {step}
-        value={tonnes}
-        aria-label="Tonnes in the bin"
-        style="--done: {fill}%"
-        on:change={(e) => setTonnes(Number(e.currentTarget.value))}
-      />
-      <div class="steps" role="group" aria-label="Add or take grain">
-        <button
-          type="button"
-          disabled={tonnes <= 0}
-          on:click={() => setTonnes(tonnes - 10)}
-        >
-          <Minus size={14} strokeWidth={3} />10 t
-        </button>
-        <button
-          type="button"
-          disabled={tonnes <= 0}
-          on:click={() => setTonnes(tonnes - 1)}
-        >
-          <Minus size={14} strokeWidth={3} />1 t
-        </button>
-        <button
-          type="button"
-          disabled={free <= 0}
-          on:click={() => setTonnes(tonnes + 1)}
-        >
-          <Plus size={14} strokeWidth={3} />1 t
-        </button>
-        <button
-          type="button"
-          disabled={free <= 0}
-          on:click={() => setTonnes(tonnes + 10)}
-        >
-          <Plus size={14} strokeWidth={3} />10 t
-        </button>
+  {#if !guest && !settings}
+    <!-- ── Add, take or set tonnes ── -->
+    <form class="move" on:submit|preventDefault={apply}>
+      <div class="how">
+        <Dropdown
+          look="row"
+          value={mode}
+          options={MODES}
+          on:change={(e) => (mode = e.detail)}
+        />
       </div>
-    {/if}
-    <div class="mn-menu-actions">
-      {#if !guest}
-        <button
-          type="button"
-          disabled={tonnes <= 0}
-          on:click={() => setTonnes(0)}
-        >
-          Empty
-        </button>
-        <button
-          type="button"
-          disabled={free <= 0}
-          on:click={() => setTonnes(capacity)}
-        >
-          Full
-        </button>
-      {/if}
-      <button type="button" on:click={() => dispatch("find")}>
-        <LocateFixed size={17} /> Find it
+      <label class="amount">
+        <input
+          type="number"
+          inputmode="decimal"
+          min="0"
+          step="any"
+          bind:value={amount}
+          placeholder="0"
+          aria-label="Tonnes"
+          on:input={() => (said = "")}
+        />
+        <span>t</span>
+      </label>
+      <button
+        type="submit"
+        class="lp-btn lp-btn-primary"
+        aria-label="Do it"
+        disabled={amount === null}
+      >
+        <Check size={20} strokeWidth={3} />
       </button>
-    </div>
-  {:else}
-    <!-- ── What it holds, how much it takes, its button ── -->
-    <div class="set">
-      <p class="lp-eyebrow">What goes in it</p>
+    </form>
+    {#if said}<p class="mn-note">{said}</p>{/if}
+  {:else if !guest}
+    <!-- ── Settings: what goes in it, how much it takes ── -->
+    <label class="box">
+      <span>What goes in it</span>
       <input
         type="text"
         bind:value={grain}
         placeholder="Wheat, barley, canola…"
-        aria-label="What the bin holds"
         maxlength="40"
         autocomplete="off"
-        on:blur={() => saveGrain()}
+        on:focus={() => enter("grain")}
+        on:blur={() => {
+          saveGrain()
+          leave()
+        }}
         on:keydown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       />
-      <div class="mn-chips" role="group" aria-label="Common grains">
+    </label>
+    {#if typing === "grain" && offers.length}
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="mn-chips" on:mousedown|preventDefault>
         {#each offers as offer}
           <button type="button" on:click={() => saveGrain(offer)}>
             {offer}
           </button>
         {/each}
       </div>
-    </div>
-
-    <div class="set">
-      <p class="lp-eyebrow">Its colour on the map</p>
+    {/if}
+    <label class="box">
+      <span>Holds, in tonnes</span>
+      <input
+        type="number"
+        inputmode="numeric"
+        min="1"
+        max={MOST}
+        step="1"
+        bind:value={size}
+        on:focus={() => enter("size")}
+        on:blur={() => {
+          saveSize()
+          leave()
+        }}
+        on:keydown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      />
+    </label>
+    {#if typing === "size"}
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="mn-chips" on:mousedown|preventDefault>
+        {#each SIZES as option}
+          <button
+            type="button"
+            aria-pressed={capacity === option}
+            on:click={() => saveSize(option)}>{option} t</button
+          >
+        {/each}
+      </div>
+    {/if}
+    <button
+      type="button"
+      class="mn-text-button"
+      aria-expanded={more}
+      on:click={() => (more = !more)}
+    >
+      {more ? "Less" : "More: colour, map button, pin"}
+    </button>
+    {#if more}
       <div class="mn-swatches" style="--across: {COLOURS.length}" role="group">
         {#each COLOURS as key}
           <button
             type="button"
             class:selected={siloColorKey(pin.grainColour) === key}
             style="--swatch: {markerColor(key, 'circle-fill').dark}"
-            aria-label={key}
+            aria-label="Colour: {key}"
             aria-pressed={siloColorKey(pin.grainColour) === key}
             on:click={() =>
               siloColorKey(pin.grainColour) !== key &&
@@ -248,89 +302,58 @@
           ></button>
         {/each}
       </div>
-    </div>
-
-    <div class="set">
-      <div class="mn-width">
-        <span class="lp-eyebrow">How much it takes</span>
-        <span class="stepper">
-          <button
-            type="button"
-            aria-label="Smaller"
-            disabled={capacity <= 1}
-            on:click={() => setCapacity(capacity - (capacity > 100 ? 10 : 5))}
-            ><Minus size={20} /></button
-          >
-          <b>{show(capacity)}<small>t</small></b>
-          <button
-            type="button"
-            aria-label="Bigger"
-            disabled={capacity >= MOST}
-            on:click={() => setCapacity(capacity + (capacity >= 100 ? 10 : 5))}
-            ><Plus size={20} /></button
-          >
-        </span>
-      </div>
-      <div class="mn-chips" role="group" aria-label="Common sizes">
-        {#each SIZES as size}
-          <button
-            type="button"
-            aria-pressed={capacity === size}
-            on:click={() => setCapacity(size)}>{size} t</button
-          >
-        {/each}
-      </div>
-    </div>
-
-    <button
-      type="button"
-      class="mn-switch"
-      role="switch"
-      aria-checked={pin.binButton}
-      on:click={() => dispatch("change", { binButton: !pin.binButton })}
-    >
-      <span>A button for it on the map</span>
-      <i></i>
-    </button>
+      <button
+        type="button"
+        class="mn-switch"
+        role="switch"
+        aria-checked={pin.binButton}
+        on:click={() => dispatch("change", { binButton: !pin.binButton })}
+      >
+        <span>A button for it on the map</span>
+        <i></i>
+      </button>
+      <button
+        type="button"
+        class="lp-btn lp-btn-ghost"
+        on:click={() => dispatch("pin")}
+      >
+        Its note, photos, moving or removing it
+      </button>
+    {/if}
   {/if}
 </div>
 
 <style>
   .mn-bin {
     display: grid;
-    gap: 10px;
+    gap: 9px;
   }
-  .mn-bin .head .art {
-    background: none;
-  }
-  .mn-bin .mn-tabs {
-    justify-self: start;
-  }
-  .gauge {
-    display: grid;
+  .mn-bin .head {
     gap: 6px;
   }
-  .gauge p {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
+  .mn-bin .head .art {
+    width: 46px;
+    height: 46px;
+    margin-right: 4px;
+    background: none;
   }
-  .gauge b {
-    font-family: var(--lp-display);
-    font-size: 1.9rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    line-height: 1;
-    font-variant-numeric: tabular-nums;
+  .mn-bin .about b {
+    color: var(--lp-ink);
   }
-  .gauge span {
-    font-size: 0.82rem;
-    color: var(--lp-ink-soft);
-    text-align: right;
+  .mn-bin .head .mn-icon-button {
+    width: 38px;
+    height: 38px;
+    color: var(--lp-ink);
   }
+  .mn-bin .head .mn-icon-button.on {
+    border-radius: 12px;
+    background: var(--lp-ink);
+    color: var(--lp-paper);
+  }
+  /* The level, as a bar in the grain's colour. */
   .bar {
-    height: 14px;
+    position: relative;
+    height: 22px;
     overflow: hidden;
     border: 1.5px solid var(--lp-ink);
     border-radius: 99px;
@@ -342,47 +365,94 @@
     background: var(--c);
     transition: width 0.25s ease;
   }
-  .steps {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
-  }
-  .steps button {
-    display: inline-flex;
+  .bar span {
+    position: absolute;
+    inset: 0;
+    display: flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    min-height: 42px;
-    border: 1.5px solid var(--lp-line);
-    border-radius: 13px;
-    background: var(--lp-paper);
     font-family: var(--lp-mono);
-    font-size: 0.82rem;
+    font-size: 0.72rem;
     font-weight: 700;
     color: var(--lp-ink);
   }
-  .steps button:hover:not(:disabled) {
-    border-color: var(--lp-ink);
-  }
-  .steps button:disabled,
-  .mn-menu-actions button:disabled {
-    opacity: 0.4;
-  }
-  .set {
-    display: grid;
+  /* One line: what to do, how many tonnes, do it. */
+  .move {
+    display: flex;
+    align-items: stretch;
     gap: 6px;
   }
-  .set input[type="text"] {
-    min-height: 2.8rem;
-    padding: 0 14px;
+  .how {
+    flex: 0 0 7.2rem;
+    min-width: 0;
+  }
+  .amount {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    min-width: 0;
+    padding-right: 12px;
     border: 1.5px solid var(--lp-line);
     border-radius: 13px;
     background: var(--lp-paper);
-    font-size: 1rem;
-    color: var(--lp-ink);
   }
-  .set input[type="text"]:focus {
+  .amount:focus-within,
+  .box:focus-within {
     border-color: var(--lp-ink);
+  }
+  .amount input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.9rem;
+    padding: 0 6px 0 14px;
+    background: none;
+    font-family: var(--lp-display);
+    font-size: 1.25rem;
+    font-weight: 800;
+    color: var(--lp-ink);
     outline: none;
+  }
+  .amount span {
+    font-family: var(--lp-mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--lp-ink-soft);
+  }
+  .move .lp-btn {
+    min-width: 3.2rem;
+    min-height: 2.9rem;
+    padding-inline: 0;
+  }
+  /* A settings box: its name on the left, what was typed on the right. */
+  .box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 12px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 13px;
+    background: var(--lp-paper);
+  }
+  .box span {
+    flex-shrink: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--lp-ink-soft);
+  }
+  .box input {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    min-height: 2.6rem;
+    background: none;
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+    text-align: right;
+    outline: none;
+  }
+  .mn-bin .mn-text-button {
+    justify-self: start;
   }
 </style>
