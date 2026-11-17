@@ -264,10 +264,8 @@
   let pinPick: string | null = null
   /** My trail is paused: driving shows dotted and isn't coverage. */
   let trailPaused = false
-  /** The grain bin whose card is open without its pin picked (its id). */
+  /** The grain bin opened from its button on the map (its pin's id). */
   let binOpen: string | null = null
-  /** A bin opened as an ordinary pin, for its note, photos and moving. */
-  let plainPin: string | null = null
   let pinning = false
   let wide = false
   let online = true
@@ -1551,16 +1549,9 @@
   }
 
   // ── Grain bins ──
-  // A bin has one menu, its own: from its button on the map, or by
-  // picking the bin itself (unless it has been opened as an ordinary pin).
-  $: binPin = binOpen
-    ? (pins.find((pin) => pin.id === binOpen) ?? null)
-    : selectedPin &&
-        isGrainBinIcon(selectedPin.iconClass) &&
-        plainPin !== selectedPin.id
-      ? selectedPin
-      : null
-  $: if (plainPin && selectedPin?.id !== plainPin) plainPin = null
+  // A bin's menu opens beside the bin when the bin is tapped. From its
+  // button on the map it opens as a card, without going to the bin.
+  $: binPin = binOpen ? (pins.find((pin) => pin.id === binOpen) ?? null) : null
   // Picking anything else on the map puts the bin's card away.
   $: if (binOpen && (selectedPin || selectedCrew || selectedPaddock))
     binOpen = null
@@ -3436,11 +3427,8 @@
             pin={binPin}
             look={engine.pinLook(binPin)}
             {guest}
-            known={grainsKnown}
-            on:close={() => {
-              binOpen = null
-              engine?.selectedPin.set(null)
-            }}
+            grains={grainsKnown}
+            on:close={() => (binOpen = null)}
             on:find={() =>
               binPin &&
               engine?.showPlace({
@@ -3448,15 +3436,10 @@
                 refType: "marker",
                 refId: binPin.id,
               })}
-            on:pin={() => {
-              if (!binPin) return
-              plainPin = binPin.id
-              if (selectedPin?.id !== binPin.id)
-                engine?.showPlace({
-                  at: [0, 0],
-                  refType: "marker",
-                  refId: binPin.id,
-                })
+            on:remove={async () => {
+              const id = binPin?.id
+              binOpen = null
+              if (id && (await engine?.removePin(id))) say("Bin removed")
             }}
             on:change={(e) => binPin && engine?.updatePin(binPin.id, e.detail)}
           />
@@ -3472,7 +3455,7 @@
           on:preview={(e) =>
             selectedPin && engine?.previewPin(selectedPin.id, e.detail)}
           on:commit={() => engine?.commitPreview()}
-          on:bin={() => (plainPin = null)}
+          grains={grainsKnown}
           on:editDrawing={(e) => engine?.editDrawing(e.detail)}
           {guest}
           choices={pinChoices}

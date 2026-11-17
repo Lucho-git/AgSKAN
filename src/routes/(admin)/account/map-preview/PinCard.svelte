@@ -43,9 +43,11 @@
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import {
+    grainBinName,
     isGrainBinIcon,
     markerColor,
   } from "$lib/components/map/markers/markerPalette"
+  import BinBody from "./BinBody.svelte"
   import {
     PIN_DEFAULT,
     pinLabel,
@@ -73,6 +75,8 @@
   export let who: { name: string; type: string; colour: string } | null = null
   export let guest = false
   export let choices: PinChoice[] = []
+  /** What the farm's bins store, for a bin's Storing box. */
+  export let grains: string[] = []
   export let choiceLook: (iconClass: string) => PinLook
   /** Being dragged to a new place on the map. */
   export let moving = false
@@ -112,8 +116,6 @@
     removePhoto: PinPhoto
     /** The map needs to sit here for the menu to have room beside the pin. */
     room: LngLat
-    /** Open the bin's own card: its level in tonnes, and its settings. */
-    bin: void
   }>()
 
   // The colours the current viewer's pin menu offers. "default" is no colour
@@ -451,9 +453,15 @@
   <div class="pp-head" on:click={headTap}>
     <PinArt look={trying ? { ...look, ...trying } : look} size={38} />
     <div class="about">
-      <h2>{pinLabel(kindNow)}</h2>
+      <h2>
+        {bin ? pin.note || grainBinName(pin.iconClass) : pinLabel(kindNow)}
+      </h2>
       <p>
-        {#if who}
+        {#if bin}
+          {pin.grainType.trim()
+            ? `Storing ${pin.grainType.trim()}`
+            : "No contents set"}
+        {:else if who}
           <span
             class="who"
             title="{pin.changed ? 'Changed' : 'Placed'} by {who.name}"
@@ -471,7 +479,7 @@
             {who.name.trim().split(/\s+/)[0]}
           </span>
         {/if}
-        {when}
+        {#if !bin}{when}{/if}
       </p>
     </div>
     <button
@@ -620,6 +628,20 @@
         </button>
       </div>
     </div>
+  {:else if bin}
+    <!-- A grain bin has its own menu: Fill and Settings, as the current
+         viewer's bin panel has. -->
+    <div class="pp-body">
+      <BinBody
+        {pin}
+        {guest}
+        {grains}
+        canMove
+        on:change
+        on:move={() => dispatch("move", true)}
+        on:remove={() => dispatch("remove")}
+      />
+    </div>
   {:else}
     <div class="pp-body">
       {#if !guest}
@@ -658,15 +680,6 @@
               >Picked</button
             >
           </div>
-        {/if}
-        {#if bin}
-          <button
-            type="button"
-            class="pp-binset"
-            on:click={() => dispatch("bin")}
-          >
-            Back to the bin: its level and settings
-          </button>
         {/if}
       {/if}
 
@@ -1150,17 +1163,6 @@
     font-size: 0.74rem;
     font-weight: 500;
     color: var(--lp-ink-soft);
-  }
-  .pp-binset {
-    min-height: 38px;
-    border: 1.5px solid var(--lp-line);
-    border-radius: 12px;
-    font-size: 0.86rem;
-    font-weight: 700;
-    color: var(--lp-ink);
-  }
-  .pp-binset:hover {
-    border-color: var(--lp-ink);
   }
   .pp-drawn .bin,
   .pp-drawn .pen {
