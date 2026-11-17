@@ -253,7 +253,10 @@
   let toolView: ToolView = "home"
   /** On a tablet the toolbox can be put away, to a button at the top left. */
   let railShut = load<boolean>("rail-shut") ?? false
-  /** On a phone the crew is a card over the map, not part of the sheet. */
+  /**
+   * On a phone, and on a tablet while the rail is put away, the crew is a
+   * card over the map (from the Crew button, bottom left).
+   */
   let crewCard = false
   let crewTab: "crew" | "log" = "crew"
   let crewCardH = 0
@@ -1101,6 +1104,8 @@
     toolView = view
     panelOpen = true
     if (railShut) setRailShut(false)
+    // (The rail lists the crew itself.)
+    if (wide) crewCard = false
   }
   // Put the rail away (a tablet), or bring it back.
   function setRailShut(shut: boolean) {
@@ -1980,7 +1985,7 @@
     !!measure ||
     mineSelected
   // On a phone the crew's card takes the bottom of the map too.
-  $: bottomTaken = cardOpen || (crewCard && !wide)
+  $: bottomTaken = cardOpen || (crewCard && !railOn)
 
   // ── A picked trail ──
   const day = (t: number) =>
@@ -2384,8 +2389,8 @@
     <!-- On a phone a card takes the place of the bottom controls. -->
     {#if !bottomTaken}
       <div class="mn-corner bottom-left">
-        {#if !wide}
-          <!-- On a tablet the crew is listed in the rail. -->
+        {#if !railOn}
+          <!-- (With the rail up, the crew is listed in it.) -->
           <button
             type="button"
             class="mn-crew-button"
@@ -3533,7 +3538,7 @@
       {#key selectedCrew.id}
         <div class="mn-card mn-menu" in:rise>
           <div class="head">
-            {#if crewCard && !wide}
+            {#if crewCard && !railOn}
               <button
                 type="button"
                 class="mn-icon-button back"
@@ -3748,7 +3753,7 @@
       </div>
     {/if}
 
-    {#if crewCard && !wide}
+    {#if crewCard && !railOn}
       <!-- ── The crew, on a phone: a card over the map, which still moves
            under it. It steps aside (kept as it was) while another card is
            up, and is back when that one goes. ── -->

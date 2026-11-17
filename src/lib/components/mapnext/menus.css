@@ -3475,3 +3475,10 @@
     animation: none;
   }
 }
+
+/* The crew's card on a tablet whose rail is put away: bottom left, where
+   its button is, and no wider than the rail was. */
+.mn.wide .mn-crewcard {
+  max-width: 24rem;
+  margin-left: 0;
+}
