@@ -112,6 +112,8 @@
     removePhoto: PinPhoto
     /** The map needs to sit here for the menu to have room beside the pin. */
     room: LngLat
+    /** Open the bin's own card: its level in tonnes, and its settings. */
+    bin: void
   }>()
 
   // The colours the current viewer's pin menu offers. "default" is no colour
@@ -672,6 +674,13 @@
                 dispatch("change", { fill: Number(e.currentTarget.value) })}
             />
           </label>
+          <button
+            type="button"
+            class="pp-binset"
+            on:click={() => dispatch("bin")}
+          >
+            Tonnes and bin settings
+          </button>
         {/if}
       {/if}
 
@@ -1155,6 +1164,17 @@
     font-size: 0.74rem;
     font-weight: 500;
     color: var(--lp-ink-soft);
+  }
+  .pp-binset {
+    min-height: 38px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 12px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+  }
+  .pp-binset:hover {
+    border-color: var(--lp-ink);
   }
   .pp-drawn .bin,
   .pp-drawn .pen {

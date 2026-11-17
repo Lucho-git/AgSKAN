@@ -92,6 +92,8 @@
   export let paddocks: Paddock[] = []
   export let pickedPaddock: string | null = null
   export let base = "satellite"
+  /** The look the map opens in. */
+  export let baseDefault = "dark"
   export let baseChoices: BaseChoice[] = []
   /** Layer switches, by the keys the current viewer saves. */
   export let layers: Record<string, boolean> = {}
@@ -147,6 +149,10 @@
     replayTrail: string
     lookPaddock: string
     base: string
+    /** Open the map in this look from now on. */
+    baseDefault: string
+    /** Open a bin's card. */
+    bin: string
     layer: { key: string; on: boolean }
     measure: void
     broadcast: { reason: string; colour: string }
@@ -351,17 +357,6 @@
 >
   {#if view === "home"}
     <header class="mn-panel-head home">
-      {#if wide}
-        <button
-          type="button"
-          class="mn-icon-button mini"
-          aria-label="Put the toolbox away"
-          title="Put the toolbox away"
-          on:click={() => dispatch("minimise")}
-        >
-          <PanelLeftClose size={21} />
-        </button>
-      {/if}
       <button
         type="button"
         class="mn-dash"
@@ -374,7 +369,17 @@
           <b>{farmName || "AgSKAN"}</b>
         </span>
       </button>
-      {#if !wide}
+      {#if wide}
+        <button
+          type="button"
+          class="mn-icon-button mini"
+          aria-label="Put the toolbox away"
+          title="Put the toolbox away"
+          on:click={() => dispatch("minimise")}
+        >
+          <PanelLeftClose size={21} />
+        </button>
+      {:else}
         <button
           type="button"
           class="mn-icon-button"
@@ -683,6 +688,7 @@
         on:colour={(e) => dispatch("typeColour", e.detail)}
         on:lookPin={(e) => dispatch("lookPin", e.detail)}
         on:lasso={() => dispatch("lasso")}
+        on:bin={(e) => dispatch("bin", e.detail)}
       />
     {:else if view === "trails"}
       <section class="mn-section">
@@ -913,10 +919,28 @@
               class="swatch"
               style="background: {SWATCH[choice.key] ?? SWATCH.satellite}"
             ></span>
-            <span>{choice.label}<small>{choice.note}</small></span>
+            <span>
+              {choice.label}
+              {#if baseDefault === choice.key}<em>Default</em>{/if}
+              <small>{choice.note}</small>
+            </span>
           </button>
         {/each}
       </div>
+      {#if base !== baseDefault}
+        <button
+          type="button"
+          class="lp-btn lp-btn-primary"
+          on:click={() => dispatch("baseDefault", base)}
+        >
+          Open the map in {baseLabel} every time
+        </button>
+      {:else}
+        <p class="mn-note">
+          The map opens in {baseLabel} on this device. Pick another look to try it,
+          then make it the default here.
+        </p>
+      {/if}
       <button
         type="button"
         class="lp-btn lp-btn-ghost"

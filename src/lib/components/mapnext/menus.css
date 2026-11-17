@@ -3118,8 +3118,11 @@
 }
 .mn-panel-head .mini {
   flex-shrink: 0;
-  margin-left: -6px;
+  margin-right: -6px;
   color: var(--lp-ink);
+}
+.mn-panel-head.home .mn-dash {
+  margin-left: -6px;
 }
 .mn-dash {
   display: flex;
@@ -3327,4 +3330,92 @@
   .mn-trail-button .laying path {
     stroke-dashoffset: 0;
   }
+}
+
+/* ── Fifteenth pass ─────────────────────────────────────────────────────── */
+/* The look the map opens in, marked on its tile. */
+.mn-look em {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  font-family: var(--lp-mono);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--lp-paper);
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+/* A row of the Pins tool with a second line under its name (a bin). */
+.mn-quickset .rows strong small {
+  display: block;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A button for each grain bin, down the top right of the map: the bin as it
+   is drawn (so its level shows), the tonnes in it, and what it holds. */
+.mn-binrail {
+  gap: 8px;
+}
+.mn-binbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mn-binbtn .disc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    0 8px 20px -10px rgba(10, 25, 15, 0.8);
+}
+.mn:not(.wide) .mn-binbtn .disc {
+  width: 50px;
+  height: 50px;
+}
+.mn-binbtn.open .disc {
+  box-shadow:
+    0 0 0 2.5px var(--lp-ink),
+    0 8px 20px -10px rgba(10, 25, 15, 0.8);
+}
+.mn-binbtn .disc b {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  padding: 1px 6px;
+  border: 1.5px solid #15261c;
+  border-radius: 99px;
+  background: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #15261c;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.mn-binbtn .tag {
+  max-width: 7.5rem;
+  padding: 3px 9px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(18, 32, 26, 0.92);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f4f1e6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

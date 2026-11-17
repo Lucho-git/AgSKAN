@@ -3,7 +3,8 @@
    * Who is driving, over the whole screen: carry on as the profile that is
    * set (one big button), pick another from the farm's list, or add a new
    * one. On the way into the map the big button counts down and says yes by
-   * itself; touching anything else stops the count.
+   * itself; No beside it (or touching anything else) stops the count, and
+   * leaves all the time in the world to pick or type someone else.
    */
   import { createEventDispatcher } from "svelte"
   import { Check, Plus, X } from "lucide-svelte"
@@ -79,29 +80,37 @@
     </p>
 
     {#if current}
-      <button
-        type="button"
-        class="me"
-        disabled={busy}
-        on:click={() => dispatch("confirm")}
-      >
+      <div class="offer">
+        <button
+          type="button"
+          class="me"
+          disabled={busy}
+          on:click={() => dispatch("confirm")}
+        >
+          {#if countdown > 0}
+            <span
+              class="count"
+              style="width: {(countdown / total) * 100}%"
+              aria-hidden="true"
+            ></span>
+          {/if}
+          <span class="face">{initials(current)}</span>
+          <span class="words">
+            <small>{countdown > 0 ? "Carry on as" : "Driving as"}</small>
+            <b>{current}</b>
+          </span>
+          <span class="go">
+            <Check size={20} strokeWidth={3} />
+            {countdown > 0 ? `Yes · ${countdown}` : "Keep"}
+          </span>
+        </button>
         {#if countdown > 0}
-          <span
-            class="count"
-            style="width: {(countdown / total) * 100}%"
-            aria-hidden="true"
-          ></span>
+          <button type="button" class="no" on:click={() => dispatch("hold")}>
+            No
+            <small>someone else</small>
+          </button>
         {/if}
-        <span class="face">{initials(current)}</span>
-        <span class="words">
-          <small>{countdown > 0 ? "Carry on as" : "Driving as"}</small>
-          <b>{current}</b>
-        </span>
-        <span class="go">
-          <Check size={20} strokeWidth={3} />
-          {countdown > 0 ? `Yes · ${countdown}` : "Keep"}
-        </span>
-      </button>
+      </div>
     {/if}
 
     <div class="rest" on:pointerdown={() => dispatch("hold")}>
@@ -249,6 +258,36 @@
     background: var(--lp-yellow);
     color: #15261c;
     box-shadow: 0 14px 28px -16px rgba(120, 95, 10, 0.9);
+  }
+  .offer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .offer .me {
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+  /* No: the count stops, and there is time to pick or type someone else. */
+  .no {
+    display: grid;
+    flex: 1 0 5.5rem;
+    place-content: center;
+    justify-items: center;
+    min-height: 56px;
+    padding: 6px 16px;
+    border: 2px solid var(--lp-ink);
+    border-radius: 22px;
+    background: var(--lp-card);
+    font-size: 1.15rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--lp-ink);
+  }
+  .no small {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--lp-ink-soft);
   }
   .me .count {
     position: absolute;

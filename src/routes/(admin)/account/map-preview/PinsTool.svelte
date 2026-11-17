@@ -7,7 +7,12 @@
   import { createEventDispatcher } from "svelte"
   import { ArrowLeft, List, Plus, Search, Trash2, X } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
-  import { markerColor } from "$lib/components/map/markers/markerPalette"
+  import {
+    grainBinDefaultCapacity,
+    grainBinName,
+    isGrainBinIcon,
+    markerColor,
+  } from "$lib/components/map/markers/markerPalette"
   import {
     PIN_DEFAULT,
     pinLabel,
@@ -43,6 +48,8 @@
     colour: { iconClass: string; colour: string }
     lookPin: string
     lasso: void
+    /** Open a bin's card: its level and its settings. */
+    bin: string
   }>()
 
   // Pins that do something more than mark a spot, and what that is.
@@ -90,6 +97,22 @@
   let search = ""
   let showing = 40
 
+  // The farm's grain bins, by name, with what is in each.
+  $: bins = pins
+    .filter((pin) => isGrainBinIcon(pin.iconClass))
+    .map((pin) => {
+      const size =
+        pin.capacity && pin.capacity > 0
+          ? pin.capacity
+          : grainBinDefaultCapacity(pin.iconClass)
+      return {
+        pin,
+        name: pin.note || grainBinName(pin.iconClass),
+        size,
+        tonnes: Math.round((size * Math.max(0, Math.min(100, pin.fill))) / 100),
+      }
+    })
+    .sort((a, b) => a.name.localeCompare(b.name))
   $: special = pinChoices.filter((choice) => SPECIAL[choice.iconClass])
   $: ordinary = pinChoices.filter((choice) => !SPECIAL[choice.iconClass])
   $: chosen = pinChoices.find((choice) => choice.iconClass === pinKind)
@@ -225,6 +248,35 @@
           ></button>
         {/each}
       </div>
+    </section>
+  {/if}
+
+  {#if bins.length}
+    <!-- The farm's bins: what is in each, and the way to its settings. -->
+    <section class="mn-quickset">
+      <p class="lp-eyebrow">Bins</p>
+      <ul class="rows">
+        {#each bins as bin (bin.pin.id)}
+          <li>
+            <PinArt look={pinLook(bin.pin)} size={30} />
+            <strong>
+              {bin.name}
+              <small>
+                {bin.tonnes} of {bin.size} t{bin.pin.grainType
+                  ? ` · ${bin.pin.grainType}`
+                  : ""}
+              </small>
+            </strong>
+            <button
+              type="button"
+              class="make"
+              on:click={() => dispatch("bin", bin.pin.id)}
+            >
+              {guest ? "Open" : "Level, settings"}
+            </button>
+          </li>
+        {/each}
+      </ul>
     </section>
   {/if}
 

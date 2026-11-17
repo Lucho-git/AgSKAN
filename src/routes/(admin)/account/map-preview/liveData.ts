@@ -385,6 +385,8 @@ export type LivePin = {
   grainType: string
   grainColour: string
   capacity: number | null
+  /** A bin has a button of its own on the map (unless switched off). */
+  binButton: boolean
   /** When it was dropped (ms). */
   t: number
   /** Its drawings show all the time, or only while it is picked. */
@@ -428,6 +430,7 @@ function pinFromRow(row: Row): LivePin | null {
     grainType: m.grainType || "",
     grainColour: m.grainColor || "yellow",
     capacity: m.capacityTonnes ?? null,
+    binButton: m.binShowAlways !== false,
     t: new Date(m.created_at || row.updated_at || Date.now()).getTime(),
     drawingsAlways:
       (row.marker_data?.properties?.drawings_visibility ?? "always") ===
@@ -562,6 +565,12 @@ export type PinPatch = {
   /** Grain bins: how full (0–100) and what is in it. */
   fill?: number
   grainType?: string
+  /** The colour its grain is drawn in (a marker colour key). */
+  grainColour?: string
+  /** How much it takes, in tonnes. */
+  capacity?: number
+  /** Whether it has a button of its own on the map. */
+  binButton?: boolean
   /** A new place for it. */
   at?: LngLat
   /** Show its drawings all the time, or only while it is picked. */
@@ -596,6 +605,19 @@ export async function patchPin(id: string, userId: string, change: PinPatch) {
     properties.note_label_visible = change.noteVisible
   if (change.fill !== undefined) properties.silo_fill = change.fill
   if (change.grainType !== undefined) properties.grain_type = change.grainType
+  if (change.grainColour !== undefined)
+    properties.grain_color = change.grainColour
+  if (change.capacity !== undefined)
+    properties.capacity_tonnes = change.capacity
+  if (change.binButton !== undefined)
+    properties.bin_show_always = change.binButton
+  // (The current viewer's mark that a bin has been set up.)
+  if (
+    change.grainType !== undefined ||
+    change.grainColour !== undefined ||
+    change.capacity !== undefined
+  )
+    properties.field_bin_configured = true
   if (change.drawingsAlways !== undefined)
     properties.drawings_visibility = change.drawingsAlways
       ? "always"

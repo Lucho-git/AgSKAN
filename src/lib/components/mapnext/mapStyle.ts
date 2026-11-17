@@ -8,7 +8,9 @@
  *                illustrated farm map
  *   "dark"       the admin global map's look: Mapbox's dark map from far
  *                away, with paddocks as blocks of bright colour, and the
- *                imagery fading in as the map closes in on a paddock
+ *                imagery fading in as the map closes in on a paddock. Up
+ *                close the fences are dashed, as on the imagery, and the
+ *                country outside the paddocks is eased back a little
  *
  * Both sets of layers live in the same style and are switched by visibility,
  * so changing look never reloads the map or drops the app's own layers.
@@ -29,6 +31,8 @@ export const FARM_SOURCE = "mv-paddocks"
 export const SCRUB_SOURCE = "mv-scrub"
 export const TRAIL_SOURCE = "mv-trails"
 export const MY_TRAIL_SOURCE = "mv-my-trail"
+/** Everywhere that isn't a paddock, to ease it back on the dark map. */
+export const OUTSIDE_SOURCE = "mv-outside"
 export const ACCURACY_SOURCE = "mv-accuracy"
 /** Finished trails (the live map only). */
 export const HISTORY_SOURCE = "mv-history"
@@ -105,8 +109,10 @@ export const LAYER_GROUPS: Record<string, string[]> = {
 /** Layers that belong to some looks only. */
 const LOOK_ONLY: Record<string, BaseLook[]> = {
   "mv-scrub": ["paper"],
-  "mv-fence": ["satellite", "paper"],
-  "mv-fence-solid": ["dark"],
+  "mv-fence": ["satellite", "paper", "dark"],
+  // (The dark map's own thin solid fence is kept, but not used: its fences
+  // are dashed like the others'.)
+  "mv-fence-solid": [],
   "mv-paddock-dots": ["dark"],
 }
 
@@ -511,6 +517,7 @@ export function buildStyle() {
       [SCRUB_SOURCE]: { type: "geojson", data: empty },
       [TRAIL_SOURCE]: { type: "geojson", data: empty },
       [MY_TRAIL_SOURCE]: { type: "geojson", data: empty },
+      [OUTSIDE_SOURCE]: { type: "geojson", data: empty },
       [ACCURACY_SOURCE]: { type: "geojson", data: empty },
       [HISTORY_SOURCE]: { type: "geojson", data: empty },
       [LABEL_SOURCE]: { type: "geojson", data: empty },
@@ -751,6 +758,27 @@ export function buildStyle() {
               1,
             ],
             "raster-fade-duration": 200,
+          },
+        },
+        // Up close, the country outside the paddocks is eased back a
+        // little (the satellite look eases all of it), so the paddocks
+        // themselves stay bright.
+        {
+          id: "dark-outside",
+          type: "fill",
+          source: OUTSIDE_SOURCE,
+          minzoom: 8,
+          paint: {
+            "fill-color": "#0b1410",
+            "fill-opacity": [
+              "interpolate",
+              ["linear"],
+              ["zoom"],
+              8,
+              0,
+              10.5,
+              0.24,
+            ],
           },
         },
         placeLabel(
@@ -1566,7 +1594,17 @@ export function applyBase(map: MapboxMap, look: BaseLook) {
     "text-halo-color",
     paper ? "rgba(251,249,242,0.95)" : "#000000",
   )
-  map.setPaintProperty("mv-fence", "line-opacity", paper ? 1 : 0.95)
+  // (From far away the dark map is dots and blocks: its fences come in
+  // with the imagery.)
+  map.setPaintProperty(
+    "mv-fence",
+    "line-opacity",
+    paper
+      ? 1
+      : dark
+        ? ["interpolate", ["linear"], ["zoom"], 8, 0, 10, 0.95]
+        : 0.95,
+  )
   map.setPaintProperty(
     "mv-accuracy",
     "fill-color",

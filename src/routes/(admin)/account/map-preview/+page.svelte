@@ -60,7 +60,12 @@
     pinColour,
     preferenceIconClass,
   } from "$lib/components/mapnext/pins"
-  import { markerColor } from "$lib/components/map/markers/markerPalette"
+  import {
+    grainBinDefaultCapacity,
+    grainBinName,
+    isGrainBinIcon,
+    markerColor,
+  } from "$lib/components/map/markers/markerPalette"
   import {
     BROADCAST_FOR,
     LiveEngine,
@@ -113,6 +118,7 @@
   import LiveJoin from "./LiveJoin.svelte"
   import Toolbox from "./Toolbox.svelte"
   import CrewPanel from "./CrewPanel.svelte"
+  import BinCard from "./BinCard.svelte"
   import ProfilePicker from "./ProfilePicker.svelte"
   import type { LogUndo } from "./FarmLog.svelte"
   import PinCard from "./PinCard.svelte"
@@ -192,18 +198,20 @@
   })
 
   // ── Map look ──
-  const savedBase = load<string>("base")
+  // The map opens in a look of this device's choosing (the dark map unless
+  // one has been made the default); a look picked in the Map tool is for
+  // this visit.
+  const savedBase = load<string>("base-default")
   const preferred = $userSettingsStore.defaultImagerySource
-  let baseKey: string =
+  let baseDefault: string =
     savedBase &&
     (savedBase === "paper" ||
       savedBase === "satellite" ||
       savedBase === "dark" ||
       IMAGERY[savedBase])
       ? savedBase
-      : IMAGERY[preferred]
-        ? preferred
-        : "satellite"
+      : "dark"
+  let baseKey: string = baseDefault
   const lookOf = (key: string): BaseLook =>
     key === "paper" ? "paper" : key === "dark" ? "dark" : "satellite"
   const imageryOf = (key: string) => (IMAGERY[key] ? key : null)
@@ -253,6 +261,8 @@
   let pinPick: string | null = null
   /** My trail is paused: driving shows dotted and isn't coverage. */
   let trailPaused = false
+  /** The grain bin whose card is open (its pin's id). */
+  let binOpen: string | null = null
   let pinning = false
   let wide = false
   let online = true
@@ -1063,8 +1073,16 @@
   // ── Map look ──
   function setBase(key: string) {
     baseKey = key
-    save("base", key)
     engine?.setBase(lookOf(key), imageryOf(key))
+  }
+  function setBaseDefault(key: string) {
+    baseDefault = key
+    save("base-default", key)
+    say(
+      `The map opens in ${
+        baseChoices.find((choice) => choice.key === key)?.label ?? "this look"
+      } from now on`,
+    )
   }
 
   // Say which way up the map is for a moment after it changes.
@@ -1525,6 +1543,45 @@
     return ok
   }
 
+  // ── Grain bins ──
+  $: binPin = binOpen ? (pins.find((pin) => pin.id === binOpen) ?? null) : null
+  // Picking anything else on the map puts the bin's card away.
+  $: if (binOpen && (selectedPin || selectedCrew || selectedPaddock))
+    binOpen = null
+  /** The bins with a button on the map, by name, and what each button says. */
+  $: binRail = guest
+    ? []
+    : pins
+        .filter((pin) => isGrainBinIcon(pin.iconClass) && pin.binButton)
+        .map((pin) => {
+          const size =
+            pin.capacity && pin.capacity > 0
+              ? pin.capacity
+              : grainBinDefaultCapacity(pin.iconClass)
+          const tonnes = (size * Math.max(0, Math.min(100, pin.fill))) / 100
+          return {
+            pin,
+            name: pin.note || grainBinName(pin.iconClass),
+            tonnes:
+              tonnes >= 10 ? Math.round(tonnes) : Math.round(tonnes * 10) / 10,
+          }
+        })
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .slice(0, 6)
+  /** What the farm's bins hold, to offer on another bin. */
+  $: grainsKnown = [
+    ...new Set(
+      pins
+        .filter((pin) => isGrainBinIcon(pin.iconClass) && pin.grainType.trim())
+        .map((pin) => pin.grainType.trim()),
+    ),
+  ]
+  function openBin(id: string) {
+    engine?.clearSelection()
+    binOpen = id
+    if (!wide) closePanel()
+  }
+
   // Pause the trail being laid, or carry on with it.
   function pauseTap() {
     if (!engine) return
@@ -1905,6 +1962,7 @@
     !!sprayCard ||
     (trailFound && !foundDismissed) ||
     !!selectedCrew ||
+    !!binPin ||
     !!selectedPaddock ||
     !!selectedTrail ||
     !!trailSet ||
@@ -2250,6 +2308,38 @@
         <p class="mn-chip loading">Reconnecting to the crew…</p>
       {/if}
     </div>
+
+    {#if binRail.length && !jobDraft && !boundaryEdit && !measure && !lasso}
+      <!-- ── A button for each grain bin: what is in it, at a glance, and
+           its card (level and settings) a tap away ── -->
+      <div class="mn-corner top-right mn-binrail">
+        {#each binRail as bin (bin.pin.id)}
+          <button
+            type="button"
+            class="mn-binbtn"
+            class:open={binOpen === bin.pin.id}
+            aria-label="{bin.name}: {bin.tonnes} tonnes{bin.pin.grainType
+              ? ` of ${bin.pin.grainType}`
+              : ''}"
+            on:click={() =>
+              binOpen === bin.pin.id ? (binOpen = null) : openBin(bin.pin.id)}
+          >
+            {#if bin.pin.grainType}
+              <span class="tag">{bin.pin.grainType}</span>
+            {/if}
+            <span class="disc">
+              <PinArt
+                look={engine?.pinLook(bin.pin) ?? {
+                  iconClass: bin.pin.iconClass,
+                }}
+                size={wide ? 46 : 42}
+              />
+              <b>{bin.tonnes} t</b>
+            </span>
+          </button>
+        {/each}
+      </div>
+    {/if}
 
     {#if notice && !messagesShown}
       <!-- ── A message has come in ── -->
@@ -3333,6 +3423,27 @@
           </div>
         {/if}
       </div>
+    {:else if binPin && engine}
+      <!-- ── A grain bin: its level, and its settings ── -->
+      {#key binPin.id}
+        <div in:rise>
+          <BinCard
+            pin={binPin}
+            look={engine.pinLook(binPin)}
+            {guest}
+            known={grainsKnown}
+            on:close={() => (binOpen = null)}
+            on:find={() =>
+              binPin &&
+              engine?.showPlace({
+                at: [0, 0],
+                refType: "marker",
+                refId: binPin.id,
+              })}
+            on:change={(e) => binPin && engine?.updatePin(binPin.id, e.detail)}
+          />
+        </div>
+      {/key}
     {:else if selectedPin && engine}
       <!-- ── A pin: its menu opens on the map, beside it ── -->
       {#key selectedPin.id}
@@ -3343,6 +3454,7 @@
           on:preview={(e) =>
             selectedPin && engine?.previewPin(selectedPin.id, e.detail)}
           on:commit={() => engine?.commitPreview()}
+          on:bin={() => selectedPin && openBin(selectedPin.id)}
           on:editDrawing={(e) => engine?.editDrawing(e.detail)}
           {guest}
           choices={pinChoices}
@@ -3793,6 +3905,9 @@
         on:logTrail={(e) => logTrail(e.detail)}
         on:lookPlace={(e) => engine?.showPlace({ at: e.detail })}
         on:base={(e) => setBase(e.detail)}
+        {baseDefault}
+        on:baseDefault={(e) => setBaseDefault(e.detail)}
+        on:bin={(e) => openBin(e.detail)}
         on:layer={(e) => setLayer(e.detail.key, e.detail.on)}
         on:measure={startMeasuring}
         on:broadcast={(e) => {

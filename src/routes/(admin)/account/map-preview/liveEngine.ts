@@ -13,6 +13,12 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import VehicleMarker from "$lib/components/mapnext/VehicleMarker.svelte"
 import SelectedPin from "$lib/components/mapnext/SelectedPin.svelte"
 import {
+  grainBinDefaultCapacity,
+  grainBinName,
+  isGrainBinIcon,
+} from "$lib/components/map/markers/markerPalette"
+import { logGrainEvent } from "$lib/api/grainLogApi"
+import {
   ACCURACY_SOURCE,
   FARM_SOURCE,
   HISTORY_SOURCE,
@@ -37,6 +43,7 @@ import {
   EDIT_SOURCE,
   THROUGH_SOURCE,
   THROUGH_MASK_SOURCE,
+  OUTSIDE_SOURCE,
   PICKED_SHAPE_SOURCE,
   showThrough,
   LASSO_SOURCE,
@@ -1494,6 +1501,35 @@ export class LiveEngine {
       })
     }
     this.map.getSource(FARM_SOURCE).setData(collection(features))
+    // Everywhere that isn't a paddock: the world, with each paddock cut out
+    // (the dark map eases it back).
+    this.map.getSource(OUTSIDE_SOURCE)?.setData(
+      collection(
+        this.paddocks.length
+          ? [
+              {
+                type: "Feature",
+                properties: {},
+                geometry: {
+                  type: "Polygon",
+                  coordinates: [
+                    [
+                      [-180, -85],
+                      [180, -85],
+                      [180, 85],
+                      [-180, 85],
+                      [-180, -85],
+                    ],
+                    ...this.paddocks.flatMap((paddock) =>
+                      paddock.polygons.map((polygon) => polygon[0]),
+                    ),
+                  ],
+                },
+              },
+            ]
+          : [],
+      ),
+    )
     this.map.getSource(LABEL_SOURCE).setData(collection(labels))
     // What has been kept on each paddock: its shape, and its name and size.
     const kept: unknown[] = []
@@ -1688,6 +1724,11 @@ export class LiveEngine {
         : {}),
       ...(rest.fill !== undefined ? { fill: rest.fill } : {}),
       ...(rest.grainType !== undefined ? { grainType: rest.grainType } : {}),
+      ...(rest.grainColour !== undefined
+        ? { grainColour: rest.grainColour }
+        : {}),
+      ...(rest.capacity !== undefined ? { capacity: rest.capacity } : {}),
+      ...(rest.binButton !== undefined ? { binButton: rest.binButton } : {}),
       ...(rest.at ? { at: rest.at } : {}),
       ...(rest.drawingsAlways !== undefined
         ? { drawingsAlways: rest.drawingsAlways }
@@ -1703,6 +1744,26 @@ export class LiveEngine {
     try {
       if (Object.keys(rest).length) await patchPin(id, this.userId, rest)
       if (note !== undefined) await setPinNote(id, note)
+      // A bin's level changing goes on the farm's grain record, as it does
+      // from the current viewer.
+      if (isGrainBinIcon(after.iconClass)) {
+        const tonnes = (pin: LivePin) =>
+          Math.round(
+            (pin.capacity && pin.capacity > 0
+              ? pin.capacity
+              : grainBinDefaultCapacity(pin.iconClass)) * pin.fill,
+          ) / 100
+        if (tonnes(before) !== tonnes(after))
+          logGrainEvent({
+            action: "bin.level",
+            binId: id,
+            binName: after.note || grainBinName(after.iconClass),
+            tonnesBefore: tonnes(before),
+            tonnesAfter: tonnes(after),
+            binFillBefore: before.fill,
+            binFillAfter: after.fill,
+          })
+      }
       return true
     } catch {
       if (this.pinsById.has(id)) show(before)
@@ -1823,6 +1884,7 @@ export class LiveEngine {
       drawingsAlways: true,
       photos: [],
       by: null,
+      binButton: true,
       changed: null,
     }
     this.draft = draft
