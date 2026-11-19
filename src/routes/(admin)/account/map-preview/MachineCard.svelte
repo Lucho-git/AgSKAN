@@ -53,7 +53,7 @@
     })
 </script>
 
-<div class="mn-card mn-menu">
+<div class="mn-card mn-menu" style="--accent: {drawColour(marker.bodyColor)}">
   <div class="head">
     <span class="art">
       <svelte:component

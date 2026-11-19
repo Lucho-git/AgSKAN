@@ -15,7 +15,7 @@
    * decides it) so rows don't jump about.
    */
   import { createEventDispatcher } from "svelte"
-  import { MapPin, MessageCircle, UserPlus } from "lucide-svelte"
+  import { Home, MapPin, MessageCircle, UserPlus } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import { formatDistance } from "$lib/components/mapnext/format"
   import type { CrewRow } from "./liveEngine"
@@ -36,6 +36,8 @@
     look: string
     message: string
     invite: void
+    /** Back to the view the map opens on. */
+    home: void
   }>()
 
   const STALE = 10 * 86_400_000
@@ -73,6 +75,20 @@
 </script>
 
 <ul class="mn-crew">
+  {#if !self}
+    <!-- (Not on the map yet: Home still has a row.) -->
+    <li>
+      <button type="button" class="invite" on:click={() => dispatch("home")}>
+        <span class="unit">
+          <span class="art"><Home size={22} /></span>
+        </span>
+        <span class="who">
+          <strong>Home</strong>
+          <span class="doing">Back to the farm</span>
+        </span>
+      </button>
+    </li>
+  {/if}
   {#each rows as person (person.id)}
     {@const said = named(person)}
     <li>
@@ -141,7 +157,17 @@
           {/if}
         </span>
       </button>
-      {#if !person.me}
+      {#if person.me}
+        <button
+          type="button"
+          class="msg home"
+          aria-label="Home: back to the farm"
+          title="Home: back to the farm"
+          on:click={() => dispatch("home")}
+        >
+          <Home size={20} />
+        </button>
+      {:else}
         <button
           type="button"
           class="msg"

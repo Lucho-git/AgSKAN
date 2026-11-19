@@ -904,6 +904,11 @@ export class LiveEngine {
   /** The tapped pin, lifted off the layer as an animated marker. */
   private picked: { id: string; marker: MapboxMap; view: SelectedPin } | null =
     null
+  /**
+   * Asked on a tap on open ground: the page says true if it had something
+   * to put away (and did), and the tap then picks nothing.
+   */
+  onAway: (() => boolean) | null = null
   /** The pin being moved (dragged to a new place, then placed). */
   readonly movingPin: Writable<string | null> = writable(null)
   private move: {
@@ -1248,7 +1253,22 @@ export class LiveEngine {
             )
           : []
         const id = hits[0]?.properties?.id as string | undefined
-        let pin = id ? this.pinsById.get(id) : undefined
+        // The picked pin is drawn by its marker, not the layer, so the layer
+        // can't say it was tapped (it would give whichever pin is beside or
+        // under it): measure to it instead. A tap on it lets go of it.
+        const held = this.picked ? get(this.selectedPin) : null
+        let onHeld = false
+        if (held && this.picked?.id === held.id) {
+          const spot = this.map.project(this.picked.marker.getLngLat())
+          onHeld =
+            Math.hypot(spot.x - e.point.x, spot.y - e.point.y) <=
+            (pinPixels() * 1.3) / 2 + 6
+        }
+        let pin = onHeld
+          ? (held ?? undefined)
+          : id
+            ? this.pinsById.get(id)
+            : undefined
         // A tap on something drawn picks the pin it belongs to.
         let drawingId: string | null = null
         if (!pin && this.map.getLayer(DRAWING_LAYERS[0])) {
@@ -2252,6 +2272,9 @@ export class LiveEngine {
     }
     // A replay isn't ended by a stray tap; a picked trail is let go by one.
     if (this.replaying) return
+    // A card the page has up that isn't for anything picked (a bin's, from
+    // its button): a tap on open ground puts it away, and does no more.
+    if (!pin && this.onAway?.()) return
     if (get(this.selectedTrail)) {
       this.pickTrail(null)
       if (!pin) return

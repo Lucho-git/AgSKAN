@@ -927,6 +927,12 @@
     flex-shrink: 0;
     align-items: center;
     gap: 10px;
+    margin: -12px -12px 2px;
+    padding: 9px 6px 11px 12px;
+    border-radius: 20px 20px 0 0;
+    background: #15261c;
+    box-shadow: inset 0 -3px 0 var(--lp-yellow);
+    color: #f4f1e6;
   }
   .pp-head .about {
     flex: 1;
@@ -946,7 +952,7 @@
     gap: 6px;
     overflow: hidden;
     font-size: 0.76rem;
-    color: var(--lp-ink-soft);
+    color: rgba(244, 241, 230, 0.74);
     white-space: nowrap;
   }
   /* Who placed or changed it: their machine and first name. */
@@ -957,9 +963,9 @@
     gap: 4px;
     padding: 1px 8px 1px 4px;
     border-radius: 99px;
-    background: var(--lp-paper-2);
+    background: rgba(244, 241, 230, 0.16);
     font-weight: 700;
-    color: var(--lp-ink);
+    color: #f4f1e6;
   }
   .pp-head .x {
     display: flex;
@@ -969,10 +975,10 @@
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    color: var(--lp-ink-soft);
+    color: #f4f1e6;
   }
   .pp-head .x:hover {
-    background: var(--lp-paper-2);
+    background: rgba(244, 241, 230, 0.13);
   }
   .pp-sub {
     display: flex;
@@ -1292,11 +1298,17 @@
     background: var(--lp-rust);
     color: #fff;
   }
+  /* The buttons along the bottom sit on a band of the menus' ground. */
   .pp-foot {
     display: grid;
     flex-shrink: 0;
     grid-template-columns: repeat(3, 1fr);
     gap: 6px;
+    margin: 2px -12px -12px;
+    padding: 10px 12px 12px;
+    border-radius: 0 0 20px 20px;
+    background: #e7e2d0;
+    box-shadow: inset 0 1px 0 rgba(21, 38, 28, 0.12);
   }
   .pp-foot.two {
     grid-template-columns: 1fr 1fr;
@@ -1309,6 +1321,7 @@
     min-height: 46px;
     border: 1.5px solid var(--lp-line);
     border-radius: 99px;
+    background: #fffdf8;
     font-size: 0.9rem;
     font-weight: 700;
     color: var(--lp-ink);

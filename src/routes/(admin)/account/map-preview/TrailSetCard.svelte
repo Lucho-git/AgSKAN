@@ -243,8 +243,8 @@
     width: 46px;
     height: 46px;
     border-radius: 13px;
-    background: var(--lp-ink);
-    color: var(--lp-yellow);
+    background: var(--lp-yellow);
+    color: #15261c;
   }
   .mn-trailset h2 {
     font-size: 1.1rem;

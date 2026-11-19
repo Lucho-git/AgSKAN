@@ -161,7 +161,10 @@
   ]
 </script>
 
-<div class="mn-card mn-menu">
+<div
+  class="mn-card mn-menu"
+  style={paddock.colour ? `--accent: ${paddock.colour}` : ""}
+>
   <div class="head">
     <span class="art">
       <ShapeArt polygons={paddock.polygons} colour={paddock.colour} size={46} />

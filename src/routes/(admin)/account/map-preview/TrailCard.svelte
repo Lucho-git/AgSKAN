@@ -152,7 +152,7 @@
   }
 </script>
 
-<div class="mn-card mn-menu mn-trail">
+<div class="mn-card mn-menu mn-trail" style="--accent: {colour}">
   <div class="head">
     <span class="mark" style="background: {colour}; color: {onColour(colour)}">
       <Route size={24} />
@@ -341,7 +341,7 @@
     width: 46px;
     height: 46px;
     border-radius: 13px;
-    box-shadow: 0 0 0 1.5px var(--lp-ink);
+    box-shadow: 0 0 0 1.5px rgba(244, 241, 230, 0.55);
   }
   .mn-trail h2 {
     font-size: 1.1rem;
@@ -350,11 +350,11 @@
     flex-shrink: 0;
     padding: 5px 11px;
     border-radius: 99px;
-    background: var(--lp-ink);
+    background: rgba(244, 241, 230, 0.16);
     font-family: var(--lp-mono);
     font-size: 0.8rem;
     font-weight: 600;
-    color: var(--lp-paper);
+    color: #f4f1e6;
     white-space: nowrap;
   }
   .count b {

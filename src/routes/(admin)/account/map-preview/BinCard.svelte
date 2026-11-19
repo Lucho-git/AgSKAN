@@ -84,6 +84,5 @@
   .mn-bin .head .mn-icon-button {
     width: 38px;
     height: 38px;
-    color: var(--lp-ink);
   }
 </style>

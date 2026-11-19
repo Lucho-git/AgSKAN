@@ -24,12 +24,16 @@
     Layers,
     LocateFixed,
     Map as MapIcon,
+    MapPin,
+    MessageCircle,
     PanelLeftClose,
     Play,
     RadioTower,
     Route,
     Ruler,
     Search,
+    Settings,
+    Tractor,
     UserMinus,
     UserPlus,
     UserRound,
@@ -88,7 +92,6 @@
   export let choiceLook: (iconClass: string) => PinLook = (iconClass) => ({
     iconClass,
   })
-  export let pinCount = 0
   export let operations: Operation[] = []
   export let operation: Operation | null = null
   export let trails: TrailInfo[] = []
@@ -144,8 +147,6 @@
   export let typeColours: Record<string, string> = {}
   /** Jobs this person has on that aren't finished. */
   export let jobsWaiting = 0
-  /** Jobs anyone can take. */
-  export let jobsOpen = 0
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -176,6 +177,8 @@
     messageCrew: string
     /** Put the rail away (a tablet). */
     minimise: void
+    /** Back to the view the map opens on. */
+    home: void
     /** Show the crew as its card over the map (a phone). */
     crewCard: void
     invite: void
@@ -227,12 +230,8 @@
   $: machine = machineFor(marker.type)
   $: colour = drawColour(marker.bodyColor)
   $: trailOn = recording.phase === "on" || recording.phase === "stopping"
-  $: online = crew.filter((person) => person.online).length
   $: baseLabel = baseChoices.find((choice) => choice.key === base)?.label ?? ""
   $: otherFarms = farms.filter((choice) => choice.id !== currentFarmId)
-  $: hidden = LAYERS.filter(
-    (layer) => !layer.extra && layers[layer.key] === false,
-  ).length
 
   const TITLES: Record<ToolView, string> = {
     home: "",
@@ -248,6 +247,23 @@
     layers: "Layers",
     broadcast: "Broadcast",
     farm: "Farm",
+  }
+
+  /** Each tool's mark, shown beside its name at the top of its page. */
+  const MARKS: Record<ToolView, typeof Users | null> = {
+    home: null,
+    messages: MessageCircle,
+    jobs: ClipboardList,
+    crew: Users,
+    crewSettings: Settings,
+    machine: Tractor,
+    pins: MapPin,
+    trails: Route,
+    paddocks: LandPlot,
+    map: MapIcon,
+    layers: Layers,
+    broadcast: RadioTower,
+    farm: LandPlot,
   }
 
   /**
@@ -373,7 +389,7 @@
 </script>
 
 <aside
-  class="mn-panel"
+  class="mn-panel t-{view}"
   class:chat={view === "messages" && !!messageWith}
   aria-label="Toolbox"
 >
@@ -417,47 +433,42 @@
       {#if !guest}
         <button
           type="button"
-          class="mn-tile"
+          class="mn-tile t-profile"
           on:click={() => dispatch("driver")}
         >
-          <span class="icon"><UserRound size={24} /></span>
+          <span class="icon"><UserRound size={28} /></span>
           <strong>Profile</strong>
-          <small>{driver || "not set"}</small>
         </button>
       {/if}
       {#if !wide}
         <button
           type="button"
-          class="mn-tile"
+          class="mn-tile t-crew"
           on:click={() => dispatch("crewCard")}
         >
-          <span class="icon"><Users size={24} /></span>
+          <span class="icon"><Users size={28} /></span>
           <strong>Crew</strong>
-          <small>{online} on now</small>
         </button>
       {/if}
-      <button type="button" class="mn-tile" on:click={() => (view = "jobs")}>
+      <button
+        type="button"
+        class="mn-tile t-jobs"
+        on:click={() => (view = "jobs")}
+      >
         {#if jobsWaiting}<span class="mn-badge">{jobsWaiting}</span>{/if}
-        <span class="icon"><ClipboardList size={24} /></span>
+        <span class="icon"><ClipboardList size={28} /></span>
         <strong>Jobs</strong>
-        <small>
-          {jobsWaiting
-            ? `${jobsWaiting} for you`
-            : jobsOpen
-              ? `${jobsOpen} up for grabs`
-              : "give and take"}
-        </small>
       </button>
       {#if !guest}
         <button
           type="button"
-          class="mn-tile"
+          class="mn-tile t-machine"
           on:click={() => (view = "machine")}
         >
           <span class="icon art">
             <svelte:component
               this={vehicles[machine.type]}
-              size="34px"
+              size="40px"
               bodyColor={colour}
               outlineColor="#ffffff"
               wheelColor="#15261C"
@@ -465,69 +476,69 @@
             />
           </span>
           <strong>Machine</strong>
-          <small>{marker.swath} m wide</small>
         </button>
-        <button type="button" class="mn-tile" on:click={() => (view = "pins")}>
+        <button
+          type="button"
+          class="mn-tile t-pins"
+          on:click={() => (view = "pins")}
+        >
           <span class="icon"
-            ><PinArt look={choiceLook(pinKind)} size={32} /></span
+            ><PinArt look={choiceLook(pinKind)} size={38} /></span
           >
           <strong>Pins</strong>
-          <small>{pinCount} here</small>
         </button>
       {/if}
-      <button type="button" class="mn-tile" on:click={() => (view = "trails")}>
-        <span class="icon"><Route size={24} /></span>
+      <button
+        type="button"
+        class="mn-tile t-trails"
+        on:click={() => (view = "trails")}
+      >
+        <span class="icon"><Route size={28} /></span>
         <strong>Trails</strong>
-        <small>
-          {#if loading.trails}
-            loading…
-          {:else if operation}
-            {trails.length} in {operation.name}
-          {:else}
-            no job yet
-          {/if}
-        </small>
       </button>
       <button
         type="button"
-        class="mn-tile"
+        class="mn-tile t-paddocks"
         on:click={() => (view = "paddocks")}
       >
-        <span class="icon"><LandPlot size={24} /></span>
+        <span class="icon"><LandPlot size={28} /></span>
         <strong>Paddocks</strong>
-        <small>{paddocks.length} · {formatHa(farm.ha)} ha</small>
       </button>
       {#if !guest}
         <button
           type="button"
-          class="mn-tile"
+          class="mn-tile t-cast"
           class:on={!!broadcast}
           style={broadcast ? `--on: ${broadcast.colour}` : ""}
           on:click={() => (view = "broadcast")}
         >
-          <span class="icon"><RadioTower size={24} /></span>
+          <span class="icon"><RadioTower size={28} /></span>
           <strong>Broadcast</strong>
-          <small>{broadcast ? flashLabel(broadcast) : "Full, help…"}</small>
         </button>
       {/if}
       <button
         type="button"
-        class="mn-tile"
+        class="mn-tile t-draw"
         on:click={() => dispatch("measure")}
       >
-        <span class="icon"><Ruler size={24} /></span>
+        <span class="icon"><Ruler size={28} /></span>
         <strong>Draw</strong>
-        <small>measure, keep</small>
       </button>
-      <button type="button" class="mn-tile" on:click={() => (view = "map")}>
-        <span class="icon"><MapIcon size={24} /></span>
+      <button
+        type="button"
+        class="mn-tile t-map"
+        on:click={() => (view = "map")}
+      >
+        <span class="icon"><MapIcon size={28} /></span>
         <strong>Map</strong>
-        <small>map style</small>
       </button>
-      <button type="button" class="mn-tile" on:click={() => (view = "layers")}>
-        <span class="icon"><Layers size={24} /></span>
+      <button
+        type="button"
+        class="mn-tile t-layers"
+        on:click={() => (view = "layers")}
+      >
+        <span class="icon"><Layers size={28} /></span>
         <strong>Layers</strong>
-        <small>{hidden ? `${hidden} hidden` : "all showing"}</small>
       </button>
     </nav>
 
@@ -545,6 +556,7 @@
           {mapId}
           {undoLog}
           on:settings={() => (view = "crewSettings")}
+          on:home={() => dispatch("home")}
           on:look={(e) => dispatch("lookCrew", e.detail)}
           on:message={(e) => dispatch("messageCrew", e.detail)}
           on:invite={() => dispatch("invite")}
@@ -588,6 +600,11 @@
       >
         <ArrowLeft size={22} />
       </button>
+      {#if MARKS[view]}
+        <span class="mn-headchip">
+          <svelte:component this={MARKS[view]} size={19} />
+        </span>
+      {/if}
       <h2>{view === "messages" && messageWith ? messageWith : TITLES[view]}</h2>
       {#if !wide}
         <button
@@ -672,6 +689,7 @@
         {mapId}
         {undoLog}
         on:settings={() => (view = "crewSettings")}
+        on:home={() => dispatch("home")}
         on:look={(e) => dispatch("lookCrew", e.detail)}
         on:message={(e) => dispatch("messageCrew", e.detail)}
         on:invite={() => dispatch("invite")}
@@ -993,7 +1011,7 @@
             >
               <span class="pins">
                 <PinArt
-                  look={{ iconClass: "default" }}
+                  look={{ iconClass: "ionic-water" }}
                   style={option.key}
                   size={30}
                 />

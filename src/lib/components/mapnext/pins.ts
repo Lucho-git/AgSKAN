@@ -117,6 +117,40 @@ const RAINBOW =
 export const PIN_DEFAULT = "#7dd3fc"
 
 /**
+ * The plain pin ("default") is the one exception to the disc: it is the
+ * map pin itself, a teardrop with a white eye and nothing round it, as the
+ * current viewer draws it. Its colour is the teardrop's; with none chosen it
+ * is the current viewer's blue. It looks the same in every marker style.
+ */
+const BARE_BLUE = "#3fb1ce"
+export const isBarePin = (imageKey: string) =>
+  imageKey.split("|")[1] === "default"
+function barePin(key: string): { defs: string; art: string } {
+  const body = !key
+    ? BARE_BLUE
+    : key === "rainbow"
+      ? "url(#rb)"
+      : key === "black"
+        ? INK
+        : key === "white"
+          ? "#f1f5f9"
+          : markerColor(key, "circle-fill").dark
+  // A dark pin is edged in white, every other in ink, so it has an edge on
+  // any map.
+  const edge = key === "black" ? "rgba(255,255,255,0.85)" : "rgba(21,38,28,0.6)"
+  return {
+    defs: key === "rainbow" ? RAINBOW : "",
+    art:
+      `<path d="M0 14.6 Q-2.4 7.2 -8.3 2.4 A10.2 10.2 0 1 1 8.3 2.4 Q2.4 7.2 0 14.6Z" fill="${body}" stroke="${edge}" stroke-width="0.9" stroke-linejoin="round"/>` +
+      `<circle cy="-3.9" r="4.1" fill="#ffffff"${
+        key === "white"
+          ? ` stroke="rgba(21,38,28,0.45)" stroke-width="0.7"`
+          : ""
+      }/>`,
+  }
+}
+
+/**
  * The disc a pin sits on. With no colour chosen it is sky blue; with one,
  * the disc is filled with it; the art stays ink (white on a black disc).
  * "white" is the plain white disc.
@@ -199,6 +233,15 @@ export function pinSvg(key: string, size = 96): string {
   const set = glyphs ?? {}
   const glyph = set[icon] ?? set[STAND_INS[icon] ?? ""]
   const bin = level !== ""
+  if (icon === "default" && !bin) {
+    const bare = barePin(colour)
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="-16 -16 32 32">` +
+      (bare.defs ? `<defs>${bare.defs}</defs>` : "") +
+      bare.art +
+      `</svg>`
+    )
+  }
   // A grain bin keeps its white disc: its colour is the gauge round the rim.
   const look = bin ? disc("white") : disc(colour, style)
 

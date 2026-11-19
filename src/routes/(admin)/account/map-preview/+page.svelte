@@ -367,7 +367,6 @@
   let linked = false
   let bearing = 0
   let crew: CrewRow[] = []
-  let pinCount = 0
   let selectedPin: LivePin | null = null
   let selectedPaddock: Paddock | null = null
   let selectedTrail: TrailInfo | null = null
@@ -703,6 +702,11 @@
     // Holding a finger on the map drops the default pin there (or the one
     // whose button is pressed), as the current viewer does.
     created.onGround = (outline) => buildPaddock(outline)
+    created.onAway = () => {
+      if (!binOpen) return false
+      binOpen = null
+      return true
+    }
     created.onHold = (at) => {
       if (guest || pinning) return
       const kind = armedPin ?? quickKinds[0]
@@ -716,7 +720,6 @@
       created.linked.subscribe((v) => (linked = v)),
       created.bearing.subscribe((v) => (bearing = v)),
       created.crew.subscribe((v) => (crew = v)),
-      created.pinCount.subscribe((v) => (pinCount = v)),
       created.selectedPin.subscribe((v) => (selectedPin = v)),
       created.selectedPaddock.subscribe((v) => (selectedPaddock = v)),
       created.selectedTrail.subscribe((v) => {
@@ -1358,10 +1361,6 @@
       (job.takenBy === userId ||
         (job.assignedTo === userId && job.status === "open")),
   ).length
-  $: jobsOpen = jobs.filter(
-    (job) =>
-      job.status === "open" && !job.assignedTo && job.createdBy !== userId,
-  ).length
   $: jobCrew = crew.filter((person) => !person.guest)
 
   function startJob(to: string | null = null) {
@@ -1558,6 +1557,11 @@
     else if (engine?.lookAt(id)) engine.pickCrew(id)
     else return
     if (!wide) closePanel()
+  }
+
+  // Home: back to the view the map opens on, the main body of the farm.
+  function goHome() {
+    if (!engine?.fitFarm(900, false)) say("This farm has no paddocks yet.")
   }
 
   // Put back what a row of the log did (or do it over again).
@@ -3547,7 +3551,11 @@
     {:else if selectedCrew}
       <!-- ── Someone on the crew ── -->
       {#key selectedCrew.id}
-        <div class="mn-card mn-menu" in:rise>
+        <div
+          class="mn-card mn-menu"
+          style="--accent: {selectedCrew.colour}"
+          in:rise
+        >
           <div class="head">
             {#if crewCard && !railOn}
               <button
@@ -3788,6 +3796,7 @@
           {undoLog}
           on:close={() => (crewCard = false)}
           on:settings={() => openPanel("crewSettings")}
+          on:home={goHome}
           on:look={(e) => lookCrew(e.detail)}
           on:message={(e) => openChat(e.detail)}
           on:invite={openInvite}
@@ -3838,7 +3847,6 @@
         {pinChoices}
         {pinKind}
         {choiceLook}
-        {pinCount}
         {operations}
         {operation}
         {trails}
@@ -3876,7 +3884,6 @@
         pinLook={(pin) => engine?.pinLook(pin) ?? { iconClass: pin.iconClass }}
         typeColours={$userSettingsStore.markerTypeDefaultColors ?? {}}
         {jobsWaiting}
-        {jobsOpen}
         on:invite={openInvite}
         on:stale={(e) => setHideStale(e.detail)}
         on:removeCrew={(e) => removeCrew(e.detail)}
@@ -3949,6 +3956,7 @@
         }}
         on:stopBroadcast={() => engine?.stopBroadcast()}
         on:driver={chooseDriver}
+        on:home={goHome}
         on:fitFarm={() => {
           if (!engine?.fitFarm()) say("This farm has no paddocks yet.")
           else if (!wide) closePanel()

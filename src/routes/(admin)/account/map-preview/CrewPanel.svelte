@@ -30,6 +30,7 @@
     message: string
     invite: void
     settings: void
+    home: void
     close: void
     lookPlace: LngLat
     logCrew: string
@@ -102,6 +103,7 @@
     on:look={(e) => dispatch("look", e.detail)}
     on:message={(e) => dispatch("message", e.detail)}
     on:invite={() => dispatch("invite")}
+    on:home={() => dispatch("home")}
   />
 {:else}
   <p class="mn-empty">

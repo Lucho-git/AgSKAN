@@ -3548,3 +3548,380 @@
   width: 26px;
   height: 26px;
 }
+
+/* ── Eighteenth pass: colour and depth ──────────────────────────────────── */
+/* The menus were cream on cream. Now a menu has three levels: a dark band
+   for its heading (edged in yellow, or in the colour of the thing it is
+   about), a tan ground, and white blocks laid on the ground. Each tool has
+   a colour of its own, on its tile and beside its heading. */
+.mn {
+  --mn-ground: #e7e2d0;
+  --mn-ground-2: #dad3bc;
+  --mn-block: #fffdf8;
+  --mn-band: #15261c;
+  --mn-band-text: #f4f1e6;
+  --mn-band-soft: rgba(244, 241, 230, 0.74);
+  --mn-lift:
+    0 0 0 1px rgba(21, 38, 28, 0.1), 0 8px 16px -12px rgba(10, 25, 15, 0.6);
+}
+
+/* A colour for each tool. */
+.t-profile {
+  --hue: #2f6fde;
+}
+.t-crew,
+.t-crewSettings,
+.t-messages {
+  --hue: #1493c4;
+}
+.t-jobs {
+  --hue: #dc8400;
+}
+.t-machine {
+  --hue: #a8842c;
+}
+.t-pins {
+  --hue: #3fb1ce;
+}
+.t-trails {
+  --hue: #1f9d55;
+}
+.t-paddocks {
+  --hue: #6f8f1c;
+}
+.t-cast,
+.t-broadcast {
+  --hue: #d9482b;
+}
+.t-draw {
+  --hue: #7c4ddb;
+}
+.t-map {
+  --hue: #177e89;
+}
+.t-layers {
+  --hue: #4b5d70;
+}
+.t-farm {
+  --hue: #6f8f1c;
+}
+
+/* ── The toolbox ── */
+.mn-panel {
+  background: var(--mn-ground);
+}
+/* Its heading stays at the top while what is under it scrolls. */
+.mn-panel > .mn-panel-head {
+  position: sticky;
+  top: -14px;
+  z-index: 6;
+  flex-shrink: 0;
+  margin: -14px calc(-1 * var(--pad)) 0;
+  padding: 9px var(--pad) 12px;
+  background: var(--mn-band);
+  box-shadow: inset 0 -3px 0 var(--lp-yellow);
+  color: var(--mn-band-text);
+}
+.mn-panel-head h2 {
+  color: var(--mn-band-text);
+}
+.mn-panel-head .mn-icon-button,
+.mn-panel-head .back,
+.mn-panel-head .mini {
+  color: var(--mn-band-text);
+}
+.mn-panel-head .mn-icon-button:hover,
+.mn-dash:hover {
+  background: rgba(244, 241, 230, 0.13);
+}
+.mn-dash {
+  color: var(--mn-band-text);
+}
+.mn-dash small {
+  color: var(--lp-yellow);
+}
+/* The tool's own mark beside its name. */
+.mn-headchip {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--hue, var(--lp-yellow));
+  color: #fff;
+}
+.mn-panel-head .mn-headchip + h2 {
+  margin-left: 2px;
+}
+
+/* Tiles: a white block each, the tool's picture on its colour, its name
+   under it and nothing else. */
+.mn-tile {
+  align-content: center;
+  gap: 7px;
+  min-height: 108px;
+  padding: 12px 6px 11px;
+  border: 0;
+  background: var(--mn-block);
+  box-shadow: var(--mn-lift);
+}
+.mn-tile:hover {
+  box-shadow:
+    0 0 0 1.5px var(--lp-ink),
+    0 8px 16px -12px rgba(10, 25, 15, 0.6);
+}
+.mn-tile .icon {
+  width: 58px;
+  height: 58px;
+  margin-bottom: 0;
+  border-radius: 18px;
+  background: var(--hue, var(--lp-paper));
+  box-shadow: none;
+  color: #fff;
+}
+/* (Pictures that have colours of their own sit on a pale ground.) */
+.mn-tile .icon.art {
+  background: #d9cba0;
+}
+.mn-tile.t-pins .icon {
+  background: #d3ecf3;
+}
+.mn-tile strong {
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+.mn.wide .mn-tile {
+  min-height: 96px;
+  padding: 10px 4px 9px;
+  border-radius: 17px;
+}
+.mn.wide .mn-tile .icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
+.mn.wide .mn-tile .icon svg {
+  max-width: 40px;
+  max-height: 40px;
+}
+.mn.wide .mn-tile strong {
+  font-size: 0.96rem;
+}
+.mn-tile.on {
+  box-shadow:
+    0 0 0 2.5px var(--on),
+    0 8px 16px -12px rgba(10, 25, 15, 0.6);
+}
+
+/* The crew under the tools: its tabs are a band of their own, which stops
+   under the toolbox's heading. */
+.mn-home-crew {
+  padding-top: 0;
+  border-top: 0;
+}
+.mn-crew-head {
+  background: var(--mn-ground-2);
+  box-shadow:
+    inset 0 1px 0 rgba(21, 38, 28, 0.1),
+    inset 0 -1px 0 rgba(21, 38, 28, 0.1);
+}
+.mn-panel .mn-crew-head {
+  top: var(--mn-head-h, 51px);
+}
+.mn-tabs {
+  background: rgba(21, 38, 28, 0.1);
+}
+.mn-crew-head .mn-icon-button {
+  color: var(--lp-ink);
+}
+.mn-crew-head .mn-icon-button:hover {
+  background: rgba(21, 38, 28, 0.1);
+}
+/* Crew rows are white blocks; whoever is on the map now keeps the blue. */
+.mn-crew button {
+  border-color: transparent;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn-crew button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-crew button.live {
+  border-color: #7cc7ea;
+  background: #e2f3fb;
+  box-shadow: none;
+}
+.mn-crew .invite {
+  border-color: rgba(21, 38, 28, 0.35);
+  background: transparent;
+  box-shadow: none;
+}
+.mn-crew .msg {
+  color: var(--lp-ink);
+}
+.mn-crew .msg.home {
+  background: var(--lp-yellow);
+  border-color: var(--lp-ink);
+  box-shadow: none;
+}
+
+/* A tool's page: each section is a white block with a marked heading. */
+.mn-panel > .mn-section,
+.mn-panel > .mn-you {
+  padding: 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--mn-block);
+  box-shadow: var(--mn-lift);
+}
+.mn-panel > .lp-eyebrow,
+.mn-panel > .mn-section > .lp-eyebrow,
+.mn-panel > .mn-you > .lp-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--lp-ink);
+}
+.mn-panel > .lp-eyebrow::before,
+.mn-panel > .mn-section > .lp-eyebrow::before,
+.mn-panel > .mn-you > .lp-eyebrow::before {
+  content: "";
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--hue, var(--lp-yellow));
+  box-shadow: 0 0 0 1.5px var(--lp-ink);
+}
+/* Rows inside a white block are set into it. */
+.mn-section .mn-tool,
+.mn-section .mn-switch {
+  background: var(--lp-paper);
+}
+.mn-tool.selected,
+.mn-tool[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: #fbefb4;
+}
+.mn-panel > .mn-switch,
+.mn-panel > .mn-switches .mn-switch,
+.mn-panel > .mn-search {
+  border-color: transparent;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn-panel > .mn-note,
+.mn-panel > .mn-empty {
+  color: var(--lp-ink);
+}
+.mn-panel-foot {
+  color: rgba(21, 38, 28, 0.62);
+}
+
+/* ── Cards over the map ── */
+/* The heading is a dark band, edged in the colour of what the card is about
+   (yellow when it has none). */
+.mn-card.mn-menu > .head {
+  top: -14px;
+  margin: -14px -14px 0;
+  padding: 11px 8px 13px 14px;
+  background: var(--mn-band);
+  box-shadow: inset 0 -3px 0 var(--accent, var(--lp-yellow));
+  color: var(--mn-band-text);
+}
+.mn-card.mn-menu > .head h2 {
+  color: var(--mn-band-text);
+}
+.mn-card.mn-menu > .head .about p {
+  color: var(--mn-band-soft);
+}
+.mn-card.mn-menu > .head .mn-icon-button {
+  color: var(--mn-band-text);
+}
+.mn-card.mn-menu > .head .mn-icon-button:hover {
+  background: rgba(244, 241, 230, 0.13);
+}
+.mn-card.mn-menu > .head .art {
+  background: #e6dcb9;
+}
+/* Its bottom row of buttons sits on a band of the ground. */
+.mn-card.mn-menu > .mn-card-actions:last-child,
+.mn-card.mn-menu > .mn-menu-actions:last-child {
+  background: var(--mn-ground);
+  box-shadow: inset 0 1px 0 rgba(21, 38, 28, 0.12);
+}
+.mn-card.mn-menu > .mn-card-actions:last-child .lp-btn-ghost,
+.mn-card.mn-menu > .mn-menu-actions:last-child > button {
+  background: var(--mn-block);
+}
+/* The crew's card: its tabs are the band. */
+.mn-card.mn-crewcard > .mn-crew-head {
+  margin: -14px -14px 0;
+  padding: 10px 10px 10px 14px;
+  background: var(--mn-band);
+  box-shadow: inset 0 -3px 0 var(--lp-yellow);
+}
+.mn-card.mn-crewcard .mn-tabs {
+  background: rgba(244, 241, 230, 0.14);
+}
+.mn-card.mn-crewcard .mn-tabs button {
+  color: var(--mn-band-soft);
+}
+.mn-card.mn-crewcard .mn-tabs button[aria-selected="true"] {
+  background: var(--lp-yellow);
+  color: #15261c;
+}
+.mn-card.mn-crewcard > .mn-crew-head .mn-icon-button {
+  color: var(--mn-band-text);
+}
+.mn-card.mn-crewcard > .mn-crew-head .mn-icon-button:hover {
+  background: rgba(244, 241, 230, 0.13);
+}
+.mn-card.mn-crewcard {
+  background: var(--mn-ground);
+}
+/* The Pins tool's blocks, and the buttons that sit straight on the ground. */
+.mn-panel .mn-pin-kind,
+.mn-panel .mn-quickset {
+  border: 0;
+  background: var(--mn-block);
+  box-shadow: var(--mn-lift);
+}
+.mn-panel .mn-quickset .rows li {
+  background: var(--lp-paper);
+}
+.mn-panel > .mn-menu-actions button:not(.on):not(.armed),
+.mn-panel .mn-kinds.all .mn-kind {
+  border-color: transparent;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn-panel .mn-kinds.all .mn-kind.selected {
+  border-color: var(--lp-ink);
+  background: #fbefb4;
+}
+.mn-panel > .mn-menu-actions button.danger {
+  box-shadow: 0 0 0 1px rgba(217, 93, 57, 0.5);
+}
+.mn-panel > .mn-text-button {
+  color: var(--lp-ink);
+}
+/* (Inside a block there is less room across: the samples are smaller.) */
+.mn-presets .pins {
+  gap: 1px;
+  padding: 3px;
+}
+.mn-presets .pins .mn-pin-art {
+  width: 21px;
+  height: 21px;
+}
+.mn-presets button {
+  min-width: 0;
+  padding-inline: 4px;
+}
+/* (The crew card is a column that would otherwise squeeze its band.) */
+.mn-crew-head {
+  flex-shrink: 0;
+}

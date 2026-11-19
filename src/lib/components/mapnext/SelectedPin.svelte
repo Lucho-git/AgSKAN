@@ -7,7 +7,7 @@
    * over the pin's place (the pin in the layer itself is hidden meanwhile);
    * taps pass through to the map.
    */
-  import { pinDataUrl } from "./pins"
+  import { isBarePin, pinDataUrl } from "./pins"
 
   /** The pin's image key (see `pinImageKey`). */
   export let image: string
@@ -20,11 +20,20 @@
   // rather than stretched up from the smaller one.
   $: big = Math.round(size * 1.3)
   $: src = pinDataUrl(image, big * 2)
+  // The plain pin has no disc for a ring to sit on: it glows round its own
+  // shape instead.
+  $: bare = isBarePin(image)
 </script>
 
-<div class="mn-picked" class:leaving style="--big: {big}px" aria-hidden="true">
+<div
+  class="mn-picked"
+  class:leaving
+  class:bare
+  style="--big: {big}px"
+  aria-hidden="true"
+>
   <img {src} alt="" width={big} height={big} />
-  <span class="ring"></span>
+  {#if !bare}<span class="ring"></span>{/if}
 </div>
 
 <style>
@@ -58,6 +67,10 @@
     box-shadow:
       0 0 6.5px #fff,
       0 0 13px #f8fafc;
+  }
+  .bare img {
+    filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff)
+      drop-shadow(0 0 6px #f8fafc);
   }
   /* From the size it has in the layer, past its resting size, and back. */
   @keyframes mn-pick-pop {
