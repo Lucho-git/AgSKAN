@@ -50,7 +50,11 @@
   import { operatorApi } from "$lib/api/operatorApi"
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
-  import { IMAGERY, type BaseLook } from "$lib/components/mapnext/mapStyle"
+  import {
+    IMAGERY,
+    type BaseLook,
+    type TrailLevel,
+  } from "$lib/components/mapnext/mapStyle"
   import { machineFor } from "$lib/components/mapnext/machines"
   import type { LngLat } from "$lib/components/mapnext/geo"
   import { formatDistance, formatHa } from "$lib/components/mapnext/format"
@@ -58,7 +62,9 @@
     PIN_DEFAULT,
     pinChoices as allPinChoices,
     pinColour,
+    pinStyle,
     preferenceIconClass,
+    type PinStyle,
   } from "$lib/components/mapnext/pins"
   import {
     grainBinDefaultCapacity,
@@ -212,6 +218,16 @@
       ? savedBase
       : "dark"
   let baseKey: string = baseDefault
+  // How vivid trails are, and how pins are drawn: this device's choices.
+  let trailLevel: TrailLevel = (() => {
+    const saved = load<string>("trail-level")
+    return saved === "low" || saved === "bright" ? saved : "medium"
+  })()
+  let pinLook: PinStyle = (() => {
+    const saved = load<string>("pin-style")
+    return saved === "light" || saved === "dark" ? saved : "solid"
+  })()
+  pinStyle.set(pinLook)
   const lookOf = (key: string): BaseLook =>
     key === "paper" ? "paper" : key === "dark" ? "dark" : "satellite"
   const imageryOf = (key: string) => (IMAGERY[key] ? key : null)
@@ -683,6 +699,7 @@
       pinSettings,
     })
     engine = created
+    created.setTrailLevel(trailLevel)
     // Holding a finger on the map drops the default pin there (or the one
     // whose button is pressed), as the current viewer does.
     created.onGround = (outline) => buildPaddock(outline)
@@ -1077,6 +1094,17 @@
   function setBase(key: string) {
     baseKey = key
     engine?.setBase(lookOf(key), imageryOf(key))
+  }
+  function setTrailLevel(level: TrailLevel) {
+    trailLevel = level
+    save("trail-level", level)
+    engine?.setTrailLevel(level)
+  }
+  function setPinStyle(style: PinStyle) {
+    pinLook = style
+    save("pin-style", style)
+    pinStyle.set(style)
+    engine?.redrawPins()
   }
   function setBaseDefault(key: string) {
     baseDefault = key
@@ -3908,6 +3936,10 @@
         on:base={(e) => setBase(e.detail)}
         {baseDefault}
         on:baseDefault={(e) => setBaseDefault(e.detail)}
+        {trailLevel}
+        on:trailLevel={(e) => setTrailLevel(e.detail)}
+        pinStyle={pinLook}
+        on:pinStyle={(e) => setPinStyle(e.detail)}
         on:bin={(e) => openBin(e.detail)}
         on:layer={(e) => setLayer(e.detail.key, e.detail.on)}
         on:measure={startMeasuring}

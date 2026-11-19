@@ -8,6 +8,7 @@
  * a class (plus the few bits of state that change how a pin looks) into an
  * SVG image for the map layer, the pin picker and the pin card.
  */
+import { writable } from "svelte/store"
 import {
   getAllMarkers,
   findMarkerByIconClass,
@@ -30,6 +31,23 @@ type GlyphSet = Record<string, Glyph>
 const INK = "#15261C"
 // The art on a pin is pure black, as the current viewer draws it.
 const ART = "#000000"
+
+/**
+ * How every pin is drawn, chosen in the Map tool:
+ *  - "solid": a disc of the pin's colour with a black picture (the current
+ *    viewer's look)
+ *  - "light": a white disc ringed in the pin's colour, black picture
+ *  - "dark":  a dark disc with the picture in the pin's colour
+ */
+export type PinStyle = "solid" | "light" | "dark"
+export const PIN_STYLES: { key: PinStyle; label: string }[] = [
+  { key: "solid", label: "Solid" },
+  { key: "light", label: "Light" },
+  { key: "dark", label: "Dark" },
+]
+export const pinStyle = writable<PinStyle>("solid")
+let styleNow: PinStyle = "solid"
+pinStyle.subscribe((style) => (styleNow = style))
 
 let glyphsPromise: Promise<GlyphSet> | null = null
 let glyphs: GlyphSet | null = null
@@ -62,7 +80,7 @@ export type PinLook = {
 }
 
 /** A stable name for the image a pin needs, so each look is drawn once. */
-export function pinImageKey(look: PinLook): string {
+export function pinImageKey(look: PinLook, style?: PinStyle | null): string {
   const icon = gateDisplayIconClass(
     look.iconClass || "default",
     !!look.gateOpen,
@@ -77,7 +95,7 @@ export function pinImageKey(look: PinLook): string {
     ? Math.round(Math.max(0, Math.min(100, look.fill ?? 0)) / 10)
     : ""
   const picked = isRockPicked(look.iconClass, !!look.rockPicked) ? "p" : ""
-  return `pin|${icon}|${colour}|${level}|${picked}`
+  return `pin|${icon}|${colour}|${level}|${picked}|${style ?? styleNow}`
 }
 
 // The older kangaroo pin has no vector art; the newer one stands in for it.
@@ -103,30 +121,86 @@ export const PIN_DEFAULT = "#7dd3fc"
  * the disc is filled with it; the art stays ink (white on a black disc).
  * "white" is the plain white disc.
  */
-function disc(key: string) {
-  if (!key) return { defs: "", fill: PIN_DEFAULT, art: ART, ring: INK }
-  if (key === "white") return { defs: "", fill: "#f1f5f9", art: ART, ring: INK }
+function disc(key: string, style: PinStyle = "solid") {
+  // The pin's own colour: sky blue when none was chosen.
+  const hue =
+    !key || key === "white"
+      ? PIN_DEFAULT
+      : key === "rainbow"
+        ? "url(#rb)"
+        : key === "black"
+          ? INK
+          : markerColor(key, "circle-fill").dark
+  const defs = key === "rainbow" ? RAINBOW : ""
+  if (style === "light")
+    // A white disc, ringed in the pin's colour; the picture stays black.
+    return {
+      defs,
+      fill: "#f8fafc",
+      art: ART,
+      ring: INK,
+      edge: key === "white" ? INK : hue,
+      edgeWidth: 3,
+    }
+  if (style === "dark")
+    // A dark disc with the picture in the pin's colour (white for black).
+    return {
+      defs,
+      fill: INK,
+      art: key === "black" || key === "rainbow" ? "#ffffff" : hue,
+      ring: "#fff",
+      edge: key === "black" ? "#ffffff" : hue,
+      edgeWidth: 1.6,
+    }
+  if (!key)
+    return {
+      defs: "",
+      fill: PIN_DEFAULT,
+      art: ART,
+      ring: INK,
+      edge: "",
+      edgeWidth: 0,
+    }
+  if (key === "white")
+    return {
+      defs: "",
+      fill: "#f1f5f9",
+      art: ART,
+      ring: INK,
+      edge: "",
+      edgeWidth: 0,
+    }
   if (key === "rainbow")
-    return { defs: RAINBOW, fill: "url(#rb)", art: ART, ring: INK }
-  const fill = key === "black" ? INK : markerColor(key, "circle-fill").dark
+    return {
+      defs: RAINBOW,
+      fill: "url(#rb)",
+      art: ART,
+      ring: INK,
+      edge: "",
+      edgeWidth: 0,
+    }
   // The picture is ink on every colour, so a kind of pin reads the same
   // whatever colour it is given; only on a black disc does it turn white.
   return {
     defs: "",
-    fill,
+    fill: hue,
     art: key === "black" ? "#fff" : ART,
     ring: key === "black" ? "#fff" : INK,
+    edge: "",
+    edgeWidth: 0,
   }
 }
 
 /** The SVG for one pin image key (see `pinImageKey`). */
 export function pinSvg(key: string, size = 96): string {
-  const [, icon, colour, level, picked] = key.split("|")
+  const [, icon, colour, level, picked, styled] = key.split("|")
+  const style: PinStyle =
+    styled === "light" || styled === "dark" ? styled : "solid"
   const set = glyphs ?? {}
   const glyph = set[icon] ?? set[STAND_INS[icon] ?? ""]
   const bin = level !== ""
   // A grain bin keeps its white disc: its colour is the gauge round the rim.
-  const look = disc(bin ? "white" : colour)
+  const look = bin ? disc("white") : disc(colour, style)
 
   let art: string
   if (glyph) {
@@ -162,11 +236,15 @@ export function pinSvg(key: string, size = 96): string {
     // runs round it; a white pin gets a hair of an edge so it has one).
     (bin
       ? `<circle r="13.6" fill="${look.fill}" stroke="#C9C4B0" stroke-width="3.6"/>`
-      : `<circle r="15.09" fill="${look.fill}"${
-          colour === "white"
-            ? ` stroke="rgba(21,38,28,0.3)" stroke-width="0.7"`
-            : ""
-        }/>`) +
+      : look.edge && look.edgeWidth > 0
+        ? // (The light and dark styles: the disc drawn in a little, with
+          // its ring taking it out to the same edge.)
+          `<circle r="${(15.09 - look.edgeWidth / 2).toFixed(2)}" fill="${look.fill}" stroke="${look.edge}" stroke-width="${look.edgeWidth}"/>`
+        : `<circle r="15.09" fill="${look.fill}"${
+            colour === "white"
+              ? ` stroke="rgba(21,38,28,0.3)" stroke-width="0.7"`
+              : ""
+          }/>`) +
     gauge +
     art +
     tick +

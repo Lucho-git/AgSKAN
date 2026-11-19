@@ -1,8 +1,9 @@
 <script lang="ts">
   /**
    * What a grain bin's menu holds, laid out as the current viewer's bin
-   * panel is: two tabs. Fill is a slider for how full it is, with the
-   * tonnes under it, and a box to add or take a number of tonnes. Settings
+   * panel is: two tabs. Fill is one bar that shows how full it is and is
+   * dragged to change it, with the tonnes under it, and a box to add or
+   * take a number of tonnes. Settings
    * is what it is storing, its size, its colour, whether it has a button on
    * the map, and removing it. Everything is saved as it is changed.
    */
@@ -49,7 +50,51 @@
       : grainBinDefaultCapacity(pin.iconClass)
   $: tint = markerColor(siloColorKey(pin.grainColour), "circle-fill").dark
 
-  // The slider moves freely and saves when it is let go.
+  // The bar is the slider: it follows a finger (or the mouse) anywhere
+  // along it, and saves when it is let go. It is drawn and dragged here
+  // rather than left to the browser's own slider, which could be seen but
+  // not moved on some screens.
+  let bar: HTMLDivElement
+  let dragging = false
+  const along = (e: PointerEvent) => {
+    const box = bar.getBoundingClientRect()
+    const part = (e.clientX - box.left) / Math.max(1, box.width)
+    return Math.round(Math.max(0, Math.min(1, part)) * 100)
+  }
+  function grab(e: PointerEvent) {
+    if (guest) return
+    e.preventDefault()
+    dragging = true
+    bar.setPointerCapture?.(e.pointerId)
+    fill = along(e)
+  }
+  function drag(e: PointerEvent) {
+    if (dragging) fill = along(e)
+  }
+  function drop() {
+    if (!dragging) return
+    dragging = false
+    if (fill !== pin.fill) dispatch("change", { fill })
+  }
+  function nudge(e: KeyboardEvent) {
+    if (guest) return
+    const by = e.shiftKey ? 10 : 1
+    const next =
+      e.key === "ArrowLeft" || e.key === "ArrowDown"
+        ? fill - by
+        : e.key === "ArrowRight" || e.key === "ArrowUp"
+          ? fill + by
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? 100
+              : null
+    if (next === null) return
+    e.preventDefault()
+    fill = Math.round(Math.max(0, Math.min(100, next)))
+    if (fill !== pin.fill) dispatch("change", { fill })
+  }
+
   let fill = pin.fill
   let saved = pin.fill
   $: if (pin.fill !== saved) {
@@ -130,19 +175,26 @@
   {#if tab === "fill" || guest}
     <div class="field">
       <span class="label">Fill level</span>
-      <div class="slider">
-        <input
-          class="mn-scrub"
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          bind:value={fill}
-          disabled={guest}
-          aria-label="How full the bin is"
-          style="--done: {fill}%"
-          on:change={() => dispatch("change", { fill: Number(fill) })}
-        />
+      <div
+        class="fillbar"
+        class:dragging
+        class:locked={guest}
+        bind:this={bar}
+        role="slider"
+        tabindex={guest ? -1 : 0}
+        aria-label="How full the bin is"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(fill)}
+        aria-valuetext="{Math.round(fill)}%, {tonnes.toFixed(1)} tonnes"
+        on:pointerdown={grab}
+        on:pointermove={drag}
+        on:pointerup={drop}
+        on:pointercancel={drop}
+        on:keydown={nudge}
+      >
+        <i style="width: {fill}%"></i>
+        {#if !guest}<span class="grip" style="left: {fill}%"></span>{/if}
         <b>{Math.round(fill)}%</b>
       </div>
       <span class="tonnes"><b>{tonnes.toFixed(1)}</b> / {capacity} t</span>
@@ -302,23 +354,70 @@
     color: var(--lp-ink-soft);
     text-transform: uppercase;
   }
-  .slider {
+  /* How full it is, and the handle on it: drag anywhere along the bar. */
+  .fillbar {
+    position: relative;
+    height: 40px;
+    border: 1.5px solid var(--lp-ink);
+    border-radius: 12px;
+    background: var(--lp-paper);
+    cursor: ew-resize;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .fillbar.locked {
+    cursor: default;
+  }
+  .fillbar:focus-visible {
+    outline: 3px solid var(--lp-yellow);
+    outline-offset: 2px;
+  }
+  .fillbar i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 10px 0 0 10px;
+    background: var(--c);
+  }
+  .fillbar:not(.dragging) i {
+    transition: width 0.2s ease;
+  }
+  .fillbar b {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
-  }
-  .slider input {
-    flex: 1;
-    min-width: 0;
-  }
-  .slider b {
-    min-width: 3.4rem;
+    justify-content: center;
     font-family: var(--lp-display);
-    font-size: 1.5rem;
+    font-size: 1.15rem;
     font-weight: 800;
-    line-height: 1;
-    text-align: right;
+    color: var(--lp-ink);
+    text-shadow:
+      0 0 3px var(--lp-paper),
+      0 0 3px var(--lp-paper);
+    pointer-events: none;
     font-variant-numeric: tabular-nums;
+  }
+  .fillbar .grip {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    width: 14px;
+    margin-left: -7px;
+    border: 2px solid var(--lp-card);
+    border-radius: 8px;
+    background: var(--lp-ink);
+    box-shadow: 0 2px 6px -1px rgba(10, 25, 15, 0.6);
+    pointer-events: none;
+  }
+  .fillbar:not(.dragging) .grip {
+    transition: left 0.2s ease;
+  }
+  .fillbar.dragging .grip {
+    background: var(--lp-yellow);
+    box-shadow:
+      0 0 0 1.5px var(--lp-ink),
+      0 2px 6px -1px rgba(10, 25, 15, 0.6);
   }
   .tonnes {
     font-size: 0.86rem;

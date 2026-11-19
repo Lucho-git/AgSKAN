@@ -4,9 +4,18 @@
    * same image the map layer draws. Used in the pin picker and the pin card.
    */
   import { onMount } from "svelte"
-  import { loadPinGlyphs, pinDataUrl, pinImageKey, type PinLook } from "./pins"
+  import {
+    loadPinGlyphs,
+    pinDataUrl,
+    pinImageKey,
+    pinStyle,
+    type PinLook,
+    type PinStyle,
+  } from "./pins"
 
   export let look: PinLook
+  /** Drawn in this style rather than the one the map is set to. */
+  export let style: PinStyle | null = null
   /** Diameter in pixels. */
   export let size = 36
 
@@ -16,7 +25,7 @@
     loadPinGlyphs().then(() => (loaded = true))
   })
 
-  $: key = pinImageKey(look)
+  $: key = pinImageKey(look, style ?? $pinStyle)
   $: src = loaded ? pinDataUrl(key, size * 2) : ""
 </script>
 

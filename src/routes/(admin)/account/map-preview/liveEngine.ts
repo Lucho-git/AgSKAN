@@ -19,6 +19,10 @@ import {
 } from "$lib/components/map/markers/markerPalette"
 import { logGrainEvent } from "$lib/api/grainLogApi"
 import {
+  computePowerNearData,
+  filterNationalNear,
+} from "$lib/utils/powerNearFields.js"
+import {
   ACCURACY_SOURCE,
   FARM_SOURCE,
   HISTORY_SOURCE,
@@ -44,6 +48,11 @@ import {
   THROUGH_SOURCE,
   THROUGH_MASK_SOURCE,
   OUTSIDE_SOURCE,
+  POWER_LINE_SOURCE,
+  POWER_POLE_SOURCE,
+  POWER_POLE_IMAGE,
+  setTrailLevel,
+  type TrailLevel,
   PICKED_SHAPE_SOURCE,
   showThrough,
   LASSO_SOURCE,
@@ -623,6 +632,50 @@ const line = (
   properties: { color, width, ...extra },
   geometry: { type: "LineString", coordinates },
 })
+/**
+ * The national power lines (Geoscience Australia), a file of the app's own:
+ * fetched once, and only when a map first needs it.
+ */
+let nationalPower: Promise<{ features: unknown[] }> | null = null
+const loadNationalPower = () => {
+  nationalPower ??= fetch("/powerLines/powerlines.geojson")
+    .then((response) => {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return response.json()
+    })
+    .catch((error) => {
+      nationalPower = null
+      throw error
+    })
+  return nationalPower
+}
+
+/** A power pole as the map draws it: a dark disc with a yellow bolt. */
+function powerPoleImage() {
+  const size = 30
+  const scale = 2
+  const canvas = document.createElement("canvas")
+  canvas.width = size * scale
+  canvas.height = size * scale
+  const ctx = canvas.getContext("2d")
+  if (!ctx) return null
+  ctx.scale(scale, scale)
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, 12.5, 0, Math.PI * 2)
+  ctx.fillStyle = "#15261c"
+  ctx.fill()
+  ctx.lineWidth = 2
+  ctx.strokeStyle = "#facc15"
+  ctx.stroke()
+  // (The current viewer's bolt, scaled to sit in the disc.)
+  ctx.translate(size / 2 - 12.3 * 0.62, size / 2 - 15 * 0.62)
+  ctx.scale(0.62, 0.62)
+  ctx.fillStyle = "#facc15"
+  ctx.fill(new Path2D("M13.5 2 L5.2 16.5 H10.8 L9.2 28 L19.4 13.5 H12.9 Z"))
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  return { width: pixels.width, height: pixels.height, data: pixels.data }
+}
+
 const collection = (features: unknown[]) => ({
   type: "FeatureCollection",
   features,
@@ -1059,6 +1112,9 @@ export class LiveEngine {
       showLayers(this.map, this.shown, this.base)
       showPickedMarks(this.map, this.marks)
       showDrawingsFor(this.map, get(this.selectedPin)?.id ?? null)
+      const pole = powerPoleImage()
+      if (pole && !this.map.hasImage(POWER_POLE_IMAGE))
+        this.map.addImage(POWER_POLE_IMAGE, pole, { pixelRatio: 2 })
       this.ready.set(true)
       this.drawPaddocks()
       this.drawPins()
@@ -1501,6 +1557,7 @@ export class LiveEngine {
       })
     }
     this.map.getSource(FARM_SOURCE).setData(collection(features))
+    this.powerSoon()
     // Everywhere that isn't a paddock: the world, with each paddock cut out
     // (the dark map eases it back).
     this.map.getSource(OUTSIDE_SOURCE)?.setData(
@@ -4666,12 +4723,87 @@ export class LiveEngine {
     const hectares = shown.fieldHectares !== this.shown.fieldHectares
     this.shown = { ...shown }
     if (get(this.ready)) showLayers(this.map, this.shown, this.base)
+    this.powerSoon()
     if (hectares) this.drawPaddocks()
     for (const entry of this.crewById.values()) {
       if (!entry.vehicle) continue
       entry.vehicle.marker.getElement().style.display =
         shown.vehicles === false ? "none" : ""
       entry.vehicle.view.$set({ label: this.tagFor(entry) })
+    }
+  }
+
+  /** How vivid the trails are drawn (the Map tool's setting). */
+  setTrailLevel(level: TrailLevel) {
+    setTrailLevel(get(this.ready) ? this.map : null, level, this.base)
+    this.paintPicked()
+  }
+
+  /** The pins' style changed (see `pinStyle`): draw them again. */
+  redrawPins() {
+    this.drawPins()
+    this.showPicked(get(this.selectedPin))
+  }
+
+  // ── Power lines and poles ───────────────────────────────────────────────
+  // The current viewer's data: Western Power's lines and poles (two Mapbox
+  // tilesets) and Geoscience Australia's national lines (a file of the
+  // app's). Only what is within a kilometre of a paddock is drawn, worked
+  // out by the current viewer's own helper from the few tiles the paddocks
+  // sit in. It is done once per set of paddocks, a moment after they
+  // settle, and not at all while both layers are switched off.
+
+  private powerKey = ""
+  private powerTimer: ReturnType<typeof setTimeout> | null = null
+
+  private powerSoon() {
+    if (this.shown.powerLines === false && this.shown.powerPoles === false)
+      return
+    if (this.powerTimer) clearTimeout(this.powerTimer)
+    this.powerTimer = setTimeout(() => this.loadPower(), 1500)
+  }
+
+  private async loadPower() {
+    this.powerTimer = null
+    if (this.destroyed || !get(this.ready)) return
+    const key = this.paddocks
+      .map((paddock) => `${paddock.id}:${paddock.bbox.join()}`)
+      .join("|")
+    if (key === this.powerKey) return
+    this.powerKey = key
+    const fields = this.paddocks.map((paddock) => ({
+      boundary: { type: "MultiPolygon", coordinates: paddock.polygons },
+    }))
+    const show = (lines: unknown[], poles: unknown[]) => {
+      if (this.destroyed || this.powerKey !== key) return
+      this.map.getSource(POWER_LINE_SOURCE)?.setData(collection(lines))
+      this.map.getSource(POWER_POLE_SOURCE)?.setData(collection(poles))
+    }
+    if (!fields.length) {
+      show([], [])
+      return
+    }
+    try {
+      const near = (await computePowerNearData({
+        fields,
+        accessToken: mapboxgl.accessToken,
+        nationalData: null,
+      })) as {
+        lines: { features: unknown[] }
+        poles: { features: unknown[] }
+      }
+      const lines = near.lines.features
+      const poles = near.poles.features
+      show(lines, poles)
+      // The national lines come after: every other state's, and the big
+      // transmission lines the Western Power set leaves out.
+      const national = await loadNationalPower()
+      const more = await filterNationalNear(national, fields)
+      if (more.features.length)
+        show([...lines, ...(more.features as unknown[])], poles)
+    } catch {
+      // Nothing more is drawn; the next change to the paddocks tries again.
+      if (this.powerKey === key) this.powerKey = ""
     }
   }
 

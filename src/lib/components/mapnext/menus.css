@@ -3482,3 +3482,69 @@
   max-width: 24rem;
   margin-left: 0;
 }
+
+/* ── Seventeenth pass ───────────────────────────────────────────────────── */
+/* The Map tool's presets: three across, each a sample over its name. */
+.mn-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.mn-presets button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 5px 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-paper);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+.mn-presets button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-presets button[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  box-shadow: inset 0 0 0 1.5px var(--lp-ink);
+}
+/* Two passes of a trail over a bit of country, at that strength (they
+   overlap in the middle, where it is stronger). */
+.mn-presets .trails {
+  position: relative;
+  width: 100%;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4c5a3d 0%, #6f6a44 45%, #8a7a4f 100%);
+}
+.mn-presets .trails::before,
+.mn-presets .trails::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 46%;
+  background: #f2a20c;
+  opacity: var(--o);
+}
+.mn-presets .trails::before {
+  left: 8%;
+}
+.mn-presets .trails::after {
+  left: 46%;
+}
+.mn-presets .pins {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 4px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4c5a3d 0%, #6f6a44 45%, #8a7a4f 100%);
+}
+.mn-presets .pins .mn-pin-art {
+  width: 26px;
+  height: 26px;
+}

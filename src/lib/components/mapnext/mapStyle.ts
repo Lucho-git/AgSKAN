@@ -33,6 +33,14 @@ export const TRAIL_SOURCE = "mv-trails"
 export const MY_TRAIL_SOURCE = "mv-my-trail"
 /** Everywhere that isn't a paddock, to ease it back on the dark map. */
 export const OUTSIDE_SOURCE = "mv-outside"
+/**
+ * Power lines and power poles near the paddocks (worked out from the
+ * network's own data by the engine, as the current viewer does).
+ */
+export const POWER_LINE_SOURCE = "mv-power-lines"
+export const POWER_POLE_SOURCE = "mv-power-poles"
+/** The picture a power pole is drawn with (added to the map by the engine). */
+export const POWER_POLE_IMAGE = "mv-power-pole"
 export const ACCURACY_SOURCE = "mv-accuracy"
 /** Finished trails (the live map only). */
 export const HISTORY_SOURCE = "mv-history"
@@ -104,6 +112,8 @@ export const LAYER_GROUPS: Record<string, string[]> = {
   markerDrawings: DRAWING_LAYERS,
   historicalTrails: ["mv-history", "mv-history-pause"],
   activeTrails: ["mv-trails"],
+  powerLines: ["mv-power-glow", "mv-power-case", "mv-power-line"],
+  powerPoles: ["mv-power-pole"],
 }
 
 /** Layers that belong to some looks only. */
@@ -345,8 +355,36 @@ const NOT_HEAD = ["!=", ["get", "segment"], "head"]
 
 const TRAIL_LAYERS = ["mv-history", "mv-trails", "mv-my-trail"]
 
+/**
+ * How vivid trails are, chosen in the Map tool: "medium" is the old
+ * viewer's strength, with a fainter and a brighter setting either side.
+ */
+export type TrailLevel = "low" | "medium" | "bright"
+const TRAIL_STRENGTH: Record<TrailLevel, number> = {
+  low: 0.6,
+  medium: 1,
+  bright: 1.55,
+}
+let trailLevel: TrailLevel = "medium"
+
 /** How strongly trails are drawn in each look (the old viewer's 0.5). */
-export const trailOpacity = (look: BaseLook) => (look === "paper" ? 0.56 : 0.5)
+export const trailOpacity = (look: BaseLook) =>
+  Math.min(0.9, (look === "paper" ? 0.56 : 0.5) * TRAIL_STRENGTH[trailLevel])
+
+/**
+ * Set how vivid trails are. (A picked trail's dimming is put back by the
+ * caller after this, as after `applyBase`.)
+ */
+export function setTrailLevel(
+  map: MapboxMap | null,
+  level: TrailLevel,
+  look: BaseLook,
+) {
+  trailLevel = level
+  if (!map) return
+  for (const id of TRAIL_LAYERS)
+    map.setPaintProperty(id, "line-opacity", trailOpacity(look))
+}
 
 /**
  * Pick one finished trail out: it is drawn stronger and the rest fade back.
@@ -513,6 +551,8 @@ export function buildStyle() {
       [TRAIL_SOURCE]: { type: "geojson", data: empty },
       [MY_TRAIL_SOURCE]: { type: "geojson", data: empty },
       [OUTSIDE_SOURCE]: { type: "geojson", data: empty },
+      [POWER_LINE_SOURCE]: { type: "geojson", data: empty },
+      [POWER_POLE_SOURCE]: { type: "geojson", data: empty },
       [ACCURACY_SOURCE]: { type: "geojson", data: empty },
       [HISTORY_SOURCE]: { type: "geojson", data: empty },
       [LABEL_SOURCE]: { type: "geojson", data: empty },
@@ -1054,6 +1094,91 @@ export function buildStyle() {
       arrowLayer(PICKED_ARROW_LAYER, PICKED_ARROW_SOURCE),
       // The picked paddock's fence, on top of everything drawn in it: a
       // solid line over a soft glow that breathes.
+      // Power lines and poles, from zoom 12 as on the current viewer: over
+      // the trails and fences (they are what a boom or an auger must miss),
+      // under whatever is picked and under the pins. A line is the current
+      // viewer's yellow on a dark edge, with a soft glow up close; a pole is
+      // a dark disc with a yellow bolt, growing as the map closes in.
+      {
+        id: "mv-power-glow",
+        type: "line",
+        source: POWER_LINE_SOURCE,
+        minzoom: 14,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#facc15",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 14, 6, 17, 12],
+          "line-blur": 6,
+          "line-opacity": ["interpolate", ["linear"], ["zoom"], 14, 0, 15, 0.3],
+        },
+      },
+      {
+        id: "mv-power-case",
+        type: "line",
+        source: POWER_LINE_SOURCE,
+        minzoom: 12,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#0f172a",
+          "line-opacity": 0.6,
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12,
+            2.6,
+            14,
+            4,
+            17,
+            5,
+          ],
+        },
+      },
+      {
+        id: "mv-power-line",
+        type: "line",
+        source: POWER_LINE_SOURCE,
+        minzoom: 12,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#facc15",
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12,
+            1.4,
+            14,
+            2.3,
+            17,
+            3,
+          ],
+        },
+      },
+      {
+        id: "mv-power-pole",
+        type: "symbol",
+        source: POWER_POLE_SOURCE,
+        minzoom: 12,
+        layout: {
+          "icon-image": POWER_POLE_IMAGE,
+          "icon-size": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12,
+            0.3,
+            14,
+            0.5,
+            16,
+            0.85,
+            18,
+            1.1,
+          ],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      },
       {
         id: "mv-paddock-picked-glow",
         type: "line",

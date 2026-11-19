@@ -47,7 +47,13 @@
   import { machineFor } from "$lib/components/mapnext/machines"
   import { drawColour } from "$lib/components/mapnext/palette"
   import { formatHa } from "$lib/components/mapnext/format"
-  import type { PinChoice, PinLook } from "$lib/components/mapnext/pins"
+  import {
+    PIN_STYLES,
+    type PinChoice,
+    type PinLook,
+    type PinStyle,
+  } from "$lib/components/mapnext/pins"
+  import type { TrailLevel } from "$lib/components/mapnext/mapStyle"
   import type { LivePin } from "./liveData"
   import type {
     BaseChoice,
@@ -94,6 +100,10 @@
   export let base = "satellite"
   /** The look the map opens in. */
   export let baseDefault = "dark"
+  /** How vivid trails are drawn. */
+  export let trailLevel: TrailLevel = "medium"
+  /** How pins are drawn. */
+  export let pinStyle: PinStyle = "solid"
   export let baseChoices: BaseChoice[] = []
   /** Layer switches, by the keys the current viewer saves. */
   export let layers: Record<string, boolean> = {}
@@ -151,6 +161,8 @@
     base: string
     /** Open the map in this look from now on. */
     baseDefault: string
+    trailLevel: TrailLevel
+    pinStyle: PinStyle
     /** Open a bin's card. */
     bin: string
     layer: { key: string; on: boolean }
@@ -259,6 +271,8 @@
     { key: "historicalTrails", label: "Finished trails" },
     { key: "activeTrails", label: "Trails being laid" },
     { key: "trailArrows", label: "Direction arrows on trails", extra: true },
+    { key: "powerLines", label: "Power lines" },
+    { key: "powerPoles", label: "Power poles", part: true },
   ]
 
   // ── Paddock list ──
@@ -336,6 +350,14 @@
       hour: "numeric",
       minute: "2-digit",
     })
+
+  // The Map tool's three trail strengths (what each looks like, for its
+  // sample).
+  const TRAIL_LEVELS: { key: TrailLevel; label: string; strength: number }[] = [
+    { key: "low", label: "Low", strength: 0.3 },
+    { key: "medium", label: "Medium", strength: 0.5 },
+    { key: "bright", label: "Bright", strength: 0.78 },
+  ]
 
   const SWATCH: Record<string, string> = {
     satellite:
@@ -500,7 +522,7 @@
       <button type="button" class="mn-tile" on:click={() => (view = "map")}>
         <span class="icon"><MapIcon size={24} /></span>
         <strong>Map</strong>
-        <small>{baseLabel}</small>
+        <small>map style</small>
       </button>
       <button type="button" class="mn-tile" on:click={() => (view = "layers")}>
         <span class="icon"><Layers size={24} /></span>
@@ -546,7 +568,8 @@
           href="https://www.openstreetmap.org/copyright"
           target="_blank"
           rel="noreferrer">OpenStreetMap</a
-        > · imagery © Maxar
+        > · imagery © Maxar · power lines and poles © Western Power, © Geoscience
+        Australia (CC BY 4.0)
       </p>
     </footer>
   {:else}
@@ -906,41 +929,91 @@
         </section>
       {/each}
     {:else if view === "map"}
-      <div class="mn-looks">
-        {#each baseChoices as choice (choice.key)}
+      <!-- ── Map style: the map itself, the trails, the pins ── -->
+      <section class="mn-section">
+        <p class="lp-eyebrow">Map</p>
+        <div class="mn-looks">
+          {#each baseChoices as choice (choice.key)}
+            <button
+              type="button"
+              class="mn-look"
+              class:selected={base === choice.key}
+              aria-pressed={base === choice.key}
+              on:click={() => dispatch("base", choice.key)}
+            >
+              <span
+                class="swatch"
+                style="background: {SWATCH[choice.key] ?? SWATCH.satellite}"
+              ></span>
+              <span>
+                {choice.label}
+                {#if baseDefault === choice.key}<em>Default</em>{/if}
+                <small>{choice.note}</small>
+              </span>
+            </button>
+          {/each}
+        </div>
+        {#if base !== baseDefault}
           <button
             type="button"
-            class="mn-look"
-            class:selected={base === choice.key}
-            aria-pressed={base === choice.key}
-            on:click={() => dispatch("base", choice.key)}
+            class="lp-btn lp-btn-primary"
+            on:click={() => dispatch("baseDefault", base)}
           >
-            <span
-              class="swatch"
-              style="background: {SWATCH[choice.key] ?? SWATCH.satellite}"
-            ></span>
-            <span>
-              {choice.label}
-              {#if baseDefault === choice.key}<em>Default</em>{/if}
-              <small>{choice.note}</small>
-            </span>
+            Open the map in {baseLabel} every time
           </button>
-        {/each}
-      </div>
-      {#if base !== baseDefault}
-        <button
-          type="button"
-          class="lp-btn lp-btn-primary"
-          on:click={() => dispatch("baseDefault", base)}
-        >
-          Open the map in {baseLabel} every time
-        </button>
-      {:else}
-        <p class="mn-note">
-          The map opens in {baseLabel} on this device. Pick another look to try it,
-          then make it the default here.
-        </p>
-      {/if}
+        {/if}
+      </section>
+
+      <section class="mn-section">
+        <p class="lp-eyebrow">Trail colours</p>
+        <div class="mn-presets" role="group" aria-label="Trail colours">
+          {#each TRAIL_LEVELS as level (level.key)}
+            <button
+              type="button"
+              aria-pressed={trailLevel === level.key}
+              on:click={() =>
+                trailLevel !== level.key && dispatch("trailLevel", level.key)}
+            >
+              <span class="trails" style="--o: {level.strength}"></span>
+              {level.label}
+            </button>
+          {/each}
+        </div>
+      </section>
+
+      <section class="mn-section">
+        <p class="lp-eyebrow">Markers</p>
+        <div class="mn-presets" role="group" aria-label="Marker style">
+          {#each PIN_STYLES as option (option.key)}
+            <button
+              type="button"
+              aria-pressed={pinStyle === option.key}
+              on:click={() =>
+                pinStyle !== option.key && dispatch("pinStyle", option.key)}
+            >
+              <span class="pins">
+                <PinArt
+                  look={{ iconClass: "default" }}
+                  style={option.key}
+                  size={30}
+                />
+                <PinArt
+                  look={{ iconClass: "custom-svg-gate", colour: "red" }}
+                  style={option.key}
+                  size={30}
+                />
+                <PinArt
+                  look={{ iconClass: "ionic-warning", colour: "yellow" }}
+                  style={option.key}
+                  size={30}
+                />
+              </span>
+              {option.label}
+            </button>
+          {/each}
+        </div>
+      </section>
+
       <button
         type="button"
         class="lp-btn lp-btn-ghost"
