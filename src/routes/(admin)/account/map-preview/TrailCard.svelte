@@ -341,7 +341,7 @@
     width: 46px;
     height: 46px;
     border-radius: 13px;
-    box-shadow: 0 0 0 1.5px rgba(244, 241, 230, 0.55);
+    box-shadow: 0 0 0 1.5px var(--mn-band-soft);
   }
   .mn-trail h2 {
     font-size: 1.1rem;
@@ -350,16 +350,16 @@
     flex-shrink: 0;
     padding: 5px 11px;
     border-radius: 99px;
-    background: rgba(244, 241, 230, 0.16);
+    background: var(--mn-band-wash);
     font-family: var(--lp-mono);
     font-size: 0.8rem;
     font-weight: 600;
-    color: #f4f1e6;
+    color: var(--mn-band-text);
     white-space: nowrap;
   }
   .count b {
     font-weight: 800;
-    color: var(--lp-yellow);
+    color: var(--mn-band-accent);
   }
   .among {
     display: grid;

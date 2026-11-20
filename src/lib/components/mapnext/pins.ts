@@ -33,18 +33,28 @@ const INK = "#15261C"
 const ART = "#000000"
 
 /**
- * How every pin is drawn, chosen in the Map tool:
- *  - "solid": a disc of the pin's colour with a black picture (the current
- *    viewer's look)
- *  - "light": a white disc ringed in the pin's colour, black picture
- *  - "dark":  a dark disc with the picture in the pin's colour
+ * How every pin is drawn, chosen in the Map tool. The three are styles of
+ * the current viewer's, drawn the way it draws them:
+ *  - "solid":   its "circle fill, black": a disc of the pin's colour with a
+ *               black picture
+ *  - "classic": its "original": a pale disc of the colour with a strong
+ *               ring of it, and a dark picture
+ *  - "icon":    its "icon fill": an off-white disc with a grey rim, and the
+ *               picture in a deep shade of the colour
  */
-export type PinStyle = "solid" | "light" | "dark"
+export type PinStyle = "solid" | "classic" | "icon"
 export const PIN_STYLES: { key: PinStyle; label: string }[] = [
   { key: "solid", label: "Solid" },
-  { key: "light", label: "Light" },
-  { key: "dark", label: "Dark" },
+  { key: "classic", label: "Classic" },
+  { key: "icon", label: "Icon fill" },
 ]
+/** A style saved under an earlier name (or anything else) as one of these. */
+export const asPinStyle = (saved: unknown): PinStyle =>
+  saved === "classic" || saved === "light"
+    ? "classic"
+    : saved === "icon" || saved === "dark"
+      ? "icon"
+      : "solid"
 export const pinStyle = writable<PinStyle>("solid")
 let styleNow: PinStyle = "solid"
 pinStyle.subscribe((style) => (styleNow = style))
@@ -150,78 +160,72 @@ function barePin(key: string): { defs: string; art: string } {
   }
 }
 
+type Disc = {
+  defs: string
+  /** The disc's fill, and the colour of the picture on it. */
+  fill: string
+  art: string
+  /** A ring drawn just inside the disc's edge, if the style has one. */
+  rim: string
+  rimOpacity: number
+}
+
+/** A colour too pale to ring a pale disc with. */
+function pale(hex: string) {
+  const n = parseInt(hex.replace("#", "").slice(0, 6), 16)
+  if (Number.isNaN(n)) return false
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 200
+}
+
 /**
- * The disc a pin sits on. With no colour chosen it is sky blue; with one,
- * the disc is filled with it; the art stays ink (white on a black disc).
- * "white" is the plain white disc.
+ * The disc a pin sits on, and the colour of its picture, in a style (see
+ * `PinStyle`). The numbers are the current viewer's (markerSvgRenderer).
  */
-function disc(key: string, style: PinStyle = "solid") {
-  // The pin's own colour: sky blue when none was chosen.
-  const hue =
-    !key || key === "white"
-      ? PIN_DEFAULT
-      : key === "rainbow"
+function disc(key: string, style: PinStyle = "solid"): Disc {
+  const rainbow = key === "rainbow"
+  const defs = rainbow ? RAINBOW : ""
+  if (style === "classic") {
+    // A pin with no colour of its own is white in this style.
+    const colour = markerColor(key || "white", "original")
+    const white = !key || key === "white"
+    return {
+      defs,
+      fill: rainbow ? "url(#rb)" : white ? "#f1f5f9" : colour.light,
+      art: "#111827",
+      rim: rainbow ? INK : pale(colour.dark) ? "#334155" : colour.dark,
+      rimOpacity: 0.9,
+    }
+  }
+  if (style === "icon") {
+    // A pin with no colour of its own is black in this style.
+    const colour = markerColor(key || "black", "icon-fill")
+    return {
+      defs,
+      fill: "#f1f5f9",
+      art: rainbow ? "url(#rb)" : colour.deep,
+      rim: "#cbd5e1",
+      rimOpacity: 0.7,
+    }
+  }
+  // Solid. With no colour chosen the disc is sky blue; "white" is the plain
+  // off-white disc. The picture is black on every colour, so a kind of pin
+  // reads the same whatever colour it is given; only on a black disc does
+  // it turn white.
+  const fill = !key
+    ? PIN_DEFAULT
+    : key === "white"
+      ? "#f1f5f9"
+      : rainbow
         ? "url(#rb)"
         : key === "black"
           ? INK
           : markerColor(key, "circle-fill").dark
-  const defs = key === "rainbow" ? RAINBOW : ""
-  if (style === "light")
-    // A white disc, ringed in the pin's colour; the picture stays black.
-    return {
-      defs,
-      fill: "#f8fafc",
-      art: ART,
-      ring: INK,
-      edge: key === "white" ? INK : hue,
-      edgeWidth: 3,
-    }
-  if (style === "dark")
-    // A dark disc with the picture in the pin's colour (white for black).
-    return {
-      defs,
-      fill: INK,
-      art: key === "black" || key === "rainbow" ? "#ffffff" : hue,
-      ring: "#fff",
-      edge: key === "black" ? "#ffffff" : hue,
-      edgeWidth: 1.6,
-    }
-  if (!key)
-    return {
-      defs: "",
-      fill: PIN_DEFAULT,
-      art: ART,
-      ring: INK,
-      edge: "",
-      edgeWidth: 0,
-    }
-  if (key === "white")
-    return {
-      defs: "",
-      fill: "#f1f5f9",
-      art: ART,
-      ring: INK,
-      edge: "",
-      edgeWidth: 0,
-    }
-  if (key === "rainbow")
-    return {
-      defs: RAINBOW,
-      fill: "url(#rb)",
-      art: ART,
-      ring: INK,
-      edge: "",
-      edgeWidth: 0,
-    }
-  // The picture is ink on every colour, so a kind of pin reads the same
-  // whatever colour it is given; only on a black disc does it turn white.
   return {
-    defs: "",
-    fill: hue,
+    defs,
+    fill,
     art: key === "black" ? "#fff" : ART,
-    ring: key === "black" ? "#fff" : INK,
-    edge: "",
-    edgeWidth: 0,
+    rim: "",
+    rimOpacity: 0,
   }
 }
 
@@ -229,7 +233,7 @@ function disc(key: string, style: PinStyle = "solid") {
 export function pinSvg(key: string, size = 96): string {
   const [, icon, colour, level, picked, styled] = key.split("|")
   const style: PinStyle =
-    styled === "light" || styled === "dark" ? styled : "solid"
+    styled === "classic" || styled === "icon" ? styled : "solid"
   const set = glyphs ?? {}
   const glyph = set[icon] ?? set[STAND_INS[icon] ?? ""]
   const bin = level !== ""
@@ -279,15 +283,16 @@ export function pinSvg(key: string, size = 96): string {
     // runs round it; a white pin gets a hair of an edge so it has one).
     (bin
       ? `<circle r="13.6" fill="${look.fill}" stroke="#C9C4B0" stroke-width="3.6"/>`
-      : look.edge && look.edgeWidth > 0
-        ? // (The light and dark styles: the disc drawn in a little, with
-          // its ring taking it out to the same edge.)
-          `<circle r="${(15.09 - look.edgeWidth / 2).toFixed(2)}" fill="${look.fill}" stroke="${look.edge}" stroke-width="${look.edgeWidth}"/>`
-        : `<circle r="15.09" fill="${look.fill}"${
-            colour === "white"
-              ? ` stroke="rgba(21,38,28,0.3)" stroke-width="0.7"`
-              : ""
-          }/>`) +
+      : `<circle r="15.09" fill="${look.fill}"${
+          style === "solid" && colour === "white"
+            ? ` stroke="rgba(21,38,28,0.3)" stroke-width="0.7"`
+            : ""
+        }/>` +
+        // (The ring of the classic and icon styles: 5 wide at 47 of the
+        // image's 52.5, over the disc.)
+        (look.rim
+          ? `<circle r="14.32" fill="none" stroke="${look.rim}" stroke-width="1.52" stroke-opacity="${look.rimOpacity}"/>`
+          : "")) +
     gauge +
     art +
     tick +

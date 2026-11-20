@@ -3619,7 +3619,7 @@
   margin: -14px calc(-1 * var(--pad)) 0;
   padding: 9px var(--pad) 12px;
   background: var(--mn-band);
-  box-shadow: inset 0 -3px 0 var(--lp-yellow);
+  box-shadow: inset 0 -3px 0 var(--mn-edge);
   color: var(--mn-band-text);
 }
 .mn-panel-head h2 {
@@ -3632,7 +3632,7 @@
 }
 .mn-panel-head .mn-icon-button:hover,
 .mn-dash:hover {
-  background: rgba(244, 241, 230, 0.13);
+  background: var(--mn-band-wash);
 }
 .mn-dash {
   color: var(--mn-band-text);
@@ -3728,7 +3728,7 @@
     inset 0 -1px 0 rgba(21, 38, 28, 0.1);
 }
 .mn-panel .mn-crew-head {
-  top: var(--mn-head-h, 51px);
+  top: var(--mn-head-h, 55px);
 }
 .mn-tabs {
   background: rgba(21, 38, 28, 0.1);
@@ -3749,8 +3749,8 @@
   border-color: var(--lp-ink);
 }
 .mn-crew button.live {
-  border-color: #7cc7ea;
-  background: #e2f3fb;
+  border-color: var(--mn-live-line);
+  background: var(--mn-live);
   box-shadow: none;
 }
 .mn-crew .invite {
@@ -3803,7 +3803,7 @@
 .mn-tool.selected,
 .mn-tool[aria-pressed="true"] {
   border-color: var(--lp-ink);
-  background: #fbefb4;
+  background: var(--mn-pick);
 }
 .mn-panel > .mn-switch,
 .mn-panel > .mn-switches .mn-switch,
@@ -3828,7 +3828,7 @@
   margin: -14px -14px 0;
   padding: 11px 8px 13px 14px;
   background: var(--mn-band);
-  box-shadow: inset 0 -3px 0 var(--accent, var(--lp-yellow));
+  box-shadow: inset 0 -3px 0 var(--accent, var(--mn-edge));
   color: var(--mn-band-text);
 }
 .mn-card.mn-menu > .head h2 {
@@ -3841,7 +3841,7 @@
   color: var(--mn-band-text);
 }
 .mn-card.mn-menu > .head .mn-icon-button:hover {
-  background: rgba(244, 241, 230, 0.13);
+  background: var(--mn-band-wash);
 }
 .mn-card.mn-menu > .head .art {
   background: #e6dcb9;
@@ -3850,7 +3850,7 @@
 .mn-card.mn-menu > .mn-card-actions:last-child,
 .mn-card.mn-menu > .mn-menu-actions:last-child {
   background: var(--mn-ground);
-  box-shadow: inset 0 1px 0 rgba(21, 38, 28, 0.12);
+  box-shadow: inset 0 1px 0 var(--mn-hair);
 }
 .mn-card.mn-menu > .mn-card-actions:last-child .lp-btn-ghost,
 .mn-card.mn-menu > .mn-menu-actions:last-child > button {
@@ -3861,23 +3861,23 @@
   margin: -14px -14px 0;
   padding: 10px 10px 10px 14px;
   background: var(--mn-band);
-  box-shadow: inset 0 -3px 0 var(--lp-yellow);
+  box-shadow: inset 0 -3px 0 var(--mn-edge);
 }
 .mn-card.mn-crewcard .mn-tabs {
-  background: rgba(244, 241, 230, 0.14);
+  background: var(--mn-band-wash);
 }
 .mn-card.mn-crewcard .mn-tabs button {
   color: var(--mn-band-soft);
 }
 .mn-card.mn-crewcard .mn-tabs button[aria-selected="true"] {
-  background: var(--lp-yellow);
-  color: #15261c;
+  background: var(--mn-band-text);
+  color: var(--mn-band);
 }
 .mn-card.mn-crewcard > .mn-crew-head .mn-icon-button {
   color: var(--mn-band-text);
 }
 .mn-card.mn-crewcard > .mn-crew-head .mn-icon-button:hover {
-  background: rgba(244, 241, 230, 0.13);
+  background: var(--mn-band-wash);
 }
 .mn-card.mn-crewcard {
   background: var(--mn-ground);
@@ -3900,7 +3900,7 @@
 }
 .mn-panel .mn-kinds.all .mn-kind.selected {
   border-color: var(--lp-ink);
-  background: #fbefb4;
+  background: var(--mn-pick);
 }
 .mn-panel > .mn-menu-actions button.danger {
   box-shadow: 0 0 0 1px rgba(217, 93, 57, 0.5);
@@ -3924,4 +3924,378 @@
 /* (The crew card is a column that would otherwise squeeze its band.) */
 .mn-crew-head {
   flex-shrink: 0;
+}
+
+/* ── Nineteenth pass: the toolbox's heading, counts, and menu looks ─────── */
+/* Everything that sits on a heading takes its colours from these, so the
+   menus can be dressed differently (the Map tool's "Menus"; the map's root
+   carries the choice as `data-ui`). "contrast" is the default: dark
+   headings on light menus. */
+.mn {
+  --mn-band-wash: rgba(244, 241, 230, 0.13);
+  --mn-band-accent: var(--lp-yellow);
+  --mn-edge: var(--lp-yellow);
+  --mn-hair: rgba(21, 38, 28, 0.12);
+  --mn-ring: #15261c;
+  --mn-pick: #fbefb4;
+  --mn-live: #e2f3fb;
+  --mn-live-line: #7cc7ea;
+}
+/* Light all through: the heading is a shade of the menu, nothing dark. */
+.mn[data-ui="light"] {
+  --mn-band: #ece6d2;
+  --mn-band-text: #15261c;
+  --mn-band-soft: rgba(21, 38, 28, 0.72);
+  --mn-band-wash: rgba(21, 38, 28, 0.09);
+  --mn-band-accent: #15261c;
+  --mn-edge: rgba(21, 38, 28, 0.22);
+}
+/* AgSKAN yellow headings, edged in black. */
+.mn[data-ui="yellow"] {
+  --mn-band: #f7db5c;
+  --mn-band-text: #15261c;
+  --mn-band-soft: rgba(21, 38, 28, 0.78);
+  --mn-band-wash: rgba(21, 38, 28, 0.1);
+  --mn-band-accent: #15261c;
+  --mn-edge: #15261c;
+}
+/* Dark all through. The menus themselves take the landing page's night
+   colours; what sits on the map (buttons, chips) is left as it is. */
+.mn[data-ui="dark"] {
+  --mn-band: #0b130f;
+  --mn-hair: rgba(244, 241, 230, 0.12);
+  --mn-ring: rgba(244, 241, 230, 0.3);
+  --mn-pick: rgba(247, 219, 92, 0.2);
+  --mn-live: #153343;
+  --mn-live-line: #2f7fa3;
+}
+.mn[data-ui="dark"] :is(.mn-panel, .mn-card, .pp) {
+  --lp-card: #1b2a21;
+  --lp-paper: #243529;
+  --lp-paper-2: #2d4234;
+  --lp-line: #3c5245;
+  --lp-ink: #f4f1e6;
+  --lp-ink-soft: rgba(244, 241, 230, 0.76);
+  --lp-ink-faint: rgba(244, 241, 230, 0.5);
+  --mn-ground: #111a15;
+  --mn-ground-2: #18251d;
+  --mn-block: #1e2e25;
+  --mn-lift: 0 0 0 1px rgba(244, 241, 230, 0.08);
+  color: var(--lp-ink);
+}
+/* (Anything yellow keeps dark writing on it.) */
+.mn[data-ui="dark"]
+  :is(
+    .lp-btn-primary,
+    .mn-put,
+    .mn-attached,
+    .mn-compose .place.on,
+    .mn-send-row button.on,
+    .mn-job .status.accepted,
+    .mn-drawn li.picked,
+    .mn-crew .invite .art,
+    .mn-crew .msg.home,
+    .mn-step .n,
+    .mn-ideas button,
+    .mn-guide .moves button.strong,
+    .mn-follow-trail,
+    .mn-panel-head .mark,
+    .mn-lookwrap .star.on
+  ) {
+  --lp-ink: #15261c;
+  --lp-ink-soft: rgba(21, 38, 28, 0.72);
+  color: #15261c;
+}
+.mn[data-ui="dark"] .mn-panel-foot {
+  color: var(--lp-ink-faint);
+}
+.mn[data-ui="dark"] .mn-tabs {
+  background: rgba(244, 241, 230, 0.1);
+}
+.mn[data-ui="dark"] .mn-crew .invite {
+  border-color: rgba(244, 241, 230, 0.3);
+}
+.mn-tool.selected,
+.mn-tool[aria-pressed="true"],
+.mn-panel .mn-kinds.all .mn-kind.selected {
+  background: var(--mn-pick);
+}
+.mn-crew button.live {
+  border-color: var(--mn-live-line);
+  background: var(--mn-live);
+}
+
+/* ── The toolbox's heading: the operation on the map, and putting the
+   toolbox away. Back to the dashboard is the small one. ── */
+.mn-panel-head.home {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mn-dashback {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: -5px;
+  border-radius: 50%;
+  color: var(--mn-band-soft);
+}
+.mn-dashback:hover {
+  background: var(--mn-band-wash);
+  color: var(--mn-band-text);
+}
+.mn-op {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 4px 10px 4px 13px;
+  border-radius: 15px;
+  background: var(--mn-band-wash);
+  color: var(--mn-band-text);
+  text-align: left;
+}
+.mn-op > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.14;
+}
+.mn-op small {
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--mn-band-accent);
+  text-transform: uppercase;
+}
+.mn-op b {
+  overflow: hidden;
+  font-family: "Archivo", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.08rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-op > svg {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+.mn-op.open > svg {
+  transform: rotate(180deg);
+}
+.mn-op.open {
+  box-shadow: inset 0 0 0 1.5px var(--mn-band-accent);
+}
+/* Putting the toolbox away is the big button: the one that gets used. */
+.mn-put {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-right: -3px;
+  border: 2px solid #15261c;
+  border-radius: 15px;
+  background: #f7db5c;
+  color: #15261c;
+}
+.mn-put:hover {
+  background: #ffe873;
+}
+.mn-oplist {
+  display: grid;
+  flex: 0 0 100%;
+  gap: 4px;
+  max-height: 44dvh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.mn-oplist p {
+  margin: 0 2px 2px;
+  font-size: 0.82rem;
+  color: var(--mn-band-soft);
+}
+.mn-oplist button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--mn-band-wash);
+  color: var(--mn-band-text);
+  text-align: left;
+}
+.mn-oplist button i {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--mn-band-soft);
+}
+.mn-oplist button[aria-selected="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--mn-band-accent);
+}
+.mn-oplist button[aria-selected="true"] i {
+  background: var(--mn-band-accent);
+  box-shadow: none;
+}
+.mn-oplist strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-oplist span {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--lp-mono);
+  font-size: 0.72rem;
+  color: var(--mn-band-soft);
+}
+.mn-oplist button:disabled {
+  opacity: 0.5;
+}
+
+/* How many of a thing there are (or that they are still loading), on the
+   corner of its tile. */
+.mn-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  font-family: var(--lp-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--lp-paper);
+  text-align: center;
+}
+.mn-count.busy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--hue, var(--lp-ink));
+  color: #fff;
+}
+.mn-count.busy svg {
+  animation: mn-count-spin 0.9s linear infinite;
+}
+@keyframes mn-count-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The Map tool: a star on a look makes it the one the map opens in. */
+.mn-looks {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mn-lookwrap {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.mn-lookwrap .star {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(13, 22, 17, 0.6);
+  color: #fff;
+}
+.mn-lookwrap .star:hover {
+  background: rgba(13, 22, 17, 0.85);
+}
+.mn-lookwrap .star.on {
+  background: #f7db5c;
+  box-shadow: 0 0 0 1.5px #15261c;
+  color: #15261c;
+}
+.mn-section > .mn-note {
+  margin: 0;
+}
+/* The menu looks: a small menu of each. */
+.mn-presets.four {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mn-presets .menu {
+  display: block;
+  width: 100%;
+  max-width: 92px;
+  height: 36px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #e7e2d0;
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.3);
+}
+.mn-presets .menu i {
+  display: block;
+  height: 11px;
+  margin-bottom: 4px;
+  background: #15261c;
+  box-shadow: inset 0 -2px 0 #f7db5c;
+}
+.mn-presets .menu b {
+  display: block;
+  height: 6px;
+  margin: 0 5px 3px;
+  border-radius: 2px;
+  background: #fffdf8;
+}
+.mn-presets .menu.light i {
+  background: #ece6d2;
+  box-shadow: inset 0 -1px 0 rgba(21, 38, 28, 0.3);
+}
+.mn-presets .menu.yellow i {
+  background: #f7db5c;
+  box-shadow: inset 0 -1.5px 0 #15261c;
+}
+.mn-presets .menu.dark {
+  background: #111a15;
+}
+.mn-presets .menu.dark i {
+  background: #0b130f;
+}
+.mn-presets .menu.dark b {
+  background: #2d4234;
+}
+
+/* How far off a machine is, at the end of its card's heading. */
+.mn-far {
+  flex-shrink: 0;
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--mn-band-soft);
+  white-space: nowrap;
+}
+/* (A long row in the Pins tool's blocks squeezes rather than poking out.) */
+.mn-quickset {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mn-quickset .rows,
+.mn-quickset .rows li {
+  min-width: 0;
 }

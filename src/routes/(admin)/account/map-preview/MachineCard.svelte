@@ -29,7 +29,6 @@
   } | null = null
   export let now = Date.now()
   export let operation = ""
-  export let speed = 0
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -86,7 +85,6 @@
       {trail}
       {now}
       {operation}
-      {speed}
       on:light={(e) => dispatch("light", e.detail)}
     />
   {/if}

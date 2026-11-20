@@ -1,9 +1,14 @@
 <script lang="ts">
   /**
    * What a trail being laid has done so far, on the card of the machine
-   * laying it: a bar in the colour the trail is being laid in, and its
-   * figures under it. The bar is a switch: tapping it takes the trail's
-   * highlight off the map, and puts it back.
+   * laying it. One strip in the colour the trail is being laid in, running
+   * the full width of the card straight under its heading, and the trail's
+   * figures in a plain row under that: no box round them, no lines between.
+   * The strip is a switch: tapping it takes the trail's highlight off the
+   * map, and puts it back.
+   *
+   * The speed given is the average over the trail so far (the machine's
+   * speed right now is on the map).
    */
   import { createEventDispatcher } from "svelte"
   import { Eye, EyeOff } from "lucide-svelte"
@@ -19,10 +24,8 @@
     lit: boolean
   }
   export let now = Date.now()
-  /** The job it is being laid for ("Harvest"), if any. */
+  /** The operation it is being laid for ("Harvest"), if any. */
   export let operation = ""
-  /** km/h right now; left out when stopped. */
-  export let speed = 0
 
   const dispatch = createEventDispatcher<{ light: boolean }>()
 
@@ -35,7 +38,8 @@
     return bright > 0.6 ? "#15261c" : "#ffffff"
   }
 
-  $: minutes = Math.max(1, Math.round((now - trail.since) / 60000))
+  $: elapsed = Math.max(0, now - trail.since)
+  $: minutes = Math.max(1, Math.round(elapsed / 60000))
   $: going =
     minutes < 60
       ? `${minutes} min`
@@ -44,6 +48,11 @@
     trail.metres >= 1000
       ? `${(trail.metres / 1000).toFixed(1)} km`
       : `${Math.round(trail.metres)} m`
+  // Average speed over the trail so far. (Left out for the first half
+  // minute, when it would be a guess.)
+  $: kmh = elapsed >= 30000 ? trail.metres / 1000 / (elapsed / 3600000) : null
+  $: average =
+    kmh === null ? "" : kmh < 10 ? kmh.toFixed(1) : String(Math.round(kmh))
 </script>
 
 <div
@@ -70,42 +79,41 @@
       {/if}
     </span>
   </button>
-  <div class="mn-stats">
+  <dl>
     <div>
-      <strong>{going}</strong>
-      <span>going</span>
+      <dd>{going}</dd>
+      <dt>going</dt>
     </div>
     <div>
-      <strong>{formatHa(trail.ha)} ha</strong>
-      <span>covered</span>
+      <dd>{formatHa(trail.ha)} ha</dd>
+      <dt>covered</dt>
     </div>
     <div>
-      <strong>{driven}</strong>
-      <span>driven</span>
+      <dd>{driven}</dd>
+      <dt>driven</dt>
     </div>
-    {#if speed > 0}
+    {#if average}
       <div>
-        <strong>{speed} km/h</strong>
-        <span>now</span>
+        <dd>{average} km/h</dd>
+        <dt>average</dt>
       </div>
     {/if}
-  </div>
+  </dl>
 </div>
 
 <style>
+  /* (The card's own padding is 14px and its rows are 10px apart: the strip
+     reaches both edges and sits against the heading.) */
   .laying {
     display: grid;
-    overflow: hidden;
-    border: 1.5px solid color-mix(in srgb, var(--c) 70%, #15261c);
-    border-radius: 14px;
-    background: var(--lp-paper);
+    margin: -10px -14px 0;
   }
   .bar {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-height: 38px;
-    padding: 0 12px 0 11px;
+    min-height: 40px;
+    padding: 0 14px;
     background: var(--c);
     color: var(--on);
     text-align: left;
@@ -144,12 +152,10 @@
     font-weight: 700;
     opacity: 0.9;
   }
-  /* The highlight taken off: the bar goes quiet, its colour kept as a dot. */
-  .laying.off {
-    border-color: var(--lp-line);
-  }
+  /* The highlight taken off: the strip goes quiet, its colour kept as a
+     dot. */
   .laying.off .bar {
-    background: var(--lp-card);
+    background: var(--lp-paper-2);
     color: var(--lp-ink);
   }
   .laying.off .bar i {
@@ -157,14 +163,34 @@
     box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.4);
     animation: none;
   }
-  .laying :global(.mn-stats) {
-    border: 0;
-    border-top: 1.5px solid color-mix(in srgb, var(--c) 45%, var(--lp-line));
-    border-radius: 0;
-    background: none;
+  dl {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 10px;
+    margin: 0;
+    padding: 11px 14px 1px;
   }
-  .laying.off :global(.mn-stats) {
-    border-top-color: var(--lp-line);
+  dl div {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+  }
+  dd {
+    margin: 0;
+    font-family: var(--lp-display);
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  dt {
+    font-family: var(--lp-mono);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--lp-ink-soft);
+    text-transform: uppercase;
   }
   @media (prefers-reduced-motion: reduce) {
     .bar i {

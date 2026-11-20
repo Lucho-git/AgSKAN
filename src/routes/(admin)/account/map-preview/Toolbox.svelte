@@ -22,6 +22,7 @@
     ClipboardList,
     LandPlot,
     Layers,
+    LoaderCircle,
     LocateFixed,
     Map as MapIcon,
     MapPin,
@@ -33,6 +34,7 @@
     Ruler,
     Search,
     Settings,
+    Star,
     Tractor,
     UserMinus,
     UserPlus,
@@ -58,6 +60,7 @@
     type PinStyle,
   } from "$lib/components/mapnext/pins"
   import type { TrailLevel } from "$lib/components/mapnext/mapStyle"
+  import { MENU_LOOKS, type MenuLook } from "$lib/components/mapnext/menuLook"
   import type { LivePin } from "./liveData"
   import type {
     BaseChoice,
@@ -107,6 +110,10 @@
   export let trailLevel: TrailLevel = "medium"
   /** How pins are drawn. */
   export let pinStyle: PinStyle = "solid"
+  /** How the menus are dressed. */
+  export let menuLook: MenuLook = "contrast"
+  /** How many pins are on the map. */
+  export let pinCount = 0
   export let baseChoices: BaseChoice[] = []
   /** Layer switches, by the keys the current viewer saves. */
   export let layers: Record<string, boolean> = {}
@@ -164,6 +171,7 @@
     baseDefault: string
     trailLevel: TrailLevel
     pinStyle: PinStyle
+    menuLook: MenuLook
     /** Open a bin's card. */
     bin: string
     layer: { key: string; on: boolean }
@@ -203,6 +211,16 @@
     logTrail: { id: string; operation: string }
   }>()
 
+  // The operation on the map is named in the toolbox's heading; tapping it
+  // lists the others (as the current viewer's toolbox does).
+  let opOpen = false
+  // (The crew's tabs stop under the heading, however tall it has grown.)
+  let headH = 0
+  function pickOperation(option: Operation) {
+    opOpen = false
+    if (option.id !== operation?.id) dispatch("operation", option)
+  }
+
   // The crew section has two sides: who is on the map, and what has been
   // happening on it.
   let crewTab: "crew" | "log" = "crew"
@@ -230,7 +248,6 @@
   $: machine = machineFor(marker.type)
   $: colour = drawColour(marker.bodyColor)
   $: trailOn = recording.phase === "on" || recording.phase === "stopping"
-  $: baseLabel = baseChoices.find((choice) => choice.key === base)?.label ?? ""
   $: otherFarms = farms.filter((choice) => choice.id !== currentFarmId)
 
   const TITLES: Record<ToolView, string> = {
@@ -391,41 +408,80 @@
 <aside
   class="mn-panel t-{view}"
   class:chat={view === "messages" && !!messageWith}
+  style={view === "home" && headH ? `--mn-head-h: ${headH - 14}px` : ""}
   aria-label="Toolbox"
 >
   {#if view === "home"}
-    <header class="mn-panel-head home">
+    <header class="mn-panel-head home" bind:offsetHeight={headH}>
+      <!-- (Rarely wanted, so it is the small one.) -->
       <button
         type="button"
-        class="mn-dash"
+        class="mn-dashback"
         aria-label="Back to the {farmName || 'farm'} dashboard"
+        title="Back to the {farmName || 'farm'} dashboard"
         on:click={() => dispatch("leave", "dashboard")}
       >
-        <ArrowLeft size={17} />
+        <ArrowLeft size={16} />
+      </button>
+      <button
+        type="button"
+        class="mn-op"
+        class:open={opOpen}
+        aria-expanded={opOpen}
+        aria-label="Operation: {operation?.name ?? 'none'}. Change operation"
+        disabled={!operations.length}
+        on:click={() => (opOpen = !opOpen)}
+      >
         <span>
-          <small>Dashboard</small>
-          <b>{farmName || "AgSKAN"}</b>
+          <small>Operation</small>
+          <b>
+            {operation?.name ?? (operations.length ? "Pick one" : "None yet")}
+          </b>
         </span>
+        {#if operations.length}<ChevronDown size={18} />{/if}
       </button>
       {#if wide}
         <button
           type="button"
-          class="mn-icon-button mini"
+          class="mn-put"
           aria-label="Put the toolbox away"
           title="Put the toolbox away"
           on:click={() => dispatch("minimise")}
         >
-          <PanelLeftClose size={21} />
+          <PanelLeftClose size={24} />
         </button>
       {:else}
         <button
           type="button"
-          class="mn-icon-button"
+          class="mn-put"
           aria-label="Close"
           on:click={() => dispatch("close")}
         >
-          <X size={22} />
+          <X size={24} />
         </button>
+      {/if}
+      {#if opOpen}
+        <div class="mn-oplist" role="listbox" aria-label="Operation">
+          {#if trailOn}
+            <p>Stop your trail to change operation.</p>
+          {/if}
+          {#each operations as option (option.id)}
+            <button
+              type="button"
+              role="option"
+              aria-selected={operation?.id === option.id}
+              disabled={trailOn && operation?.id !== option.id}
+              on:click={() => pickOperation(option)}
+            >
+              <i></i>
+              <strong>{option.name}</strong>
+              {#if operation?.id === option.id && !loading.trails && trails.length}
+                <span class="n"><Route size={12} /> {trails.length}</span>
+              {/if}
+              {#if option.year}<span>{option.year}</span>{/if}
+            </button>
+          {/each}
+        </div>
       {/if}
     </header>
 
@@ -482,6 +538,11 @@
           class="mn-tile t-pins"
           on:click={() => (view = "pins")}
         >
+          {#if loading.pins}
+            <span class="mn-count busy"><LoaderCircle size={13} /></span>
+          {:else if pinCount}
+            <span class="mn-count">{pinCount}</span>
+          {/if}
           <span class="icon"
             ><PinArt look={choiceLook(pinKind)} size={38} /></span
           >
@@ -493,6 +554,11 @@
         class="mn-tile t-trails"
         on:click={() => (view = "trails")}
       >
+        {#if loading.trails}
+          <span class="mn-count busy"><LoaderCircle size={13} /></span>
+        {:else if trails.length}
+          <span class="mn-count">{trails.length}</span>
+        {/if}
         <span class="icon"><Route size={28} /></span>
         <strong>Trails</strong>
       </button>
@@ -501,6 +567,11 @@
         class="mn-tile t-paddocks"
         on:click={() => (view = "paddocks")}
       >
+        {#if loading.paddocks}
+          <span class="mn-count busy"><LoaderCircle size={13} /></span>
+        {:else if paddocks.length}
+          <span class="mn-count">{paddocks.length}</span>
+        {/if}
         <span class="icon"><LandPlot size={28} /></span>
         <strong>Paddocks</strong>
       </button>
@@ -733,10 +804,12 @@
       />
     {:else if view === "trails"}
       <section class="mn-section">
-        <p class="lp-eyebrow">Job on the map</p>
+        <p class="lp-eyebrow">Operation on the map</p>
         {#if operations.length}
           {#if trailOn}
-            <p class="mn-note">Stop your trail to look at a different job.</p>
+            <p class="mn-note">
+              Stop your trail to look at a different operation.
+            </p>
           {/if}
           <div class="mn-tools">
             {#each operations as option (option.id)}
@@ -760,8 +833,8 @@
           </div>
         {:else}
           <p class="mn-empty">
-            This farm has no jobs yet. Add one (Spraying, Seeding, Harvest…)
-            from the dashboard and its trails show up here.
+            This farm has no operations yet. Add one (Spraying, Seeding,
+            Harvest…) from the dashboard and its trails show up here.
           </p>
         {/if}
       </section>
@@ -952,34 +1025,48 @@
         <p class="lp-eyebrow">Map</p>
         <div class="mn-looks">
           {#each baseChoices as choice (choice.key)}
-            <button
-              type="button"
-              class="mn-look"
-              class:selected={base === choice.key}
-              aria-pressed={base === choice.key}
-              on:click={() => dispatch("base", choice.key)}
-            >
-              <span
-                class="swatch"
-                style="background: {SWATCH[choice.key] ?? SWATCH.satellite}"
-              ></span>
-              <span>
-                {choice.label}
-                {#if baseDefault === choice.key}<em>Default</em>{/if}
-                <small>{choice.note}</small>
-              </span>
-            </button>
+            <div class="mn-lookwrap">
+              <button
+                type="button"
+                class="mn-look"
+                class:selected={base === choice.key}
+                aria-pressed={base === choice.key}
+                on:click={() => dispatch("base", choice.key)}
+              >
+                <span
+                  class="swatch"
+                  style="background: {SWATCH[choice.key] ?? SWATCH.satellite}"
+                ></span>
+                <span>
+                  {choice.label}
+                  <small>{choice.note}</small>
+                </span>
+              </button>
+              <!-- The star: the look the map opens in. -->
+              <button
+                type="button"
+                class="star"
+                class:on={baseDefault === choice.key}
+                aria-pressed={baseDefault === choice.key}
+                aria-label={baseDefault === choice.key
+                  ? `The map opens in ${choice.label}`
+                  : `Open the map in ${choice.label} every time`}
+                title={baseDefault === choice.key
+                  ? `The map opens in ${choice.label}`
+                  : `Open the map in ${choice.label} every time`}
+                on:click={() =>
+                  baseDefault !== choice.key &&
+                  dispatch("baseDefault", choice.key)}
+              >
+                <Star
+                  size={16}
+                  fill={baseDefault === choice.key ? "currentColor" : "none"}
+                />
+              </button>
+            </div>
           {/each}
         </div>
-        {#if base !== baseDefault}
-          <button
-            type="button"
-            class="lp-btn lp-btn-primary"
-            on:click={() => dispatch("baseDefault", base)}
-          >
-            Open the map in {baseLabel} every time
-          </button>
-        {/if}
+        <p class="mn-note">The star is the one the map opens in.</p>
       </section>
 
       <section class="mn-section">
@@ -1005,6 +1092,7 @@
           {#each PIN_STYLES as option (option.key)}
             <button
               type="button"
+              title={option.label}
               aria-pressed={pinStyle === option.key}
               on:click={() =>
                 pinStyle !== option.key && dispatch("pinStyle", option.key)}
@@ -1032,13 +1120,22 @@
         </div>
       </section>
 
-      <button
-        type="button"
-        class="lp-btn lp-btn-ghost"
-        on:click={() => dispatch("fitFarm")}
-      >
-        <LocateFixed size={18} /> Show the whole farm
-      </button>
+      <section class="mn-section">
+        <p class="lp-eyebrow">Menus</p>
+        <div class="mn-presets four" role="group" aria-label="Menu look">
+          {#each MENU_LOOKS as option (option.key)}
+            <button
+              type="button"
+              aria-pressed={menuLook === option.key}
+              on:click={() =>
+                menuLook !== option.key && dispatch("menuLook", option.key)}
+            >
+              <span class="menu {option.key}"><i></i><b></b><b></b></span>
+              {option.label}
+            </button>
+          {/each}
+        </div>
+      </section>
     {:else if view === "layers"}
       <p class="mn-note">
         What the map shows. These are the same switches as the current viewer's,

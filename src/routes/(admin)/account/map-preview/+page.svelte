@@ -62,10 +62,12 @@
     PIN_DEFAULT,
     pinChoices as allPinChoices,
     pinColour,
+    asPinStyle,
     pinStyle,
     preferenceIconClass,
     type PinStyle,
   } from "$lib/components/mapnext/pins"
+  import { asMenuLook, type MenuLook } from "$lib/components/mapnext/menuLook"
   import {
     grainBinDefaultCapacity,
     grainBinName,
@@ -223,11 +225,10 @@
     const saved = load<string>("trail-level")
     return saved === "low" || saved === "bright" ? saved : "medium"
   })()
-  let pinLook: PinStyle = (() => {
-    const saved = load<string>("pin-style")
-    return saved === "light" || saved === "dark" ? saved : "solid"
-  })()
+  let pinLook: PinStyle = asPinStyle(load<string>("pin-style"))
   pinStyle.set(pinLook)
+  /** How the menus are dressed (the Map tool's "Menus"). */
+  let menuLook: MenuLook = asMenuLook(load<string>("menu-look"))
   const lookOf = (key: string): BaseLook =>
     key === "paper" ? "paper" : key === "dark" ? "dark" : "satellite"
   const imageryOf = (key: string) => (IMAGERY[key] ? key : null)
@@ -395,6 +396,7 @@
 
   // ── Crew ──
   let self: CrewRow | null = null
+  let pinCount = 0
   let following: { id: string; mode: "follow" | "cab" } | null = null
   let hideStale = load<boolean>("hide-stale") ?? false
   /** The trail the picked crew member is laying now, in figures. */
@@ -741,6 +743,7 @@
       created.movingPin.subscribe((v) => (movingPin = v)),
       created.drawings.subscribe((v) => (drawings = v)),
       created.self.subscribe((v) => (self = v)),
+      created.pinCount.subscribe((v) => (pinCount = v)),
       created.following.subscribe((v) => (following = v)),
       created.pins.subscribe((v) => (pins = v)),
       created.lasso.subscribe((v) => (lasso = v)),
@@ -1103,6 +1106,10 @@
     save("trail-level", level)
     engine?.setTrailLevel(level)
   }
+  function setMenuLook(look: MenuLook) {
+    menuLook = look
+    save("menu-look", look)
+  }
   function setPinStyle(style: PinStyle) {
     pinLook = style
     save("pin-style", style)
@@ -1207,7 +1214,8 @@
           askForLocation()
         },
       })
-    else if (!operation) say("This farm has no job to record against yet.")
+    else if (!operation)
+      say("This farm has no operation to record against yet.")
     // Utes, trucks and chaser bins don't usually lay a trail: check first.
     else if (!machine.paints) {
       panelOpen = false
@@ -1934,7 +1942,7 @@
     if (!userId || next.id === operation?.id || trailOn) return
     const result = await operationApi.updateSelectedOperation(userId, next.id)
     if (!result?.success) {
-      say("Couldn't switch job. Try again.")
+      say("Couldn't switch operation. Try again.")
       return
     }
     selectedOperationStore.set(next as never)
@@ -2188,7 +2196,12 @@
   />
 </svelte:head>
 
-<div class="lp-theme mn" class:wide class:shut={wide && railShut}>
+<div
+  class="lp-theme mn"
+  class:wide
+  class:shut={wide && railShut}
+  data-ui={menuLook}
+>
   <div class="mn-map" bind:this={mapEl}></div>
 
   {#if switching}
@@ -3537,7 +3550,6 @@
           trail={crewTrail}
           {now}
           operation={operation?.name ?? ""}
-          speed={self?.speed ?? 0}
           on:light={(e) => engine?.lightCrewTrail(e.detail)}
           locked={trailOn || trailFound}
           on:close={() => engine?.selectedCrew.set(null)}
@@ -3587,26 +3599,14 @@
                     ? [`${drivenBy(selectedCrew)} driving`]
                     : []),
                   selectedCrew.machineLabel,
-                  selectedCrew.doing,
-                  // (A trail being laid has its own block below.)
-                  ...(crewTrail
-                    ? []
-                    : selectedCrew.trailing
-                      ? [
-                          `Trailing${selectedCrew.operation ? ` · ${selectedCrew.operation}` : ""}`,
-                        ]
-                      : selectedCrew.operation
-                        ? [selectedCrew.operation]
-                        : []),
-                  ...(selectedCrew.speed > 0 && !crewTrail
-                    ? [`${selectedCrew.speed} km/h`]
-                    : []),
-                  ...(selectedCrew.distance !== null
-                    ? [`${formatDistance(selectedCrew.distance)} away`]
-                    : []),
+                  ...(selectedCrew.where ? [selectedCrew.where] : []),
                 ].join(" · ")}
               </p>
             </div>
+            {#if selectedCrew.distance !== null}
+              <span class="mn-far">{formatDistance(selectedCrew.distance)}</span
+              >
+            {/if}
             <button
               type="button"
               class="mn-icon-button"
@@ -3624,7 +3624,6 @@
               trail={crewTrail}
               {now}
               operation={selectedCrew.operation ?? ""}
-              speed={selectedCrew.speed}
               on:light={(e) => engine?.lightCrewTrail(e.detail)}
             />
           {/if}
@@ -3947,6 +3946,9 @@
         on:trailLevel={(e) => setTrailLevel(e.detail)}
         pinStyle={pinLook}
         on:pinStyle={(e) => setPinStyle(e.detail)}
+        {menuLook}
+        on:menuLook={(e) => setMenuLook(e.detail)}
+        {pinCount}
         on:bin={(e) => openBin(e.detail)}
         on:layer={(e) => setLayer(e.detail.key, e.detail.on)}
         on:measure={startMeasuring}
