@@ -151,7 +151,7 @@
                 {#if person.where}<MapPin size={12} />{person.where}{/if}
               </span>
               {#if person.speed > 0}
-                <span class="pace">{person.speed} km/h</span>
+                <span class="pace">{Math.round(person.speed)} km/h</span>
               {/if}
             </span>
           {/if}

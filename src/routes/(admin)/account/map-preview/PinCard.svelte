@@ -75,6 +75,8 @@
   export let who: { name: string; type: string; colour: string } | null = null
   export let guest = false
   export let choices: PinChoice[] = []
+  /** The colour this person's new pins of each kind get. */
+  export let typeColours: Record<string, string> = {}
   /** What the farm's bins store, for a bin's Storing box. */
   export let grains: string[] = []
   export let choiceLook: (iconClass: string) => PinLook
@@ -102,6 +104,8 @@
     /** Put the pin down where it has been dragged to. */
     place: void
     remove: void
+    /** Make a colour the one new pins of a kind get. */
+    typeColour: { iconClass: string; colour: string }
     draw: "polygon" | "line"
     /** Pick out (or let go of) one of its drawings. */
     drawing: string | null
@@ -233,6 +237,20 @@
     !!trying &&
     (trying.iconClass !== pin.iconClass ||
       trying.colour !== (pin.colour || "default"))
+  // A colour picked that isn't the pin's own, nor the one new pins of its
+  // kind already get: it can be made that, from the top of the view.
+  let madeDefault = ""
+  $: offerDefault =
+    !bin &&
+    !guest &&
+    !!trying &&
+    colourNow !== "default" &&
+    colourNow !== (pin.colour || "default") &&
+    (typeColours[kindNow] ?? "default") !== colourNow
+  function makeDefault() {
+    madeDefault = `${kindNow}|${colourNow}`
+    dispatch("typeColour", { iconClass: kindNow, colour: colourNow })
+  }
   function doneTrying() {
     if (trying) dispatch("commit")
     trying = null
@@ -515,7 +533,22 @@
       >
         <ChevronLeft size={16} /> Back
       </button>
-      <span>Marker</span>
+      {#if offerDefault}
+        <button
+          type="button"
+          class="default"
+          title="New {pinLabel(kindNow)} pins will be {(
+            COLOUR_NAMES[colourNow] ?? colourNow
+          ).toLowerCase()}"
+          on:click={makeDefault}
+        >
+          Make {(COLOUR_NAMES[colourNow] ?? colourNow).toLowerCase()} the default
+        </button>
+      {:else if madeDefault === `${kindNow}|${colourNow}`}
+        <span class="default">Default for {pinLabel(kindNow)} pins</span>
+      {:else}
+        <span>Marker</span>
+      {/if}
     </div>
     <div class="pp-body">
       {#if !bin}
@@ -995,6 +1028,26 @@
     letter-spacing: 0.08em;
     color: var(--lp-ink-soft);
     text-transform: uppercase;
+  }
+  /* At the right of the view's heading: make the colour picked the one new
+     pins of this kind get. */
+  .pp-sub .default {
+    min-width: 0;
+    margin-left: auto;
+    overflow: hidden;
+    font-family: Montserrat, Inter, ui-sans-serif, system-ui, sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    color: var(--lp-ink);
+    text-overflow: ellipsis;
+    text-transform: none;
+    white-space: nowrap;
+  }
+  .pp-sub button.default {
+    min-height: 36px;
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .pp-sub .back {
     display: inline-flex;

@@ -20,11 +20,12 @@
     RotateCcw,
     Route,
     Trash2,
+    TriangleAlert,
     Tv,
     X,
   } from "lucide-svelte"
-  import { drawColour } from "$lib/components/mapnext/palette"
-  import type { ReplayState } from "./liveEngine"
+  import { trailColour } from "$lib/components/mapnext/palette"
+  import type { ReplayState, TrailSuspect } from "./liveEngine"
   import type { TrailInfo } from "./liveData"
 
   export let trail: TrailInfo
@@ -41,6 +42,8 @@
   /** The guide is still getting this trail's path. */
   export let busy = false
   export let guest = false
+  /** What looks wrong with its GPS, if anything does. */
+  export let suspect: TrailSuspect | null = null
 
   const dispatch = createEventDispatcher<{
     close: void
@@ -55,7 +58,18 @@
     remove: void
     /** Back to all of the set together. */
     all: void
+    /** Hide its stray GPS on this device (true), or show it again. */
+    fix: boolean
   }>()
+
+  const km = (metres: number) =>
+    metres >= 1000
+      ? `${(metres / 1000).toFixed(1)} km`
+      : `${Math.round(metres)} m`
+  const took = (seconds: number) =>
+    seconds < 90
+      ? `${Math.max(1, Math.round(seconds))} second${Math.round(seconds) === 1 ? "" : "s"}`
+      : `${Math.round(seconds / 60)} minutes`
 
   const clock = (t: number) =>
     new Date(t).toLocaleTimeString(undefined, {
@@ -101,7 +115,7 @@
       (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255
     return bright > 0.6 ? "#15261c" : "#ffffff"
   }
-  $: colour = drawColour(trail.colour)
+  $: colour = trailColour(trail.colour, trail.id)
 
   // ── The strip: oldest on the left, a block per trail, a label per day ──
   $: ordered = [...list].sort((a, b) => a.start - b.start)
@@ -191,6 +205,31 @@
     </div>
   {/if}
 
+  {#if suspect}
+    <!-- ── Its GPS doesn't add up: say so, and offer to hide the worst ── -->
+    <div class="sus" class:hidden-strays={suspect.fixed}>
+      <p>
+        <b><TriangleAlert size={13} /> Suspect GPS</b>
+        {#if suspect.fixed}
+          The jumps are hidden on this device. Without them it is
+          {km(suspect.keptM)} driven, not {km(suspect.totalM)}. Its hectares
+          still count them.
+        {:else}
+          {#if suspect.worst}
+            At {clock(suspect.worst.at)} it jumps {km(suspect.worst.metres)} in
+            {took(suspect.worst.seconds)}{suspect.strays.length
+              ? " and comes back"
+              : ""}.
+          {/if}
+          {km(suspect.jumpM)} of its {km(suspect.totalM)} is jumps, not driving.
+        {/if}
+      </p>
+      <button type="button" on:click={() => dispatch("fix", !suspect?.fixed)}>
+        {suspect.fixed ? "Show them" : "Hide the jumps"}
+      </button>
+    </div>
+  {/if}
+
   {#if ordered.length > 1}
     <!-- ── Where it sits among the others ── -->
     <div class="among">
@@ -214,7 +253,10 @@
                     aria-pressed={t.id === trail.id}
                     aria-label="{t.operator || 'Trail'}, {clock(t.start)}"
                     title="{t.operator || 'Trail'} · {clock(t.start)}"
-                    style="width: {widthOf(t)}px; --c: {drawColour(t.colour)}"
+                    style="width: {widthOf(t)}px; --c: {trailColour(
+                      t.colour,
+                      t.id,
+                    )}"
                     on:click={() => t.id !== trail.id && dispatch("pick", t.id)}
                   ></button>
                 {/each}
@@ -356,6 +398,56 @@
     font-weight: 600;
     color: var(--mn-band-text);
     white-space: nowrap;
+  }
+  /* GPS that doesn't add up: an amber note, and the button that hides it. */
+  .sus {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 9px 10px 9px 12px;
+    border-radius: 14px;
+    background: rgba(245, 158, 11, 0.16);
+    box-shadow: inset 0 0 0 1.5px rgba(217, 119, 6, 0.55);
+  }
+  .sus p {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+  .sus b {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--lp-mono);
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #d97706;
+    text-transform: uppercase;
+  }
+  .sus button {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 14px;
+    border: 1.5px solid #15261c;
+    border-radius: 99px;
+    background: #f7db5c;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: #15261c;
+    white-space: nowrap;
+  }
+  .sus.hidden-strays {
+    background: var(--lp-paper);
+    box-shadow: inset 0 0 0 1.5px var(--lp-line);
+  }
+  .sus.hidden-strays button {
+    border-color: var(--lp-line);
+    background: var(--mn-block, var(--lp-card));
+    color: var(--lp-ink);
   }
   .count b {
     font-weight: 800;

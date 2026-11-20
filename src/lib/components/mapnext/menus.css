@@ -4299,3 +4299,39 @@
 .mn-quickset .rows li {
   min-width: 0;
 }
+
+/* ── Twentieth pass ─────────────────────────────────────────────────────── */
+/* Who is signed in to a machine: a badge on its picture, in its card. */
+.mn-menu .head .art {
+  position: relative;
+}
+.mn-driver {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  max-width: 68px;
+  padding: 1px 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #f7db5c;
+  box-shadow: 0 0 0 1.5px #15261c;
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #15261c;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+/* A trail palette's sample: five of its colours side by side. */
+.mn-presets .shades {
+  display: flex;
+  width: 100%;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.mn-presets .shades i {
+  flex: 1;
+}

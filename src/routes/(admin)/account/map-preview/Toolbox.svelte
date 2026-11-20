@@ -51,7 +51,13 @@
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import ShapeArt from "$lib/components/mapnext/ShapeArt.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
-  import { drawColour } from "$lib/components/mapnext/palette"
+  import {
+    TRAIL_PALETTE_CHOICES,
+    drawColour,
+    paletteSample,
+    trailColour,
+    type TrailPalette,
+  } from "$lib/components/mapnext/palette"
   import { formatHa } from "$lib/components/mapnext/format"
   import {
     PIN_STYLES,
@@ -108,6 +114,8 @@
   export let baseDefault = "dark"
   /** How vivid trails are drawn. */
   export let trailLevel: TrailLevel = "medium"
+  /** The palette trails are coloured from. */
+  export let trailPalette: TrailPalette = "machine"
   /** How pins are drawn. */
   export let pinStyle: PinStyle = "solid"
   /** How the menus are dressed. */
@@ -170,6 +178,7 @@
     /** Open the map in this look from now on. */
     baseDefault: string
     trailLevel: TrailLevel
+    trailPalette: TrailPalette
     pinStyle: PinStyle
     menuLook: MenuLook
     /** Open a bin's card. */
@@ -867,7 +876,7 @@
                   >
                     <span
                       class="swatch"
-                      style="background: {drawColour(trail.colour)}"
+                      style="background: {trailColour(trail.colour, trail.id)}"
                     ></span>
                     <span class="text">
                       <strong>{day(trail.start)} · {clock(trail.start)}</strong>
@@ -1072,6 +1081,32 @@
       <section class="mn-section">
         <p class="lp-eyebrow">Trail colours</p>
         <div class="mn-presets" role="group" aria-label="Trail colours">
+          {#each TRAIL_PALETTE_CHOICES as option (option.key)}
+            <button
+              type="button"
+              aria-pressed={trailPalette === option.key}
+              on:click={() =>
+                trailPalette !== option.key &&
+                dispatch("trailPalette", option.key)}
+            >
+              <span class="shades">
+                {#each paletteSample(option.key) as shade}
+                  <i style="background: {shade}"></i>
+                {/each}
+              </span>
+              {option.label}
+            </button>
+          {/each}
+        </div>
+        <p class="mn-note">
+          Machine is the colour each machine is drawn in. Records gives every
+          finished trail a colour of its own.
+        </p>
+      </section>
+
+      <section class="mn-section">
+        <p class="lp-eyebrow">Trail strength</p>
+        <div class="mn-presets" role="group" aria-label="Trail strength">
           {#each TRAIL_LEVELS as level (level.key)}
             <button
               type="button"

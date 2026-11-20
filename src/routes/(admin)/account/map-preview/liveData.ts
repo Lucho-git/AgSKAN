@@ -1234,6 +1234,27 @@ export type TrailTimeline = {
 }
 
 /**
+ * Every point of a finished trail with the time it was laid, however long
+ * the trail (for looking it over; see trailCheck). Null when the trail has
+ * no such detail, or its points carry no times.
+ */
+export async function loadTrailDetail(
+  trailId: string,
+): Promise<TrailPoint[][] | null> {
+  const { data } = await supabase
+    .from("trails")
+    .select("detailed_path")
+    .eq("id", trailId)
+    .maybeSingle()
+  const raw = (data as Row | null)?.detailed_path
+  const parts = typeof raw === "string" ? parseTimedLines(raw) : []
+  const timed =
+    parts.length > 0 &&
+    parts.every((line) => line.every((p) => p.t > 1e11 && p.t < 1e14))
+  return timed ? parts : null
+}
+
+/**
  * The points of a finished trail with the time each was laid, for replay.
  * Older trails without that detail come back untimed, from the drawn shape,
  * and are replayed at an even pace between their start and finish.

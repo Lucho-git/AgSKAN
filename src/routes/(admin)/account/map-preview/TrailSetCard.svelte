@@ -21,7 +21,7 @@
     X,
   } from "lucide-svelte"
   import { formatHa } from "$lib/components/mapnext/format"
-  import { drawColour } from "$lib/components/mapnext/palette"
+  import { trailColour } from "$lib/components/mapnext/palette"
   import type { SetReplayState, ThroughStats } from "./liveEngine"
   import type { TrailInfo } from "./liveData"
 
@@ -149,7 +149,10 @@
                 class:waiting={going && !!replay && t.start > replay.time}
                 aria-label="{t.operator || 'Trail'}, {clock(t.start)}"
                 title="{t.operator || 'Trail'} · {clock(t.start)}"
-                style="width: {widthOf(t)}px; --c: {drawColour(t.colour)}"
+                style="width: {widthOf(t)}px; --c: {trailColour(
+                  t.colour,
+                  t.id,
+                )}"
                 on:click={() => dispatch("pick", t.id)}
               ></button>
             {/each}

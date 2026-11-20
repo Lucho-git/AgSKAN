@@ -69,6 +69,11 @@
   } from "$lib/components/mapnext/pins"
   import { asMenuLook, type MenuLook } from "$lib/components/mapnext/menuLook"
   import {
+    asTrailPalette,
+    setTrailPalette,
+    type TrailPalette,
+  } from "$lib/components/mapnext/palette"
+  import {
     grainBinDefaultCapacity,
     grainBinName,
     isGrainBinIcon,
@@ -88,6 +93,7 @@
     type Operation,
     type Readout,
     type ReplayState,
+    type TrailSuspect,
     type Guide,
     type BoundaryEdit,
     type PickedShape,
@@ -227,6 +233,8 @@
   })()
   let pinLook: PinStyle = asPinStyle(load<string>("pin-style"))
   pinStyle.set(pinLook)
+  let trailPalette: TrailPalette = asTrailPalette(load<string>("trail-palette"))
+  setTrailPalette(trailPalette)
   /** How the menus are dressed (the Map tool's "Menus"). */
   let menuLook: MenuLook = asMenuLook(load<string>("menu-look"))
   const lookOf = (key: string): BaseLook =>
@@ -372,6 +380,7 @@
   let selectedPaddock: Paddock | null = null
   let selectedTrail: TrailInfo | null = null
   let replay: ReplayState | null = null
+  let trailSuspect: TrailSuspect | null = null
   // The trail being followed, and which one it is in words.
   let guide: Guide | null = null
   let guideLabel = ""
@@ -526,7 +535,8 @@
   }
 
   // A badge that rises from wherever a button was just pressed and fades:
-  // "+ Rock" off a pin button, "Deleted" off the delete button.
+  // "+ Rock" off a pin button. (What happens to a pin already on the map is
+  // said on the map, where the pin is: see the engine's `flag`.)
   let lastTap = { x: 0, y: 0 }
   let floaters: {
     id: number
@@ -704,6 +714,9 @@
     // Holding a finger on the map drops the default pin there (or the one
     // whose button is pressed), as the current viewer does.
     created.onGround = (outline) => buildPaddock(outline)
+    // Trails whose stray GPS was hidden on this device stay that way.
+    created.setTrailFixes(load<string[]>("trail-fixes") ?? [])
+    created.onTrailFixes = (ids) => save("trail-fixes", ids)
     created.onAway = () => {
       if (!binOpen) return false
       binOpen = null
@@ -731,6 +744,7 @@
       created.crewTrail.subscribe((v) => (crewTrail = v)),
       created.placing.subscribe((v) => (placing = v)),
       created.replay.subscribe((v) => (replay = v)),
+      created.trailSuspect.subscribe((v) => (trailSuspect = v)),
       created.setReplay.subscribe((v) => (setReplay = v)),
       created.guide.subscribe((v) => (guide = v)),
       created.boundary.subscribe((v) => (boundaryEdit = v)),
@@ -1106,6 +1120,12 @@
     save("trail-level", level)
     engine?.setTrailLevel(level)
   }
+  function pickTrailPalette(palette: TrailPalette) {
+    trailPalette = palette
+    save("trail-palette", palette)
+    if (engine) engine.setTrailPalette(palette)
+    else setTrailPalette(palette)
+  }
   function setMenuLook(look: MenuLook) {
     menuLook = look
     save("menu-look", look)
@@ -1190,7 +1210,8 @@
   async function removeSelectedPin() {
     const pin = selectedPin
     if (!pin || !engine) return
-    floatUp("Deleted", true)
+    // (The map says "Deleted" where the pin was; nothing floats off the
+    // menu as well.)
     const removed = await engine.removePin(pin.id)
     if (removed)
       say("Pin removed", {
@@ -3102,6 +3123,17 @@
           marks={trailMarks}
           busy={guide?.phase === "loading"}
           {guest}
+          suspect={trailSuspect?.trailId === selectedTrail.id
+            ? trailSuspect
+            : null}
+          on:fix={async (e) => {
+            if (await engine?.fixTrail(e.detail))
+              say(
+                e.detail
+                  ? "Jumps hidden on this device"
+                  : "Showing the trail as recorded",
+              )
+          }}
           on:close={() => engine?.pickTrail(null)}
           on:pick={(e) => {
             const scope = trailScope
@@ -3505,6 +3537,9 @@
           {guest}
           choices={pinChoices}
           {choiceLook}
+          typeColours={$userSettingsStore.markerTypeDefaultColors ?? {}}
+          on:typeColour={(e) =>
+            setTypeColour(e.detail.iconClass, e.detail.colour)}
           moving={movingPin === selectedPin.id}
           drawings={pinDrawings}
           picked={pickedDrawing}
@@ -3588,25 +3623,27 @@
                 wheelColor="#15261C"
                 loadColor="#F7DB5C"
               />
+              {#if drivenBy(selectedCrew)}
+                <!-- Who is signed in to it. -->
+                <b
+                  class="mn-driver"
+                  title="{drivenBy(selectedCrew)} is driving"
+                >
+                  {drivenBy(selectedCrew).split(/\s+/)[0]}
+                </b>
+              {/if}
             </span>
             <div class="about">
               <h2>
                 {selectedCrew.name}{selectedCrew.guest ? " (guest)" : ""}
               </h2>
-              <p>
-                {[
-                  ...(drivenBy(selectedCrew)
-                    ? [`${drivenBy(selectedCrew)} driving`]
-                    : []),
-                  selectedCrew.machineLabel,
-                  ...(selectedCrew.where ? [selectedCrew.where] : []),
-                ].join(" · ")}
-              </p>
+              <p>{selectedCrew.machineLabel}</p>
             </div>
-            {#if selectedCrew.distance !== null}
-              <span class="mn-far">{formatDistance(selectedCrew.distance)}</span
-              >
-            {/if}
+            <span class="mn-far">
+              {selectedCrew.speed > 0
+                ? `${selectedCrew.speed.toFixed(1)} km/h`
+                : "Stopped"}
+            </span>
             <button
               type="button"
               class="mn-icon-button"
@@ -3948,6 +3985,8 @@
         on:pinStyle={(e) => setPinStyle(e.detail)}
         {menuLook}
         on:menuLook={(e) => setMenuLook(e.detail)}
+        {trailPalette}
+        on:trailPalette={(e) => pickTrailPalette(e.detail)}
         {pinCount}
         on:bin={(e) => openBin(e.detail)}
         on:layer={(e) => setLayer(e.detail.key, e.detail.on)}

@@ -85,7 +85,14 @@ import {
 } from "$lib/components/mapnext/geo"
 import { formatAgo, formatHa } from "$lib/components/mapnext/format"
 import { machineFor, type VehicleType } from "$lib/components/mapnext/machines"
-import { blockColour, drawColour } from "$lib/components/mapnext/palette"
+import {
+  blockColour,
+  drawColour,
+  setTrailPalette,
+  trailColour,
+  type TrailPalette,
+} from "$lib/components/mapnext/palette"
+import { checkTrail, type TrailCheck } from "./trailCheck"
 import {
   loadPinGlyphs,
   pinDataUrl,
@@ -103,6 +110,7 @@ import {
   loadPaddocks,
   loadPins,
   loadTrailShape,
+  loadTrailDetail,
   loadTrailTimeline,
   deleteTrail,
   patchPin,
@@ -261,6 +269,13 @@ export type Measure = {
     colour: string
     saving: boolean
   }
+}
+
+/** A trail's check, for its card: the figures, and whether it is fixed. */
+export type TrailSuspect = Omit<TrailCheck, "kept"> & {
+  trailId: string
+  /** Its strays are hidden on this device. */
+  fixed: boolean
 }
 
 export type Loading = {
@@ -857,6 +872,19 @@ export class LiveEngine {
   readonly selectedPaddock: Writable<Paddock | null> = writable(null)
   /** The finished trail picked out on the map, and its replay if running. */
   readonly selectedTrail: Writable<TrailInfo | null> = writable(null)
+  /**
+   * What looks wrong with the picked trail's GPS, once its detail has been
+   * read (null while it is being read, and when nothing is wrong).
+   */
+  readonly trailSuspect: Writable<TrailSuspect | null> = writable(null)
+  /** Trails looked over already, by id. */
+  private trailChecks = new Map<string, TrailCheck | null>()
+  /** Trails whose strays are hidden: what was drawn for each before. */
+  private trailFixes = new Map<string, unknown[]>()
+  /** The trails this device wants fixed (kept between visits by the page). */
+  private fixWanted = new Set<string>()
+  /** Told when the trails fixed on this device change. */
+  onTrailFixes: ((ids: string[]) => void) | null = null
   readonly replay: Writable<ReplayState | null> = writable(null)
   /** The measure tool's running figures while it is in use, else null. */
   readonly measure: Writable<Measure | null> = writable(null)
@@ -1841,6 +1869,8 @@ export class LiveEngine {
             binFillAfter: after.fill,
           })
       }
+      // Saved: a word floats up from the pin, as when one is placed.
+      this.flag(after.at, rest.at ? "Moved" : "Updated")
       return true
     } catch {
       if (this.pinsById.has(id)) show(before)
@@ -2584,7 +2614,7 @@ export class LiveEngine {
       ?.setData(
         collection(
           showing && info
-            ? [line(coords, drawColour(info.colour), info.width)]
+            ? [line(coords, trailColour(info.colour), info.width)]
             : [],
         ),
       )
@@ -2595,7 +2625,7 @@ export class LiveEngine {
         since: info.start,
         metres,
         ha: (metres * info.width) / 10000,
-        colour: drawColour(info.colour),
+        colour: trailColour(info.colour),
         lit: this.crewTrailLit,
       })
     } else this.crewTrail.set(null)
@@ -2966,7 +2996,7 @@ export class LiveEngine {
         doing,
         action,
         where: place,
-        speed: moving ? Math.round(state!.speed) : 0,
+        speed: moving ? Math.round(state!.speed * 10) / 10 : 0,
         distance:
           mine && entry.vehicle ? distanceM(mine.pos, entry.vehicle.pos) : null,
         online: entry.online,
@@ -3073,7 +3103,7 @@ export class LiveEngine {
       doing: action + (where ? ` · ${where.name}` : ""),
       action,
       where: where?.name ?? null,
-      speed: moving ? Math.round(this.speedKmh) : 0,
+      speed: moving ? Math.round(this.speedKmh * 10) / 10 : 0,
       distance: null,
       online: true,
       away: false,
@@ -3272,6 +3302,7 @@ export class LiveEngine {
     this.stopTrailWatch = null
     this.history = []
     this.historyIds.clear()
+    this.trailFixes.clear()
     this.historyDirty = true
     this.liveTrails.clear()
     this.liveDirty = true
@@ -3373,7 +3404,9 @@ export class LiveEngine {
     this.historyIds.add(info.id)
     const properties = {
       id: info.id,
-      color: drawColour(info.colour),
+      color: trailColour(info.colour, info.id),
+      // (The colour as saved, so it can be drawn in another palette.)
+      raw: info.colour,
       width: info.width,
     }
     this.history.push({ type: "Feature", properties, geometry: shape.path })
@@ -3384,6 +3417,119 @@ export class LiveEngine {
         geometry: shape.pausePath,
       })
     this.historyDirty = true
+    // Fixed on this device on an earlier visit: fix it again.
+    if (this.fixWanted.has(info.id)) void this.hideStrays(info)
+  }
+
+  // ── A trail's GPS, looked over ──────────────────────────────────────────
+  // (See trailCheck.) The fix is on this device only: the trail as saved is
+  // not touched, so its figures and everyone else's map stay as they were.
+
+  /** The trails to fix as they arrive (from an earlier visit). */
+  setTrailFixes(ids: string[]) {
+    this.fixWanted = new Set(ids)
+  }
+
+  private async checked(info: TrailInfo): Promise<TrailCheck | null> {
+    if (this.trailChecks.has(info.id))
+      return this.trailChecks.get(info.id) ?? null
+    const parts = await loadTrailDetail(info.id).catch(() => null)
+    const check = parts ? checkTrail(parts) : null
+    if (this.trailChecks.size > 30) this.trailChecks.clear()
+    this.trailChecks.set(info.id, check)
+    return check
+  }
+
+  private async lookOver(info: TrailInfo) {
+    this.trailSuspect.set(null)
+    const check = await this.checked(info)
+    if (get(this.selectedTrail)?.id !== info.id) return
+    this.trailSuspect.set(check ? this.suspectOf(info.id, check) : null)
+  }
+
+  private suspectOf(id: string, check: TrailCheck): TrailSuspect {
+    return {
+      strays: check.strays,
+      jumps: check.jumps,
+      jumpM: check.jumpM,
+      totalM: check.totalM,
+      keptM: check.keptM,
+      worst: check.worst,
+      trailId: id,
+      fixed: this.trailFixes.has(id),
+    }
+  }
+
+  /** Hide the picked trail's strays on this device, or show them again. */
+  async fixTrail(on: boolean) {
+    const info = get(this.selectedTrail)
+    if (!info) return false
+    return on ? this.hideStrays(info) : this.showStrays(info.id)
+  }
+
+  private async hideStrays(info: TrailInfo) {
+    if (this.trailFixes.has(info.id)) return true
+    const check = await this.checked(info)
+    if (!check || !this.historyIds.has(info.id)) return false
+    const own = this.trailFeatures(info.id)
+    const lines = check.kept.filter((line) => line.length > 1)
+    if (!own.length || !lines.length || this.trailFixes.has(info.id))
+      return false
+    this.trailFixes.set(info.id, own)
+    const gone = new Set<unknown>(own)
+    this.history = this.history.filter((f) => !gone.has(f))
+    this.history.push({
+      type: "Feature",
+      properties: (own[0] as { properties?: unknown }).properties,
+      geometry: { type: "MultiLineString", coordinates: lines },
+    })
+    this.historyDirty = true
+    this.fixWanted.add(info.id)
+    this.onTrailFixes?.([...this.fixWanted])
+    this.redrawPicked(info.id)
+    return true
+  }
+
+  private showStrays(id: string) {
+    const original = this.trailFixes.get(id)
+    if (!original) return false
+    const gone = new Set<unknown>(this.trailFeatures(id))
+    this.history = [...this.history.filter((f) => !gone.has(f)), ...original]
+    this.trailFixes.delete(id)
+    this.historyDirty = true
+    this.fixWanted.delete(id)
+    this.onTrailFixes?.([...this.fixWanted])
+    this.redrawPicked(id)
+    return true
+  }
+
+  /** The picked trail's shape changed under it: draw its highlight again. */
+  private redrawPicked(id: string) {
+    this.trailSuspect.update((suspect) =>
+      suspect?.trailId === id
+        ? { ...suspect, fixed: this.trailFixes.has(id) }
+        : suspect,
+    )
+    const picked = get(this.selectedTrail)
+    if (picked?.id !== id || !get(this.ready)) return
+    const features = this.trailFeatures(id)
+    this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection(features))
+    this.pickedArrows(features.flatMap(partsOf), picked.colour)
+  }
+
+  /** Draw trails in another palette (see `trailColour`). */
+  setTrailPalette(palette: TrailPalette) {
+    setTrailPalette(palette)
+    for (const feature of this.history) {
+      const properties = (feature as { properties: Record<string, unknown> })
+        .properties
+      if (typeof properties.raw === "string")
+        properties.color = trailColour(properties.raw, String(properties.id))
+    }
+    this.historyDirty = true
+    this.liveDirty = true
+    const picked = get(this.selectedTrail)
+    if (picked) this.redrawPicked(picked.id)
   }
 
   // ── Picking a trail out, and replaying it ───────────────────────────────
@@ -3483,7 +3629,7 @@ export class LiveEngine {
         if (points.length > 1)
           tracks.push({
             info,
-            colour: drawColour(info.colour),
+            colour: trailColour(info.colour, info.id),
             points,
             from: 0,
             to: 0,
@@ -4027,6 +4173,8 @@ export class LiveEngine {
     // Chosen from the list before its shape has arrived: nothing to show.
     if (info && !features.length) return false
     this.selectedTrail.set(info ?? null)
+    if (info) void this.lookOver(info)
+    else this.trailSuspect.set(null)
     if (get(this.ready)) {
       this.map.getSource(PICKED_TRAIL_SOURCE)?.setData(collection(features))
       this.pickedArrows(features.flatMap(partsOf), info?.colour)
@@ -4144,7 +4292,7 @@ export class LiveEngine {
       // A whole trail plays in under a minute or so at 1×.
       seconds: clamp(axis / 1000 / 150, 14, 70),
       vehicle,
-      colour: drawColour(info.colour),
+      colour: trailColour(info.colour, info.id),
       drawn: -1,
       told: 0,
       speed: 0,
@@ -4228,7 +4376,11 @@ export class LiveEngine {
   private pickedArrows(parts: LngLat[][], colour: string | null | undefined) {
     this.map
       .getSource(PICKED_ARROW_SOURCE)
-      ?.setData(collection(arrowsAlong(parts, drawColour(colour))))
+      ?.setData(
+        collection(
+          arrowsAlong(parts, trailColour(colour, get(this.selectedTrail)?.id)),
+        ),
+      )
     showArrowsTo(this.map, null)
   }
 
@@ -4441,7 +4593,7 @@ export class LiveEngine {
 
     const recording = get(this.recorder.state).trail
     const points = recording ? this.recorder.points : []
-    const colour = recording ? drawColour(recording.colour) : ""
+    const colour = recording ? trailColour(recording.colour) : ""
     const width = recording?.width ?? 0
     this.drawArrows(
       changed,
@@ -4466,7 +4618,7 @@ export class LiveEngine {
           features.push(
             line(
               coords.slice(i, i + CHUNK + 1),
-              drawColour(trail.info.colour),
+              trailColour(trail.info.colour),
               trail.info.width,
             ),
           )
@@ -4550,7 +4702,7 @@ export class LiveEngine {
     for (const trail of this.liveTrails.values())
       for (const arrow of arrowsAlong(
         [trail.points.map((p) => p.at)],
-        drawColour(trail.info.colour),
+        trailColour(trail.info.colour),
         { kind: "activeTrails" },
       ))
         arrows.push(arrow)

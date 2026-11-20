@@ -10,6 +10,14 @@
  * is used for `trails.trail_color`.
  */
 
+import {
+  RECORD_TRAIL_COLORS,
+  TRAIL_PALETTES,
+  composeLook,
+  trailColorFor,
+  type TrailPaletteName,
+} from "$lib/utils/mapLook"
+
 export type VehicleColour = {
   /** The name saved in `vehicle_marker.bodyColor` (same as the old app). */
   id: string
@@ -105,4 +113,58 @@ export function blockColour(id: string): string {
   let hash = 0
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0
   return BLOCK_COLOURS[Math.abs(hash) % BLOCK_COLOURS.length]
+}
+
+/**
+ * How trails are coloured, chosen in the Map tool. "machine" is this map's
+ * own: a trail is exactly the colour its machine is drawn in. The others
+ * are the map survey's trail palettes (soft, classic, earth, records): the
+ * same nine machine colours in different shades, and with "records" every
+ * finished trail gets a colour of its own so neighbouring passes stand
+ * apart.
+ */
+export type TrailPalette = "machine" | TrailPaletteName
+export const TRAIL_PALETTE_CHOICES: { key: TrailPalette; label: string }[] = [
+  { key: "machine", label: "Machine" },
+  { key: "soft", label: "Soft" },
+  { key: "classic", label: "Classic" },
+  { key: "earth", label: "Earth" },
+  { key: "records", label: "Records" },
+]
+export const asTrailPalette = (saved: unknown): TrailPalette =>
+  TRAIL_PALETTE_CHOICES.find((choice) => choice.key === saved)?.key ?? "machine"
+
+let trailPalette: TrailPalette = "machine"
+export function setTrailPalette(palette: TrailPalette) {
+  trailPalette = palette
+}
+
+/**
+ * The colour to draw a trail in: its machine's saved colour, in the palette
+ * chosen. `trailId` is given for a finished trail (the records palette
+ * colours those one by one); a trail still being laid keeps its machine's.
+ */
+export function trailColour(
+  saved: string | null | undefined,
+  trailId?: string | null,
+): string {
+  if (trailPalette === "machine") return drawColour(saved)
+  const known = findColour(saved)
+  // (A custom colour isn't in any palette: it is drawn as it is.)
+  if (!known && !(trailPalette === "records" && trailId))
+    return drawColour(saved)
+  return trailColorFor(
+    known?.id ?? saved,
+    trailId ?? null,
+    composeLook("classic", trailPalette),
+  )
+}
+
+/** Five colours of a palette, for its sample in the Map tool. */
+export function paletteSample(palette: TrailPalette): string[] {
+  const names = ["Red", "Blue", "Green", "Yellow", "Orange"]
+  if (palette === "machine")
+    return names.map((name) => findColour(name)?.value ?? "#888")
+  if (palette === "records") return RECORD_TRAIL_COLORS.slice(0, 5)
+  return names.map((name) => TRAIL_PALETTES[palette][name.toLowerCase()])
 }
