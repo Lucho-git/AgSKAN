@@ -174,8 +174,8 @@
     locate: void
     machine: { type: string; colour: string; swath: number }
     lookCrew: string
-    pinKind: string
-    dropPins: void
+    /** The pin buttons on the map, in order: the first is the default. */
+    quickKinds: string[]
     operation: Operation
     lookTrail: string
     replayTrail: string
@@ -219,10 +219,6 @@
     newPaddock: string | null
     /** Add a farm with this name. */
     newFarm: string
-    /** Give a kind of pin a button on the map, or take it away. */
-    quickPin: { iconClass: string; on: boolean }
-    /** Make a kind of pin the default one. */
-    quickDefault: string
     /** Go to a place the log points at. */
     lookPlace: LngLat
     /** Pick the machine (by account) a log row is about. */
@@ -871,7 +867,6 @@
     {:else if view === "pins"}
       <PinsTool
         {pinChoices}
-        {pinKind}
         {choiceLook}
         {pinLook}
         {pins}
@@ -879,10 +874,7 @@
         {names}
         {guest}
         quick={quickPinKinds}
-        on:quick={(e) => dispatch("quickPin", e.detail)}
-        on:quickDefault={(e) => dispatch("quickDefault", e.detail)}
-        on:pinKind={(e) => dispatch("pinKind", e.detail)}
-        on:dropPins={() => dispatch("dropPins")}
+        on:quickKinds={(e) => dispatch("quickKinds", e.detail)}
         on:colour={(e) => dispatch("typeColour", e.detail)}
         on:lookPin={(e) => dispatch("lookPin", e.detail)}
         on:lasso={() => dispatch("lasso")}

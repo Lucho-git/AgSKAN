@@ -4388,3 +4388,23 @@
 .mn-oplist form.new input {
   width: 0;
 }
+
+/* ── Twenty-second pass ─────────────────────────────────────────────────── */
+/* Beside the default pin button for a few seconds after it has dropped a
+   pin: the way to the Pins tool (change the buttons, add one). */
+.mn-quickpins .more {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 9px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: 2px solid #15261c;
+  border-radius: 50%;
+  background: #f7db5c;
+  box-shadow: 0 8px 18px -8px rgba(10, 25, 15, 0.8);
+  color: #15261c;
+  transform: translateY(-50%);
+}

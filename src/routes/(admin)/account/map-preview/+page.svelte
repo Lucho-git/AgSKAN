@@ -21,7 +21,6 @@
     LoaderCircle,
     LocateFixed,
     MessageCircle,
-    Pencil,
     Plus,
     Navigation,
     Check,
@@ -287,12 +286,10 @@
   let crewTab: "crew" | "log" = "crew"
   let crewCardH = 0
   /** The kind picked in the change-pin card, waiting to be confirmed. */
-  let pinPick: string | null = null
   /** My trail is paused: driving shows dotted and isn't coverage. */
   let trailPaused = false
   /** The grain bin opened from its button on the map (its pin's id). */
   let binOpen: string | null = null
-  let pinning = false
   let wide = false
   let online = true
   let secure = true
@@ -319,51 +316,39 @@
   // is the default: it is the one a long press on the map drops.
   let quickKinds: string[] = load<string[]>("quick-pins") ?? [pinKind]
   if (!quickKinds.length) quickKinds = [pinKind]
-  /** The button that has been pressed once: pressed again, it drops. */
-  let armedPin: string | null = null
-  /** Its "Change" button is showing. */
-  let changeShown = false
-  /** The button whose kind is being changed. */
-  let pinSlot: string | null = null
   const pinName = (iconClass: string) =>
     pinChoices.find((choice) => choice.iconClass === iconClass)?.label ?? "Pin"
   function setQuick(kinds: string[]) {
     quickKinds = kinds.length ? kinds : [pinKind]
     save("quick-pins", quickKinds)
+    // (The default is also the kind a drawing's pin starts as.)
+    pinKind = quickKinds[0]
+    save("pin", pinKind)
   }
+  // A pin button drops its pin where the machine is, on one tap. Off the
+  // default one a small "+" then slides out for a few seconds: the way to
+  // the Pins tool, where the buttons are changed and added.
+  let pinMore = false
+  let pinMoreTimer: ReturnType<typeof setTimeout> | undefined
   function pinTap(iconClass: string) {
-    if (armedPin !== iconClass) {
-      armedPin = iconClass
-      changeShown = true
-      return
-    }
-    // Pressed again: down it goes, where the machine is.
-    changeShown = false
     engine?.dropPin(iconClass)
     floatUp(`+ ${pinName(iconClass)}`)
+    if (iconClass !== quickKinds[0]) return
+    pinMore = true
+    clearTimeout(pinMoreTimer)
+    pinMoreTimer = setTimeout(() => (pinMore = false), 5000)
   }
-  function disarmPin() {
-    armedPin = null
-    changeShown = false
+  function openPins() {
+    pinMore = false
+    clearTimeout(pinMoreTimer)
+    openPanel("pins")
   }
-  // A tap anywhere but on the pin buttons lets go of them.
+  // (Where a button was pressed: a word floats up from there.)
   function tapAway(event: Event) {
     const press = event as PointerEvent
     if (typeof press.clientX === "number")
       lastTap = { x: press.clientX, y: press.clientY }
-    if (!armedPin) return
-    const target = event.target as HTMLElement | null
-    if (target?.closest?.(".mn-quickpins")) return
-    disarmPin()
   }
-  // The change-pin card offers every kind, most used first, after the one
-  // the button drops now.
-  $: slotChoices = pinSlot
-    ? [
-        ...pinChoices.filter((choice) => choice.iconClass === pinSlot),
-        ...pinChoices.filter((choice) => choice.iconClass !== pinSlot),
-      ]
-    : pinChoices
   $: quickPins = [
     ...pinChoices.filter((choice) => choice.iconClass === pinKind),
     ...pinChoices.filter((choice) => choice.iconClass !== pinKind).slice(0, 9),
@@ -566,7 +551,6 @@
     groundFor = null
     newPaddockName = ""
     if (!wide) panelOpen = false
-    stopPinning()
     engine?.newPaddock(ask.farmId, start)
   }
   // From where a trail went: a loop is drawn round the ground, and what
@@ -575,7 +559,6 @@
     groundFor = paddockAsk
     paddockAsk = null
     if (!wide) panelOpen = false
-    stopPinning()
     engine?.startLasso("ground")
   }
 
@@ -725,10 +708,9 @@
       return true
     }
     created.onHold = (at) => {
-      if (guest || pinning) return
-      const kind = armedPin ?? quickKinds[0]
+      if (guest) return
+      const kind = quickKinds[0]
       created.dropPin(kind, at)
-      changeShown = false
       say(`${pinName(kind)} dropped`)
     }
     stop.push(
@@ -1180,36 +1162,6 @@
   }
 
   // ── Pins ──
-  // Changing which kind of pin a button drops.
-  function startPinning(slot: string | null = null) {
-    panelOpen = false
-    stopAsk = false
-    pinSlot = slot ?? quickKinds[0]
-    pinPick = null
-    pinning = true
-    disarmPin()
-  }
-
-  function stopPinning() {
-    pinning = false
-    pinSlot = null
-    pinPick = null
-  }
-
-  function choosePin(iconClass: string) {
-    pinKind = iconClass
-    save("pin", iconClass)
-    if (pinning && pinSlot) {
-      // The button takes the new kind (two buttons never drop the same).
-      setQuick(
-        quickKinds.includes(iconClass)
-          ? quickKinds
-          : quickKinds.map((kind) => (kind === pinSlot ? iconClass : kind)),
-      )
-      stopPinning()
-    }
-  }
-
   async function removeSelectedPin() {
     const pin = selectedPin
     if (!pin || !engine) return
@@ -1339,7 +1291,6 @@
     if (jobDraft) endJob()
     placePick = true
     if (!wide) panelOpen = false
-    stopPinning()
     engine?.setGrabbing(true)
   }
   function endPlacePick() {
@@ -1406,7 +1357,6 @@
       current: 0,
     }
     if (!wide) panelOpen = false
-    stopPinning()
     engine?.setGrabbing(true)
   }
 
@@ -1756,7 +1706,6 @@
 
   function startLasso() {
     if (!wide) panelOpen = false
-    stopPinning()
     engine?.startLasso()
   }
 
@@ -1915,7 +1864,6 @@
   // ── Measuring ──
   function startMeasuring() {
     panelOpen = false
-    stopPinning()
     engine?.setMeasuring(true)
   }
   $: areaNow = measure
@@ -1999,8 +1947,7 @@
 
   function onKey(event: KeyboardEvent) {
     if (event.key !== "Escape") return
-    if (pinning) stopPinning()
-    else if (driverOffer) confirmDriver()
+    if (driverOffer) confirmDriver()
     else if (placing) engine?.cancelPlacing()
     else if (measure?.forJob) engine?.cancelDrawing()
     else if (jobDraft) endJob()
@@ -2047,7 +1994,6 @@
     !!jobDraft ||
     !!lasso ||
     !!invite ||
-    pinning ||
     roadAsk ||
     stopAsk ||
     operatorAsk ||
@@ -2533,40 +2479,32 @@
     {#if wide || !bottomTaken}
       <div class="mn-corner bottom-right">
         {#if !guest}
-          <!-- A button for each default pin, the first one lowest. Pressed
-               once it offers to change; pressed again it drops the pin where
-               the machine is. A tap anywhere else lets go of it. -->
+          <!-- A button for each default pin, the first one lowest. One tap
+               drops its pin where the machine is. Off the first, a "+" then
+               shows beside it for a few seconds: the way to the Pins tool. -->
           <div class="mn-quickpins" class:many={quickKinds.length > 1}>
             {#each [...quickKinds].reverse() as kind (kind)}
-              <div class="slot" class:armed={armedPin === kind}>
+              <div class="slot">
+                {#if pinMore && kind === quickKinds[0]}
+                  <button
+                    type="button"
+                    class="more"
+                    aria-label="Change the pin buttons, or add one"
+                    title="Change the pin buttons, or add one"
+                    transition:fade={{ duration: 160 }}
+                    on:click={openPins}
+                  >
+                    <Plus size={20} strokeWidth={3} />
+                  </button>
+                {/if}
                 <button
                   type="button"
                   class="pin"
-                  aria-label={armedPin === kind
-                    ? `Drop a ${pinName(kind)} pin here`
-                    : `${pinName(kind)} pin`}
+                  aria-label="Drop a {pinName(kind)} pin here"
                   on:click={() => pinTap(kind)}
                 >
                   <PinArt look={choiceLook(kind)} size={wide ? 54 : 50} />
-                  {#if armedPin === kind}
-                    <span class="drop">Drop</span>
-                  {:else}
-                    <span class="plus"
-                      ><Plus size={12} strokeWidth={3.5} /></span
-                    >
-                  {/if}
                 </button>
-                {#if armedPin === kind && changeShown}
-                  <button
-                    type="button"
-                    class="change"
-                    aria-label="Change which pin this button drops"
-                    transition:fade={{ duration: 160 }}
-                    on:click={() => startPinning(kind)}
-                  >
-                    <Pencil size={15} />
-                  </button>
-                {/if}
               </div>
             {/each}
           </div>
@@ -2908,80 +2846,6 @@
           {#if typeof navigator !== "undefined" && "share" in navigator}
             <button type="button" on:click={() => shareLink(teamLink)}>
               Send it
-            </button>
-          {/if}
-        </div>
-      </div>
-    {:else if pinning}
-      <!-- ── Which kind of pin a button drops ── -->
-      <div class="mn-card pickpin" in:rise>
-        <div class="mn-card-head">
-          <p class="lp-eyebrow">Change pin</p>
-          <p class="mn-hint">
-            {#if pinPick}
-              Change the {pinSlot ? pinName(pinSlot) : ""} button to {pinName(
-                pinPick,
-              )}?
-            {:else}
-              Which pin should the {pinSlot ? pinName(pinSlot) : ""} button drop?
-            {/if}
-          </p>
-        </div>
-        <!-- Every kind, in a grid that wraps: it scrolls down, not across.
-             A tap picks one; the button only changes on Confirm. -->
-        <div class="mn-kinds wrap">
-          {#each slotChoices as choice (choice.iconClass)}
-            <button
-              type="button"
-              class="mn-kind"
-              class:selected={(pinPick ?? pinSlot) === choice.iconClass}
-              class:used={pinSlot !== choice.iconClass &&
-                quickKinds.includes(choice.iconClass)}
-              aria-pressed={(pinPick ?? pinSlot) === choice.iconClass}
-              title={choice.label}
-              on:click={() =>
-                (pinPick =
-                  choice.iconClass === pinSlot ? null : choice.iconClass)}
-            >
-              <PinArt look={choiceLook(choice.iconClass)} size={32} />
-              <span>{choice.label}</span>
-            </button>
-          {/each}
-        </div>
-        <div class="mn-card-actions">
-          {#if pinPick}
-            <button
-              type="button"
-              class="lp-btn lp-btn-ghost"
-              on:click={() => (pinPick = null)}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="lp-btn lp-btn-primary"
-              on:click={() => pinPick && choosePin(pinPick)}
-            >
-              <Check size={18} strokeWidth={3} /> Confirm
-            </button>
-          {:else}
-            <button
-              type="button"
-              class="lp-btn lp-btn-ghost"
-              disabled={quickKinds.length < 2}
-              on:click={() => {
-                setQuick(quickKinds.filter((kind) => kind !== pinSlot))
-                stopPinning()
-              }}
-            >
-              Remove button
-            </button>
-            <button
-              type="button"
-              class="lp-btn lp-btn-primary"
-              on:click={stopPinning}
-            >
-              Done
             </button>
           {/if}
         </div>
@@ -3812,7 +3676,7 @@
       >
     {/each}
 
-    {#if snack && !pinning}
+    {#if snack}
       <div class="mn-snack" role="status" in:rise>
         {snack.text}
         {#if snack.action}
@@ -3920,7 +3784,7 @@
         {crew}
         driver={$operatorStore.operator?.name ?? ""}
         {pinChoices}
-        {pinKind}
+        pinKind={quickKinds[0]}
         {choiceLook}
         {operations}
         {operation}
@@ -3970,25 +3834,13 @@
         }}
         on:lasso={startLasso}
         on:lookCrew={(e) => lookCrew(e.detail)}
-        on:pinKind={(e) => choosePin(e.detail)}
-        on:dropPins={() => {
-          if (!wide) closePanel()
-          armedPin = quickKinds.includes(pinKind) ? pinKind : quickKinds[0]
-          changeShown = true
-          say("Tap the pin button to drop it here, or hold the map")
-        }}
         quickPinKinds={quickKinds}
-        on:quickDefault={(e) =>
-          setQuick([
-            e.detail,
-            ...quickKinds.filter((kind) => kind !== e.detail),
-          ])}
-        on:quickPin={(e) =>
-          setQuick(
-            e.detail.on
-              ? [...quickKinds, e.detail.iconClass].slice(0, 5)
-              : quickKinds.filter((kind) => kind !== e.detail.iconClass),
-          )}
+        on:quickKinds={(e) => {
+          const before = quickKinds
+          setQuick(e.detail)
+          if (e.detail[0] !== before[0])
+            say(`The default pin is now ${pinName(e.detail[0])}`)
+        }}
         on:operation={(e) => chooseOperation(e.detail)}
         on:newOperation={(e) => addOperation(e.detail.name, e.detail.year)}
         admin={!!$userSettingsStore.isAdmin}
