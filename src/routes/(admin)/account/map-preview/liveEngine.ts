@@ -1120,6 +1120,8 @@ export class LiveEngine {
     /** Trails twenty metres behind the machine: the line to it is its course. */
     hitch: LngLat
     course: number
+    /** The map is part-way through turning to a new course. */
+    turning: boolean
   } | null = null
   /** Fingers are on the map: leave the camera alone until they lift. */
   private touching = false
@@ -6574,9 +6576,31 @@ export class LiveEngine {
   ) {
     let cam = this.cam
     if (!cam || cam.key !== key || distanceM(cam.at, pos) > 300)
-      cam = this.cam = { key, at: pos, hitch: pos, course: heading }
-    const glide = 1 - Math.exp(-dt * 3.4 * rate)
-    cam.at = [lerp(cam.at[0], pos[0], glide), lerp(cam.at[1], pos[1], glide)]
+      cam = this.cam = {
+        key,
+        at: pos,
+        hitch: pos,
+        course: heading,
+        turning: true,
+      }
+    // The camera is on a slack leash. A position wanders a metre or so even
+    // on a machine that is crawling or stopped, and a camera that answered
+    // every wander kept the whole map trembling (worst zoomed right in).
+    // So within the slack it is left alone, and past it it glides to the
+    // end of the leash, not onto the machine: it comes to rest, rather
+    // than creeping after each new reading.
+    const zoom = this.map.getZoom()
+    const slack = Math.max(1.5, 6 / pixelsPerMetre(zoom, pos[1]))
+    const gap = distanceM(cam.at, pos)
+    let moved = false
+    if (gap > slack) {
+      const reach = (gap - slack) / gap
+      // (Further behind, it catches up faster.)
+      const keen = clamp(gap / (slack * 3), 0.4, 1)
+      const glide = (1 - Math.exp(-dt * 3.4 * rate * keen)) * reach
+      cam.at = [lerp(cam.at[0], pos[0], glide), lerp(cam.at[1], pos[1], glide)]
+      moved = true
+    }
     const out = distanceM(cam.hitch, pos)
     const REACH = 20
     if (out > REACH) {
@@ -6587,19 +6611,46 @@ export class LiveEngine {
         lerp(cam.hitch[1], pos[1], pull),
       ]
     }
+    // Turning with the machine: the same wander swings its course a few
+    // degrees either way, and every degree moves the edges of the map a
+    // long way. The map starts to turn only once the course is properly
+    // off (four degrees), and then turns until it is square again.
     const bearing = this.map.getBearing()
+    let turned = bearing
+    if (swing) {
+      const off = turn(bearing, cam.course)
+      if (!cam.turning && Math.abs(off) > 4) cam.turning = true
+      if (cam.turning) {
+        turned = bearing + off * (1 - Math.exp(-dt * 1.7 * rate))
+        if (Math.abs(off) < 0.5) cam.turning = false
+      }
+    }
+    // Nothing to do: the map is left still (and isn't drawn again).
+    if (!moved && turned === bearing && !this.camUnsettled(offset)) return
     this.map.easeTo({
       center: cam.at,
-      ...(swing
-        ? {
-            bearing:
-              bearing +
-              turn(bearing, cam.course) * (1 - Math.exp(-dt * 1.7 * rate)),
-          }
-        : {}),
+      ...(swing ? { bearing: turned } : {}),
       offset,
       duration: 0,
     })
+  }
+
+  /**
+   * The camera isn't where the ride last put it (a zoom, a resize, or the
+   * space the menus take changed): it needs putting back even though the
+   * machine hasn't moved.
+   */
+  private camUnsettled(offset: [number, number]) {
+    const cam = this.cam
+    if (!cam) return false
+    const size = this.map.getContainer()
+    const at = this.map.project(cam.at)
+    return (
+      Math.hypot(
+        at.x - (size.clientWidth / 2 + offset[0]),
+        at.y - (size.clientHeight / 2 + offset[1]),
+      ) > 0.75
+    )
   }
 
   private followOffset(mode: FollowMode): [number, number] {

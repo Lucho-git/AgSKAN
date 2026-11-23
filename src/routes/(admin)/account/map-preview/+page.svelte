@@ -695,6 +695,10 @@
       pinSettings,
     })
     engine = created
+    // (On the dev server only: the engine within reach of the console, and
+    // of the tests that drive this page.)
+    if (import.meta.env.DEV)
+      (window as unknown as { __engine: unknown }).__engine = created
     created.setTrailLevel(trailLevel)
     // Holding a finger on the map drops the default pin there (or the one
     // whose button is pressed), as the current viewer does.
@@ -1135,7 +1139,11 @@
   let followHint = false
   let followHintTimer: ReturnType<typeof setTimeout>
   function cycleFollow() {
-    engine?.setFollow(follow === "follow" ? "cab" : "follow")
+    // Locked to the machine, north up; then locked and turning with it;
+    // then north up again and let go. (A drag lets go from either.)
+    engine?.setFollow(
+      follow === "free" ? "follow" : follow === "follow" ? "cab" : "free",
+    )
     followHint = true
     clearTimeout(followHintTimer)
     followHintTimer = setTimeout(() => (followHint = false), 2400)
@@ -2572,10 +2580,10 @@
           class="mn-follow {follow}"
           disabled={!readout.hasFix}
           aria-label={follow === "free"
-            ? "Centre on me and follow"
+            ? "Lock the map to my machine"
             : follow === "follow"
-              ? "Following, north up. Tap for heads-up view"
-              : "Heads-up view. Tap for north up"}
+              ? "Locked to my machine, north up. Tap to turn the map with it"
+              : "Locked and turning with my machine. Tap for north up and no lock"}
           on:click={cycleFollow}
         >
           {#if follow === "cab"}
@@ -2588,7 +2596,9 @@
             </span>
           {:else}
             <LocateFixed size={wide ? 28 : 26} />
-            {#if follow === "follow" && followHint}<small>North up</small>{/if}
+            {#if followHint}
+              <small>{follow === "follow" ? "Locked" : "North, free"}</small>
+            {/if}
           {/if}
         </button>
       </div>
