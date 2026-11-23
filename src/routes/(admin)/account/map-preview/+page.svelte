@@ -2073,7 +2073,8 @@
 
   function onKey(event: KeyboardEvent) {
     if (event.key !== "Escape") return
-    if (driverOffer) confirmDriver()
+    if (netOpen) netOpen = false
+    else if (driverOffer) confirmDriver()
     else if (placing) engine?.cancelPlacing()
     else if (measure?.forJob) engine?.cancelDrawing()
     else if (jobDraft) endJob()
@@ -2418,79 +2419,6 @@
           {/if}
         </button>
       </div>
-      {#if netOpen}
-        <!-- ── The connection, spelled out (as the current viewer's trail
-             and network panel does) ── -->
-        <div class="mn-net" role="dialog" aria-label="Connection">
-          <div class="top">
-            <strong>Connection</strong>
-            <button
-              type="button"
-              class="mn-icon-button"
-              aria-label="Close"
-              on:click={() => (netOpen = false)}
-            >
-              <X size={20} />
-            </button>
-          </div>
-          <dl>
-            <div class:bad={gps !== "live" || readout.stale}>
-              <dt>Location</dt>
-              <dd>
-                {gps !== "live"
-                  ? gps === "asking"
-                    ? "Finding you"
-                    : "Off"
-                  : readout.stale
-                    ? "Looking for GPS"
-                    : readout.accuracy !== null
-                      ? `Good to ${Math.round(readout.accuracy)} m`
-                      : "Live"}
-              </dd>
-            </div>
-            <div class:bad={!online}>
-              <dt>Internet</dt>
-              <dd>{online ? "Online" : "No signal"}</dd>
-            </div>
-            <div class:bad={!linked}>
-              <dt>Crew link</dt>
-              <dd>{linked ? "Connected" : "Reconnecting"}</dd>
-            </div>
-            <div>
-              <dt>Operation</dt>
-              <dd>{operation?.name ?? "None"}</dd>
-            </div>
-          </dl>
-          {#if trailOn && recording.trail}
-            <p class="lp-eyebrow">
-              Trail · started {clock(recording.trail.start)}
-            </p>
-            <dl class="three">
-              <div>
-                <dt>Points</dt>
-                <dd>{trailPoints}</dd>
-              </div>
-              <div>
-                <dt>Saved</dt>
-                <dd>{trailSaved}</dd>
-              </div>
-              <div class:bad={recording.waiting > 0}>
-                <dt>Waiting</dt>
-                <dd>{recording.waiting}</dd>
-              </div>
-            </dl>
-            {#if recording.waiting > 0}
-              <p class="note">
-                {online
-                  ? "Sending the points that are waiting."
-                  : "No signal: the points are kept on this device and sent when it is back. Keep this page open."}
-              </p>
-            {/if}
-          {:else}
-            <p class="note">No trail is being recorded.</p>
-          {/if}
-        </div>
-      {/if}
       {#if devGps}
         <!-- A made-up position is being fed in: say so, and stop it. -->
         <button
@@ -3908,6 +3836,92 @@
       </div>
     {/if}
 
+    {#if netOpen}
+      <!-- ── The connection, spelled out: a modal over the map, as the
+           current viewer's trail and network panel is. A tap outside it,
+           or Escape, closes it. ── -->
+      <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+      <div
+        class="mn-modal"
+        transition:fade={{ duration: 140 }}
+        on:click|self={() => (netOpen = false)}
+      >
+        <div
+          class="mn-net"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Connection"
+        >
+          <div class="top">
+            <strong>Connection</strong>
+            <button
+              type="button"
+              class="mn-icon-button"
+              aria-label="Close"
+              on:click={() => (netOpen = false)}
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <dl>
+            <div class:bad={gps !== "live" || readout.stale}>
+              <dt>Location</dt>
+              <dd>
+                {gps !== "live"
+                  ? gps === "asking"
+                    ? "Finding you"
+                    : "Off"
+                  : readout.stale
+                    ? "Looking for GPS"
+                    : readout.accuracy !== null
+                      ? `Good to ${Math.round(readout.accuracy)} m`
+                      : "Live"}
+              </dd>
+            </div>
+            <div class:bad={!online}>
+              <dt>Internet</dt>
+              <dd>{online ? "Online" : "No signal"}</dd>
+            </div>
+            <div class:bad={!linked}>
+              <dt>Crew link</dt>
+              <dd>{linked ? "Connected" : "Reconnecting"}</dd>
+            </div>
+            <div>
+              <dt>Operation</dt>
+              <dd>{operation?.name ?? "None"}</dd>
+            </div>
+          </dl>
+          {#if trailOn && recording.trail}
+            <p class="lp-eyebrow">
+              Trail · started {clock(recording.trail.start)}
+            </p>
+            <dl class="three">
+              <div>
+                <dt>Points</dt>
+                <dd>{trailPoints}</dd>
+              </div>
+              <div>
+                <dt>Saved</dt>
+                <dd>{trailSaved}</dd>
+              </div>
+              <div class:bad={recording.waiting > 0}>
+                <dt>Waiting</dt>
+                <dd>{recording.waiting}</dd>
+              </div>
+            </dl>
+            {#if recording.waiting > 0}
+              <p class="note">
+                {online
+                  ? "Sending the points that are waiting."
+                  : "No signal: the points are kept on this device and sent when it is back. Keep this page open."}
+              </p>
+            {/if}
+          {:else}
+            <p class="note">No trail is being recorded.</p>
+          {/if}
+        </div>
+      </div>
+    {/if}
     {#if pinDrag}
       <!-- ── A pin being carried from its button onto the map ── -->
       <div
