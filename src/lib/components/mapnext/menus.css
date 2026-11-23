@@ -4408,3 +4408,196 @@
   color: #15261c;
   transform: translateY(-50%);
 }
+
+/* ── Twenty-third pass ──────────────────────────────────────────────────── */
+/* The bottom controls under a card: still on the page, out of sight, so a
+   card coming and going doesn't take them down and put them back. */
+.mn-corner.away {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The trail button, as the current viewer has it: the trail mark on yellow;
+   while a trail is being laid, red with the mark in yellow drawing itself
+   over and over, and a tag under it that pulses. */
+.mn-trailwrap {
+  margin-bottom: 9px;
+}
+.mn-trail-button {
+  position: relative;
+  padding: 0;
+}
+.mn-trail-button .trailmark {
+  width: 36px;
+  height: 36px;
+  overflow: visible;
+  fill: currentColor;
+}
+.mn-trail-button.on {
+  border: 2px solid #000;
+  background: #ff0000;
+  box-shadow: 0 8px 20px -10px rgba(120, 10, 10, 0.9);
+  color: #f7db5c;
+  animation: none;
+}
+.mn-trail-button.on:hover {
+  background: #dc0000;
+}
+.mn-trail-button .trailmark.drawing {
+  opacity: 0.55;
+}
+.mn-trail-button .trailmark.drawing path {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 105;
+  animation:
+    mn-trail-draw 2s linear infinite,
+    mn-trail-fill 1.5s ease-in-out infinite;
+}
+.mn-trail-button.paused .trailmark.drawing {
+  opacity: 0.35;
+}
+.mn-trail-button.paused .trailmark.drawing path {
+  animation-play-state: paused;
+}
+@keyframes mn-trail-draw {
+  from {
+    stroke-dashoffset: 105;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes mn-trail-fill {
+  0%,
+  100% {
+    fill-opacity: 0;
+  }
+  50% {
+    fill-opacity: 1;
+  }
+}
+.mn-trailpill {
+  bottom: -10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 2px 8px;
+  border: 1.5px solid #000;
+  border-radius: 10px;
+  background: #f7db5c;
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: #000;
+}
+.mn-trailpill.on {
+  animation: mn-trail-pill 1.5s ease-in-out infinite;
+}
+.mn-trailpill.paused {
+  background: #f59e0b;
+  color: #000;
+  animation: none;
+}
+@keyframes mn-trail-pill {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+.mn-pause.paused {
+  border-color: #000;
+  background: #f59e0b;
+  box-shadow: 0 8px 20px -10px rgba(120, 80, 10, 0.9);
+  color: #000;
+  animation: mn-pause-fade 2s ease-in-out infinite;
+}
+@keyframes mn-pause-fade {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* A pin being carried from its button onto the map, and where to let go
+   of it to call that off. */
+.mn-quickpins .pin {
+  touch-action: none;
+}
+.mn-quickpins .pin.lifted {
+  opacity: 0.3;
+}
+.mn-pinghost {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  filter: drop-shadow(0 12px 12px rgba(10, 25, 15, 0.55));
+  transform: translate(-50%, -50%);
+}
+.mn-pinghost i {
+  position: absolute;
+  inset: -7px;
+  border: 2px dashed #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.35);
+}
+.mn-pinghost.cancel {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+.mn-pincancel {
+  position: fixed;
+  bottom: max(26px, env(safe-area-inset-bottom));
+  left: calc(50% + var(--mn-rail) / 2);
+  z-index: 79;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 20px;
+  border: 2px solid #15261c;
+  border-radius: 99px;
+  background: #fffdf8;
+  box-shadow: 0 12px 26px -12px rgba(10, 25, 15, 0.85);
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #15261c;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+}
+.mn-pincancel.over {
+  background: #d95d39;
+  color: #fff;
+  transform: translateX(-50%) scale(1.1);
+}
+
+/* A new operation's year: chosen from a list. */
+.mn-oplist form.new select.year {
+  flex: 0 0 84px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mn-band-text);
+  font-size: 1rem;
+  color: var(--mn-band);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-trail-button .trailmark.drawing path,
+  .mn-trailpill.on,
+  .mn-pause.paused {
+    animation: none;
+  }
+}

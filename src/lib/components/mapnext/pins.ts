@@ -73,6 +73,9 @@ export function loadPinGlyphs(): Promise<GlyphSet> {
   return glyphsPromise
 }
 
+/** The pin art has arrived (so a picture can be drawn straight away). */
+export const pinGlyphsLoaded = () => !!glyphs
+
 /** What changes a pin's look, beyond its icon class. */
 export type PinLook = {
   iconClass: string

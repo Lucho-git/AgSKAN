@@ -109,7 +109,24 @@
   $: hasButton = !!inHand && quick.includes(inHand)
   $: handColour = inHand ? (typeColours[inHand] ?? "default") : "default"
 
+  /** The pin whose button has only just been added (its tag says so). */
+  let justAdded: string | null = null
+  let addedTimer: ReturnType<typeof setTimeout> | undefined
   function pickUp(iconClass: string, fromStrip = false) {
+    // "Add" was tapped first: this pin gets a button straight away, and is
+    // left in hand for its colour, or to be made the default.
+    if (adding && !fromStrip) {
+      adding = false
+      colouring = false
+      inHand = iconClass
+      if (!quick.includes(iconClass) && quick.length < MOST) {
+        dispatch("quickKinds", [...quick, iconClass])
+        justAdded = iconClass
+        clearTimeout(addedTimer)
+        addedTimer = setTimeout(() => (justAdded = null), 2600)
+      }
+      return
+    }
     if (inHand === iconClass && !adding) {
       putDown()
       return
@@ -358,7 +375,9 @@
           <div class="who">
             <PinArt look={choiceLook(inHand)} size={34} />
             <strong>{nameOf(inHand)}</strong>
-            {#if isDefault}
+            {#if justAdded === inHand}
+              <em class="added">Button added</em>
+            {:else if isDefault}
               <em>Default</em>
             {:else if hasButton}
               <em class="quiet">Has a button</em>
@@ -374,12 +393,12 @@
           </div>
           <div class="acts">
             {#if !hasButton && quick.length < MOST}
-              <button type="button" class:go={adding} on:click={addButton}>
+              <button type="button" class="go" on:click={addButton}>
                 <Plus size={15} strokeWidth={3} /> Add button
               </button>
             {/if}
             {#if !isDefault}
-              <button type="button" class:go={!adding} on:click={makeDefault}>
+              <button type="button" class:go={hasButton} on:click={makeDefault}>
                 Make default
               </button>
             {/if}
@@ -388,15 +407,18 @@
                 Remove button
               </button>
             {/if}
-            <button
-              type="button"
-              aria-expanded={colouring}
-              on:click={() => (colouring = !colouring)}
-            >
-              <i class="dot" style="background: {swatch(handColour)}"></i> Colour
-            </button>
+            {#if !hasButton}
+              <button
+                type="button"
+                aria-expanded={colouring}
+                on:click={() => (colouring = !colouring)}
+              >
+                <i class="dot" style="background: {swatch(handColour)}"></i> Colour
+              </button>
+            {/if}
           </div>
-          {#if colouring}
+          <!-- (A pin with a button shows its colours straight away.) -->
+          {#if hasButton || colouring}
             <div
               class="mn-swatches"
               style="--across: 10"
@@ -606,6 +628,18 @@
     letter-spacing: 0.06em;
     color: var(--lp-paper);
     text-transform: uppercase;
+  }
+  /* Just given a button: the tag says so, and pops. */
+  .who em.added {
+    background: #1f8a4c;
+    color: #fff;
+    animation: added 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes added {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
   }
   .who em.quiet {
     background: var(--lp-paper-2);

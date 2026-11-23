@@ -338,6 +338,88 @@
     clearTimeout(pinMoreTimer)
     pinMoreTimer = setTimeout(() => (pinMore = false), 5000)
   }
+  // Dragged off its button, a pin is carried over the map (drawn a little
+  // above the finger, so it can be seen) and put down where it is let go;
+  // its menu then opens. Let go over "Cancel", or back on the button, and
+  // nothing is dropped.
+  const PIN_LIFT = 54
+  let pinPress: {
+    kind: string
+    id: number
+    x: number
+    y: number
+    home: DOMRect
+    dragging: boolean
+  } | null = null
+  let pinDrag: { kind: string; x: number; y: number; cancel: boolean } | null =
+    null
+  let pinCancelZone: HTMLElement | undefined
+  function pinDown(event: PointerEvent, kind: string) {
+    if (event.button !== 0 && event.pointerType === "mouse") return
+    const button = event.currentTarget as HTMLElement
+    // (Keeps the moves coming to this button once the finger has left it.)
+    try {
+      button.setPointerCapture(event.pointerId)
+    } catch {
+      // Not a pointer that can be captured: the drag still works while the
+      // finger is over the page.
+    }
+    pinPress = {
+      kind,
+      id: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      home: button.getBoundingClientRect(),
+      dragging: false,
+    }
+  }
+  function pinMove(event: PointerEvent) {
+    const press = pinPress
+    if (!press || press.id !== event.pointerId) return
+    if (
+      !press.dragging &&
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) > 12
+    )
+      press.dragging = true
+    if (!press.dragging) return
+    const within = (box: DOMRect | undefined, slack: number) =>
+      !!box &&
+      event.clientX >= box.left - slack &&
+      event.clientX <= box.right + slack &&
+      event.clientY >= box.top - slack &&
+      event.clientY <= box.bottom + slack
+    pinDrag = {
+      kind: press.kind,
+      x: event.clientX,
+      y: event.clientY,
+      cancel:
+        within(press.home, 4) ||
+        within(pinCancelZone?.getBoundingClientRect(), 10),
+    }
+  }
+  async function pinUp(event: PointerEvent) {
+    const press = pinPress
+    if (!press || press.id !== event.pointerId) return
+    pinPress = null
+    const drag = pinDrag
+    pinDrag = null
+    if (!press.dragging) {
+      pinTap(press.kind)
+      return
+    }
+    if (!drag || drag.cancel || !engine) return
+    const pin = await engine.dropPin(
+      press.kind,
+      engine.lngLatAt(drag.x, drag.y - PIN_LIFT),
+    )
+    // Its menu opens: a note, another kind or colour, or delete it again.
+    if (pin) engine.selectedPin.set(pin)
+  }
+  function pinCancel() {
+    pinPress = null
+    pinDrag = null
+  }
+
   function openPins() {
     pinMore = false
     clearTimeout(pinMoreTimer)
@@ -1976,7 +2058,7 @@
     const reduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches
-    return fly(node, { y: reduced ? 0 : 24, duration: reduced ? 0 : 240 })
+    return fly(node, { y: reduced ? 0 : 16, duration: reduced ? 0 : 150 })
   }
 
   // A trail of theirs is running that this screen didn't start.
@@ -2277,7 +2359,11 @@
           disabled={status.tone !== "off"}
           on:click={askForLocation}
         >
-          <span class="dot"></span>{status.text}
+          <!-- (Once it is live, the operation on the map says more than
+               "Live" does; the dot still shows the fix is good.) -->
+          <span class="dot"></span>{status.tone === "live"
+            ? (operation?.name ?? status.text)
+            : status.text}
         </button>
       </div>
       {#if devGps}
@@ -2345,12 +2431,6 @@
           on:start={(e) => engine?.setGuideStart(e.detail)}
           on:rate={(e) => engine?.setGuideRate(e.detail)}
         />
-      {:else if readout.paddock}
-        <p class="mn-place">
-          <b>{readout.paddock.name}</b><span
-            >{formatHa(readout.paddock.ha)} ha</span
-          >
-        </p>
       {/if}
       {#if loading.paddocks}
         <p class="mn-chip loading">Loading the farm…</p>
@@ -2437,23 +2517,21 @@
     {/if}
 
     <!-- On a phone a card takes the place of the bottom controls. -->
-    {#if !bottomTaken}
-      <div class="mn-corner bottom-left">
-        {#if !railOn}
-          <!-- (With the rail up, the crew is listed in it.) -->
-          <button
-            type="button"
-            class="mn-crew-button"
-            aria-label="Crew. {onlineCrew.length} on the map now"
-            on:click={() => (crewCard = true)}
-          >
-            <Users size={22} />
-            <span>Crew</span>
-            {#if onlineCrew.length}<b>{onlineCrew.length}</b>{/if}
-          </button>
-        {/if}
-      </div>
-    {/if}
+    <div class="mn-corner bottom-left" class:away={bottomTaken}>
+      {#if !railOn}
+        <!-- (With the rail up, the crew is listed in it.) -->
+        <button
+          type="button"
+          class="mn-crew-button"
+          aria-label="Crew. {onlineCrew.length} on the map now"
+          on:click={() => (crewCard = true)}
+        >
+          <Users size={22} />
+          <span>Crew</span>
+          {#if onlineCrew.length}<b>{onlineCrew.length}</b>{/if}
+        </button>
+      {/if}
+    </div>
     <!-- Following one of the crew: a marker on the side says so for as
          long as it lasts; tapping it lets go. -->
     {#if following && followed}
@@ -2484,125 +2562,133 @@
 
     <!-- The working buttons sit down the right: trail, pin, and where am I
          at the very bottom. -->
-    {#if wide || !bottomTaken}
-      <div class="mn-corner bottom-right">
-        {#if !guest}
-          <!-- A button for each default pin, the first one lowest. One tap
+    <div class="mn-corner bottom-right" class:away={!wide && bottomTaken}>
+      {#if !guest}
+        <!-- A button for each default pin, the first one lowest. One tap
                drops its pin where the machine is. Off the first, a "+" then
                shows beside it for a few seconds: the way to the Pins tool. -->
-          <div class="mn-quickpins" class:many={quickKinds.length > 1}>
-            {#each [...quickKinds].reverse() as kind (kind)}
-              <div class="slot">
-                {#if pinMore && kind === quickKinds[0]}
-                  <button
-                    type="button"
-                    class="more"
-                    aria-label="Change the pin buttons, or add one"
-                    title="Change the pin buttons, or add one"
-                    transition:fade={{ duration: 160 }}
-                    on:click={openPins}
-                  >
-                    <Plus size={20} strokeWidth={3} />
-                  </button>
-                {/if}
+        <div class="mn-quickpins" class:many={quickKinds.length > 1}>
+          {#each [...quickKinds].reverse() as kind (kind)}
+            <div class="slot">
+              {#if pinMore && kind === quickKinds[0]}
                 <button
                   type="button"
-                  class="pin"
-                  aria-label="Drop a {pinName(kind)} pin here"
-                  on:click={() => pinTap(kind)}
+                  class="more"
+                  aria-label="Change the pin buttons, or add one"
+                  title="Change the pin buttons, or add one"
+                  transition:fade={{ duration: 160 }}
+                  on:click={openPins}
                 >
-                  <PinArt look={choiceLook(kind)} size={wide ? 54 : 50} />
+                  <Plus size={20} strokeWidth={3} />
                 </button>
-              </div>
-            {/each}
-          </div>
-        {/if}
-        {#if !guest}
-          <!-- Start or stop a trail. While one is being laid the button
-               draws a trail over and over, a pause button sits beside it,
-               and a tag under it says which of the two it is doing. -->
-          <div class="mn-trailwrap">
-            {#if trailOn}
+              {/if}
               <button
                 type="button"
-                class="mn-pause"
-                class:paused={trailPaused}
-                aria-label={trailPaused
-                  ? "Carry on with the trail"
-                  : "Pause the trail"}
-                transition:fade={{ duration: 160 }}
-                on:click={pauseTap}
+                class="pin"
+                class:lifted={pinDrag?.kind === kind}
+                aria-label="Drop a {pinName(
+                  kind,
+                )} pin here, or drag it onto the map"
+                on:pointerdown={(e) => pinDown(e, kind)}
+                on:pointermove={pinMove}
+                on:pointerup={pinUp}
+                on:pointercancel={pinCancel}
+                on:click={(e) => e.detail === 0 && pinTap(kind)}
               >
-                {#if trailPaused}
-                  <Play size={22} fill="currentColor" />
-                {:else}
-                  <Pause size={22} fill="currentColor" />
-                {/if}
+                <PinArt look={choiceLook(kind)} size={wide ? 54 : 50} />
               </button>
-            {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+      {#if !guest}
+        <!-- Start or stop a trail. While one is being laid the button
+               draws a trail over and over, a pause button sits beside it,
+               and a tag under it says which of the two it is doing. -->
+        <div class="mn-trailwrap">
+          {#if trailOn}
             <button
               type="button"
-              class="mn-trail-button"
-              class:on={trailOn}
+              class="mn-pause"
               class:paused={trailPaused}
-              disabled={recording.phase === "starting" ||
-                recording.phase === "stopping"}
-              aria-label={trailOn
-                ? "Stop trail"
-                : trailFound
-                  ? "Your running trail"
-                  : "Start trail"}
-              on:click={trailTap}
+              aria-label={trailPaused
+                ? "Carry on with the trail"
+                : "Pause the trail"}
+              transition:fade={{ duration: 160 }}
+              on:click={pauseTap}
             >
-              {#if trailOn}
-                <svg class="laying" viewBox="0 0 36 18" aria-hidden="true">
-                  <path
-                    pathLength="1"
-                    d="M2 14 C 9 14, 9 4, 18 4 S 27 14, 34 14"
-                  />
-                </svg>
-                <span>Stop</span>
+              {#if trailPaused}
+                <Play size={22} fill="currentColor" />
               {:else}
-                <span class="rec"></span>
-                <span>Trail</span>
+                <Pause size={22} fill="currentColor" />
               {/if}
             </button>
-            {#if trailOn}
-              <!-- (The one place a running trail says how it is going.) -->
-              <span class="mn-trailpill" class:paused={trailPaused}>
-                {trailPaused ? "Paused" : `${formatHa(readout.ha)} ha`}
-              </span>
-            {/if}
-          </div>
-        {/if}
-        <button
-          type="button"
-          class="mn-follow {follow}"
-          disabled={!readout.hasFix}
-          aria-label={follow === "free"
-            ? "Lock the map to my machine"
-            : follow === "follow"
-              ? "Locked to my machine, north up. Tap to turn the map with it"
-              : "Locked and turning with my machine. Tap for north up and no lock"}
-          on:click={cycleFollow}
-        >
-          {#if follow === "cab"}
-            <span class="needle">
-              <Navigation size={wide ? 26 : 24} fill="currentColor" />
-            </span>
-            {#if followHint}<small>Heads up</small>{/if}
-            <span class="mn-north" aria-hidden="true">
-              <i style="transform: rotate({-bearing}deg)">N</i>
-            </span>
-          {:else}
-            <LocateFixed size={wide ? 28 : 26} />
-            {#if followHint}
-              <small>{follow === "follow" ? "Locked" : "North, free"}</small>
-            {/if}
           {/if}
-        </button>
-      </div>
-    {/if}
+          <button
+            type="button"
+            class="mn-trail-button"
+            class:on={trailOn}
+            class:paused={trailPaused}
+            disabled={recording.phase === "starting" ||
+              recording.phase === "stopping"}
+            aria-label={trailOn
+              ? "Stop trail"
+              : trailFound
+                ? "Your running trail"
+                : "Start trail"}
+            on:click={trailTap}
+          >
+            <!-- The trail mark; while a trail is being laid it draws
+                   itself over and over (and holds still when paused). -->
+            <svg
+              class="trailmark"
+              class:drawing={trailOn}
+              viewBox="0 0 32 32"
+              aria-hidden="true"
+            >
+              <path
+                d="M30.165 30.887c-1.604 0.076-21.522-0.043-21.522-0.043-12.101-12.151 18.219-16.173-0.521-26.154l-1.311 1.383-1.746-4.582 5.635 0.439-1.128 1.267c23.438 6.83-3.151 19.631 20.594 27.69v0z"
+              />
+            </svg>
+          </button>
+          <!-- The tag under it: "Trail", and "Trailing" (pulsing) while
+                 one is being laid. -->
+          <span
+            class="mn-trailpill"
+            class:on={trailOn}
+            class:paused={trailPaused}
+          >
+            {trailOn ? (trailPaused ? "Paused" : "Trailing") : "Trail"}
+          </span>
+        </div>
+      {/if}
+      <button
+        type="button"
+        class="mn-follow {follow}"
+        disabled={!readout.hasFix}
+        aria-label={follow === "free"
+          ? "Lock the map to my machine"
+          : follow === "follow"
+            ? "Locked to my machine, north up. Tap to turn the map with it"
+            : "Locked and turning with my machine. Tap for north up and no lock"}
+        on:click={cycleFollow}
+      >
+        {#if follow === "cab"}
+          <span class="needle">
+            <Navigation size={wide ? 26 : 24} fill="currentColor" />
+          </span>
+          {#if followHint}<small>Heads up</small>{/if}
+          <span class="mn-north" aria-hidden="true">
+            <i style="transform: rotate({-bearing}deg)">N</i>
+          </span>
+        {:else}
+          <LocateFixed size={wide ? 28 : 26} />
+          {#if followHint}
+            <small>{follow === "follow" ? "Locked" : "North, free"}</small>
+          {/if}
+        {/if}
+      </button>
+    </div>
 
     {#if paddockAsk}
       <!-- ── A new paddock: how to make it ── -->
@@ -3495,13 +3581,19 @@
       <div in:rise>
         <MachineCard
           {marker}
+          {follow}
+          {guest}
+          broadcasting={!!broadcast}
           trail={crewTrail}
           {now}
           operation={operation?.name ?? ""}
           on:light={(e) => engine?.lightCrewTrail(e.detail)}
-          locked={trailOn || trailFound}
           on:close={() => engine?.selectedCrew.set(null)}
-          on:change={(e) => changeMachine(e.detail)}
+          on:follow={(e) => engine?.setFollow(e.detail)}
+          on:broadcast={() => {
+            engine?.selectedCrew.set(null)
+            openPanel("broadcast")
+          }}
           on:machine={() => {
             engine?.selectedCrew.set(null)
             openPanel("machine")
@@ -3677,6 +3769,26 @@
       </div>
     {/if}
 
+    {#if pinDrag}
+      <!-- ── A pin being carried from its button onto the map ── -->
+      <div
+        class="mn-pinghost"
+        class:cancel={pinDrag.cancel}
+        style="left: {pinDrag.x}px; top: {pinDrag.y - PIN_LIFT}px"
+        aria-hidden="true"
+      >
+        <PinArt look={choiceLook(pinDrag.kind)} size={50} />
+        <i></i>
+      </div>
+      <div
+        class="mn-pincancel"
+        class:over={pinDrag.cancel}
+        bind:this={pinCancelZone}
+        aria-hidden="true"
+      >
+        <X size={18} strokeWidth={3} /> Cancel
+      </div>
+    {/if}
     {#each floaters as floater (floater.id)}
       <span
         class="mn-floater"

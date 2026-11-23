@@ -1125,6 +1125,18 @@ export class LiveEngine {
   } | null = null
   /** Fingers are on the map: leave the camera alone until they lift. */
   private touching = false
+  /** So is the mouse button: the same. */
+  private mouseHeld = false
+  /**
+   * The press now down on the map itself, if there is one. A tap only
+   * counts if it began as a press on the map, stayed put, and didn't turn
+   * into a hold: so letting go over a paddock after a drag, or after a
+   * press that began on a menu, picks nothing; and nor does lifting the
+   * finger that has just dropped a pin by holding.
+   */
+  private tap: { x: number; y: number; moved: boolean; held: boolean } | null =
+    null
+  private trailsInTimer: ReturnType<typeof setTimeout> | undefined
   private destroyed = false
 
   constructor(
@@ -1197,9 +1209,12 @@ export class LiveEngine {
     // Dragging the map means "let me look around": stop following.
     // A pinch also nudges the map, but that is zooming, not looking around.
     this.map.on("dragstart", (e: { originalEvent?: Event }) => {
+      if (this.tap) this.tap.moved = true
       const touches = (e.originalEvent as TouchEvent | undefined)?.touches
       if (e.originalEvent && !(touches && touches.length > 1)) {
-        this.setFollow("free")
+        // (The map is left facing the way it was: turning it north now
+        // would snatch it out from under the finger dragging it.)
+        this.setFollow("free", undefined, true)
         this.followCrew(null)
       }
     })
@@ -1218,6 +1233,13 @@ export class LiveEngine {
       () => (this.followPausedUntil = performance.now() + 400),
       { passive: true },
     )
+    // The same for the mouse: with the camera turning under it every frame
+    // (heading up), a drag never got started, so the lock couldn't be
+    // dragged off.
+    canvas.addEventListener("mousedown", () => (this.mouseHeld = true))
+    const mouseUp = () => (this.mouseHeld = false)
+    window.addEventListener("mouseup", mouseUp)
+    this.stops.push(() => window.removeEventListener("mouseup", mouseUp))
     // Holding a finger (or the mouse) still on the map for three quarters
     // of a second, as in the current viewer: the page drops the default pin
     // there. A drag, a pinch or a second finger calls it off.
@@ -1236,11 +1258,13 @@ export class LiveEngine {
       originalEvent: MouseEvent | TouchEvent
     }) => {
       letGo()
+      this.tap = null
       const event = e.originalEvent
       if ("touches" in event ? event.touches.length !== 1 : event.button !== 0)
         return
       if ((event.target as HTMLElement | null)?.closest?.(".mapboxgl-marker"))
         return
+      this.tap = { x: e.point.x, y: e.point.y, moved: false, held: false }
       if (
         this.editing ||
         this.move ||
@@ -1258,6 +1282,7 @@ export class LiveEngine {
         timer: setTimeout(() => {
           hold = null
           // The finger lifting afterwards is not also a tap on the map.
+          if (this.tap) this.tap.held = true
           this.heldAt = performance.now()
           this.onHold(at)
         }, 765),
@@ -1266,6 +1291,9 @@ export class LiveEngine {
     const drift = (e: { point: { x: number; y: number } }) => {
       if (hold && Math.hypot(e.point.x - hold.x, e.point.y - hold.y) > 5)
         letGo()
+      const tap = this.tap
+      if (tap && Math.hypot(e.point.x - tap.x, e.point.y - tap.y) > 8)
+        tap.moved = true
     }
     this.map.on("mousedown", press)
     this.map.on("touchstart", press)
@@ -1285,6 +1313,10 @@ export class LiveEngine {
         point: { x: number; y: number }
         lngLat: { lng: number; lat: number }
       }) => {
+        // (See `tap`: only a press that began on the map and stayed put.)
+        const tap = this.tap
+        this.tap = null
+        if (!tap || tap.moved || tap.held) return
         if (performance.now() - this.heldAt < 600) return
         if (this.editing) {
           this.editTap([e.lngLat.lng, e.lngLat.lat])
@@ -1441,7 +1473,15 @@ export class LiveEngine {
     this.selectedPaddock.subscribe((paddock) => {
       if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
       this.keepMarching()
-      this.paddockTrails.set(paddock ? this.trailsIn(paddock) : [])
+      // Which trails went through it is worked out a moment later (it means
+      // going over every trail), so the paddock is picked out at once.
+      clearTimeout(this.trailsInTimer)
+      this.paddockTrails.set([])
+      if (paddock)
+        this.trailsInTimer = setTimeout(() => {
+          if (get(this.selectedPaddock)?.id === paddock.id)
+            this.paddockTrails.set(this.trailsIn(paddock))
+        }, 80)
       if (!paddock) this.pickFeature(null, null)
       const through = get(this.through)
       if (through && through !== paddock?.id) this.showThrough(null)
@@ -6532,12 +6572,12 @@ export class LiveEngine {
     this.insets = { left, bottom }
   }
 
-  setFollow(mode: FollowMode, closest = 15.2) {
+  setFollow(mode: FollowMode, closest = 15.2, keepBearing = false) {
     const previous = get(this.follow)
     if (mode === previous) return
     this.follow.set(mode)
     if (mode === "free") {
-      if (previous === "cab")
+      if (previous === "cab" && !keepBearing)
         this.map.easeTo({ bearing: 0, duration: 500, offset: [0, 0] })
       return
     }
@@ -6974,7 +7014,8 @@ export class LiveEngine {
     if (
       get(this.follow) === "free" &&
       now > this.followPausedUntil &&
-      !this.touching
+      !this.touching &&
+      !this.mouseHeld
     )
       // (Run faster, it turns faster, so the way ahead stays up the screen.)
       this.ride(
@@ -7257,6 +7298,13 @@ export class LiveEngine {
     this.map.touchZoomRotate.disable()
     this.map.touchZoomRotate.enable(options)
     this.map.touchZoomRotate.disableRotation()
+  }
+
+  /** Where on the map a point of the screen is. */
+  lngLatAt(clientX: number, clientY: number): LngLat {
+    const box = (this.map.getContainer() as HTMLElement).getBoundingClientRect()
+    const at = this.map.unproject([clientX - box.left, clientY - box.top])
+    return [at.lng, at.lat]
   }
 
   // ── A made-up position, for testing ─────────────────────────────────────
@@ -7693,7 +7741,11 @@ export class LiveEngine {
     if (tail) {
       const followed = this.crewById.get(tail.id)?.vehicle
       if (!followed) this.followCrew(null)
-      else if (now > this.followPausedUntil && !this.touching)
+      else if (
+        now > this.followPausedUntil &&
+        !this.touching &&
+        !this.mouseHeld
+      )
         this.ride(
           `crew:${tail.id}`,
           followed.pos,
@@ -7722,7 +7774,12 @@ export class LiveEngine {
       this.turnTo(mine, mine.eased - bearing)
 
       const mode = get(this.follow)
-      if (mode !== "free" && now > this.followPausedUntil && !this.touching)
+      if (
+        mode !== "free" &&
+        now > this.followPausedUntil &&
+        !this.touching &&
+        !this.mouseHeld
+      )
         this.ride(
           "me",
           mine.pos,

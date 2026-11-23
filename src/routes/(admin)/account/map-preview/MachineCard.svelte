@@ -1,24 +1,32 @@
 <script lang="ts">
   /**
-   * The menu for your own machine, picked on the map: its colour and how
-   * wide it works, changed in place, with the way through to the full
-   * machine list.
+   * The menu for your own machine, picked on the map. It is for what you do
+   * with the machine while driving: lock the map to it (north up, or
+   * turning with it), put a word out to the crew, and see the trail being
+   * laid. Changing the machine itself (which one, its colour, its width) is
+   * a setting, and lives in the toolbox: one button here goes there.
    */
   import { createEventDispatcher } from "svelte"
-  import { Minus, Plus, X } from "lucide-svelte"
+  import {
+    LocateFixed,
+    Navigation,
+    RadioTower,
+    Settings2,
+    X,
+  } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
   import { machineFor } from "$lib/components/mapnext/machines"
-  import {
-    VEHICLE_PALETTE,
-    drawColour,
-    findColour,
-  } from "$lib/components/mapnext/palette"
+  import { drawColour } from "$lib/components/mapnext/palette"
+  import type { FollowMode } from "./liveEngine"
   import type { VehicleMarkerData } from "./liveData"
   import TrailingNow from "./TrailingNow.svelte"
 
   export let marker: VehicleMarkerData
-  /** A trail is running: it keeps the colour and width it started with. */
-  export let locked = false
+  /** How the map is following this machine now. */
+  export let follow: FollowMode = "free"
+  /** A word is being broadcast from this machine. */
+  export let broadcasting = false
+  export let guest = false
   /** The trail being laid, in figures. */
   export let trail: {
     since: number
@@ -32,24 +40,16 @@
 
   const dispatch = createEventDispatcher<{
     close: void
-    change: { type: string; colour: string; swath: number }
+    /** Lock the map to the machine this way (or "free" to let go). */
+    follow: FollowMode
+    broadcast: void
+    /** Open the machine's settings in the toolbox. */
     machine: void
     /** Highlight the trail being laid, or take the highlight off. */
     light: boolean
   }>()
 
-  // The widths the current viewer offers as one-tap choices.
-  const WIDTHS = [4, 8, 12, 18, 24, 36, 50]
-
   $: machine = machineFor(marker.type)
-  $: picked = findColour(marker.bodyColor)
-
-  const set = (patch: { colour?: string; swath?: number }) =>
-    dispatch("change", {
-      type: marker.type,
-      colour: patch.colour ?? marker.bodyColor,
-      swath: Math.min(60, Math.max(2, patch.swath ?? marker.swath)),
-    })
 </script>
 
 <div class="mn-card mn-menu" style="--accent: {drawColour(marker.bodyColor)}">
@@ -66,9 +66,7 @@
     </span>
     <div class="about">
       <h2>You</h2>
-      <p>
-        {machine.label} · {picked?.label ?? "Custom colour"} · {marker.swath} m wide
-      </p>
+      <p>{machine.label} · {marker.swath} m wide</p>
     </div>
     <button
       type="button"
@@ -88,68 +86,75 @@
       on:light={(e) => dispatch("light", e.detail)}
     />
   {/if}
-  {#if locked}
-    <p class="mn-warning">
-      A trail keeps the machine, colour and width it started with. Stop the
-      trail to change them.
-    </p>
-  {:else}
-    <div
-      class="mn-swatches"
-      style="--across: 9"
-      role="group"
-      aria-label="Machine colour"
-    >
-      {#each VEHICLE_PALETTE as option}
-        <button
-          type="button"
-          class:selected={picked?.id === option.id}
-          style="--swatch: {option.value}"
-          aria-label={option.label}
-          aria-pressed={picked?.id === option.id}
-          on:click={() =>
-            picked?.id !== option.id && set({ colour: option.id })}
-        ></button>
-      {/each}
-    </div>
 
-    <div class="mn-width">
-      <span class="lp-eyebrow">Working width</span>
-      <span class="stepper">
-        <button
-          type="button"
-          aria-label="Narrower"
-          disabled={marker.swath <= 2}
-          on:click={() => set({ swath: marker.swath - 1 })}
-          ><Minus size={20} /></button
-        >
-        <b>{marker.swath}<small>m</small></b>
-        <button
-          type="button"
-          aria-label="Wider"
-          disabled={marker.swath >= 60}
-          on:click={() => set({ swath: marker.swath + 1 })}
-          ><Plus size={20} /></button
-        >
-      </span>
-    </div>
-    <div class="mn-chips" role="group" aria-label="Common widths">
-      {#each WIDTHS as width}
-        <button
-          type="button"
-          aria-pressed={marker.swath === width}
-          on:click={() => marker.swath !== width && set({ swath: width })}
-          >{width} m</button
-        >
-      {/each}
-    </div>
-
+  <div class="acts">
     <button
       type="button"
-      class="lp-btn lp-btn-ghost"
-      on:click={() => dispatch("machine")}
+      aria-pressed={follow === "follow"}
+      on:click={() =>
+        dispatch("follow", follow === "follow" ? "free" : "follow")}
     >
-      Change machine
+      <LocateFixed size={20} />
+      Track
     </button>
-  {/if}
+    <button
+      type="button"
+      aria-pressed={follow === "cab"}
+      on:click={() => dispatch("follow", follow === "cab" ? "free" : "cab")}
+    >
+      <Navigation size={20} fill={follow === "cab" ? "currentColor" : "none"} />
+      Track heading
+    </button>
+    {#if !guest}
+      <button
+        type="button"
+        class:live={broadcasting}
+        on:click={() => dispatch("broadcast")}
+      >
+        <RadioTower size={20} />
+        Broadcast
+      </button>
+      <button type="button" on:click={() => dispatch("machine")}>
+        <Settings2 size={20} />
+        Change
+      </button>
+    {/if}
+  </div>
 </div>
+
+<style>
+  .acts {
+    display: grid;
+    grid-auto-columns: minmax(0, 1fr);
+    grid-auto-flow: column;
+    gap: 6px;
+  }
+  .acts button {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    min-height: 60px;
+    padding: 9px 4px 8px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 14px;
+    background: var(--lp-paper);
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--lp-ink);
+    text-align: center;
+  }
+  .acts button:hover {
+    border-color: var(--lp-ink);
+  }
+  /* The lock that is on: black with yellow, as the map's own button. */
+  .acts button[aria-pressed="true"] {
+    border-color: #15261c;
+    background: #15261c;
+    color: #f7db5c;
+  }
+  .acts button.live {
+    border-color: var(--lp-rust);
+    color: var(--lp-rust);
+  }
+</style>

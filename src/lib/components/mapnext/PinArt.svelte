@@ -6,6 +6,7 @@
   import { onMount } from "svelte"
   import {
     loadPinGlyphs,
+    pinGlyphsLoaded,
     pinDataUrl,
     pinImageKey,
     pinStyle,
@@ -20,9 +21,11 @@
   export let size = 36
 
   // The art arrives in one small download; until then the disc is empty.
-  let loaded = false
+  // (Once it is in, a pin is drawn from its first frame: no blank flash
+  // each time one is put on the page.)
+  let loaded = pinGlyphsLoaded()
   onMount(() => {
-    loadPinGlyphs().then(() => (loaded = true))
+    if (!loaded) loadPinGlyphs().then(() => (loaded = true))
   })
 
   $: key = pinImageKey(look, style ?? $pinStyle)

@@ -240,6 +240,8 @@
   let addingOp = false
   let newOpName = ""
   let newOpYear = new Date().getFullYear()
+  // Next year's, this year's, and a few back.
+  const OP_YEARS = Array.from({ length: 8 }, (_, i) => newOpYear + 1 - i)
   function addOperation() {
     const name = newOpName.trim()
     if (!name) return
@@ -527,14 +529,11 @@
                   aria-label="Name of the new operation"
                   autofocus
                 />
-                <input
-                  type="number"
-                  class="year"
-                  bind:value={newOpYear}
-                  min="2000"
-                  max="2100"
-                  aria-label="Year"
-                />
+                <select class="year" bind:value={newOpYear} aria-label="Year">
+                  {#each OP_YEARS as year}
+                    <option value={year}>{year}</option>
+                  {/each}
+                </select>
                 <button type="submit" disabled={!newOpName.trim() || trailOn}>
                   Add
                 </button>
