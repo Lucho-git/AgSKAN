@@ -1181,6 +1181,7 @@ export class LiveEngine {
     })
     this.map.touchZoomRotate.disableRotation()
     this.map.dragRotate.disable()
+    this.noTapZoom()
     // Locked to a machine (yours, or one of the crew's), zooming in or out
     // keeps that machine where it is: the lock is only let go by a drag.
     const lock = () =>
@@ -7316,6 +7317,22 @@ export class LiveEngine {
   }
 
   /**
+   * No zooming by tapping twice. A second tap on a phone is a second tap
+   * (on a pin, on a paddock), never a zoom. Mapbox has two of these: the
+   * double tap itself (off with `doubleClickZoom`), and "tap, then tap and
+   * slide", which a second tap with the least wobble in it sets off. That
+   * one comes back on whenever pinch-zoom is switched on, and has no switch
+   * of its own, so it is reached for directly.
+   */
+  private noTapZoom() {
+    this.map.doubleClickZoom.disable()
+    const pinch = this.map.touchZoomRotate as {
+      _tapDragZoom?: { disable(): void }
+    }
+    pinch._tapDragZoom?.disable()
+  }
+
+  /**
    * Zoom about the middle of the map (true) or about the fingers or the
    * cursor, as a map usually does (false).
    */
@@ -7330,6 +7347,7 @@ export class LiveEngine {
     this.map.touchZoomRotate.disable()
     this.map.touchZoomRotate.enable(options)
     this.map.touchZoomRotate.disableRotation()
+    this.noTapZoom()
   }
 
   /** Where on the map a point of the screen is. */
