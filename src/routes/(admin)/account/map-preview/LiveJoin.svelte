@@ -1,18 +1,24 @@
 <script lang="ts">
   /**
-   * The short hello before the map: which farm, what you're driving, then a
-   * plain explanation of the location prompt before the browser shows its
-   * own. Sits over the live map as a sheet (phone) or a side card (tablet).
+   * The short hello before the map: which farm, what you're driving, then
+   * the location prompt. Sits over the live map as a sheet (phone) or a side
+   * card (tablet).
+   *
+   * Picking a machine is a framed screen: the farm in a heading that stays
+   * put, the machines scrolling in the middle, and a foot that stays put
+   * with the working width and Continue, so neither is ever scrolled away.
+   * The location screen is one line and one button.
    */
   import { createEventDispatcher } from "svelte"
   import { fly } from "svelte/transition"
   import {
     ArrowLeft,
     ArrowRight,
-    Check,
     ChevronRight,
     LoaderCircle,
     LocateFixed,
+    Minus,
+    Plus,
   } from "lucide-svelte"
   import MachinePicker from "$lib/components/mapnext/MachinePicker.svelte"
   import { machineFor } from "$lib/components/mapnext/machines"
@@ -47,6 +53,17 @@
   $: failed = gps === "unavailable"
   $: others = farms.filter((farm) => farm.id !== currentFarmId)
 
+  // The working width, from the foot of the machine screen.
+  function nudge(by: number) {
+    const next = Math.min(60, Math.max(2, Math.round(marker.swath + by)))
+    if (next !== marker.swath)
+      dispatch("machine", {
+        type: machine.type,
+        colour: marker.bodyColor,
+        swath: next,
+      })
+  }
+
   const slide = (node: Element) => {
     const reduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
@@ -56,7 +73,7 @@
 </script>
 
 <div class="mn-join" role="dialog" aria-modal="true" aria-label="Join the map">
-  <div class="panel">
+  <div class="panel" class:framed={step === "you"}>
     {#key `${step}-${blocked}-${failed}`}
       <div class="inner" in:slide>
         {#if step === "farm"}
@@ -90,40 +107,67 @@
             <ArrowLeft size={16} /> Back
           </button>
         {:else if step === "you"}
-          <p class="lp-eyebrow">Join the map</p>
-          <h1>{farmName}</h1>
-          <p class="sub">
-            {isOwner ? "Your farm." : `${farmOwner}'s farm.`}
-            {#if guest}
-              You're a guest here: you can look around, and the crew can see
-              you.
-            {:else}
-              Pick what you're in today; the crew sees it on their maps.
+          <!-- ── The farm: stays put ── -->
+          <header class="jhead">
+            <div class="t">
+              <p class="lp-eyebrow">
+                Join {isOwner ? "your farm" : `${farmOwner}'s farm`}
+              </p>
+              <h1>{farmName}</h1>
+            </div>
+            {#if others.length}
+              <button
+                type="button"
+                class="swap"
+                on:click={() => (step = "farm")}
+              >
+                Change farm
+              </button>
             {/if}
-          </p>
-          {#if others.length}
-            <button
-              type="button"
-              class="mn-text-button"
-              on:click={() => (step = "farm")}
-            >
-              Open a different farm
-            </button>
-          {/if}
+          </header>
 
-          {#if !guest}
-            <div class="block">
+          <!-- ── The machines: these scroll ── -->
+          <div class="jbody">
+            {#if guest}
+              <p class="sub">
+                You're a guest here: you can look around, and the crew can see
+                you.
+              </p>
+            {:else}
+              <p class="ask">What are you in today?</p>
               <MachinePicker
                 compact
+                width={false}
                 type={marker.type}
                 colour={marker.bodyColor}
                 swath={marker.swath}
                 on:change={(e) => dispatch("machine", e.detail)}
               />
-            </div>
-          {/if}
+            {/if}
+          </div>
 
-          <div class="actions">
+          <!-- ── Working width and Continue: stay put ── -->
+          <footer class="jfoot">
+            {#if !guest}
+              <div class="wide">
+                <span class="lp-eyebrow">Working width</span>
+                <span class="stepper">
+                  <button
+                    type="button"
+                    aria-label="Narrower"
+                    disabled={marker.swath <= 2}
+                    on:click={() => nudge(-1)}><Minus size={18} /></button
+                  >
+                  <b>{marker.swath}<small>m</small></b>
+                  <button
+                    type="button"
+                    aria-label="Wider"
+                    disabled={marker.swath >= 60}
+                    on:click={() => nudge(1)}><Plus size={18} /></button
+                  >
+                </span>
+              </div>
+            {/if}
             <button
               type="button"
               class="lp-btn lp-btn-primary"
@@ -132,18 +176,12 @@
               Continue
               <span class="lp-arrow"><ArrowRight size={18} /></span>
             </button>
-          </div>
+          </footer>
         {:else if blocked}
-          <p class="lp-eyebrow">Location</p>
-          <h1>Location is switched off.</h1>
+          <h1>Location is off.</h1>
           <p class="sub">
-            Your browser blocked it for this page, so the map can't see where
-            you are. To turn it on, tap the padlock or “aA” in the address bar,
-            set Location to Allow, then try again.
-          </p>
-          <p class="hint">
-            On an iPhone it can also be off in Settings › Privacy › Location
-            Services for your browser.
+            Tap the padlock (or “aA”) in the address bar, set Location to Allow,
+            then try again.
           </p>
           <div class="actions">
             <button
@@ -155,23 +193,18 @@
             </button>
             <button
               type="button"
-              class="lp-btn lp-btn-ghost"
+              class="quiet"
               on:click={() => dispatch("look")}
             >
               Just look around
             </button>
           </div>
         {:else if failed}
-          <p class="lp-eyebrow">Location</p>
           <h1>Can't find you just now.</h1>
           <p class="sub">
-            {#if secure}
-              No position came back from this device. Check that location is
-              switched on, or step outside for a clearer view of the sky.
-            {:else}
-              Browsers only share location over a secure (https) address, and
-              this one isn't.
-            {/if}
+            {secure
+              ? "Check that location is switched on, then try again."
+              : "Location only works on a secure (https) address."}
           </p>
           <div class="actions">
             {#if secure}
@@ -182,38 +215,39 @@
               >
                 <LocateFixed size={18} /> Try again
               </button>
+              <button
+                type="button"
+                class="quiet"
+                on:click={() => dispatch("look")}
+              >
+                Just look around
+              </button>
+            {:else}
+              <button
+                type="button"
+                class="lp-btn lp-btn-primary"
+                on:click={() => dispatch("look")}
+              >
+                Just look around
+              </button>
             {/if}
-            <button
-              type="button"
-              class="lp-btn {secure ? 'lp-btn-ghost' : 'lp-btn-primary'}"
-              on:click={() => dispatch("look")}
-            >
-              Just look around
-            </button>
           </div>
         {:else}
-          <p class="lp-eyebrow">
-            {known ? `Joining ${farmName}` : "One permission"}
-          </p>
+          <!-- (Back is also the way to another machine, or another farm.) -->
+          <button
+            type="button"
+            class="up"
+            aria-label={known ? "Change machine or farm" : "Back"}
+            on:click={() => (step = "you")}
+          >
+            <ArrowLeft size={20} />
+          </button>
           <h1>Put yourself on the map.</h1>
           <p class="sub">
-            Your browser is about to ask for your location. Say yes and your
-            {machine.label.toLowerCase()} appears on {farmName} where you are, and
-            moves when you do.
+            {guest
+              ? `The crew on ${farmName} sees where you are.`
+              : `The crew on ${farmName} sees your ${machine.label.toLowerCase()} where you are.`}
           </p>
-          <ul class="points">
-            <li>
-              <Check size={16} strokeWidth={3} /> Shared with the crew on this farm,
-              and nobody else
-            </li>
-            <li>
-              <Check size={16} strokeWidth={3} /> Used to draw you, and your trail
-              once you start one
-            </li>
-            <li>
-              <Check size={16} strokeWidth={3} /> Stops when you close the page
-            </li>
-          </ul>
           <div class="actions">
             <button
               type="button"
@@ -230,41 +264,190 @@
             </button>
             <button
               type="button"
-              class="lp-btn lp-btn-ghost"
+              class="quiet"
               on:click={() => dispatch("look")}
             >
               Just look around
             </button>
           </div>
-          {#if known}
-            <!-- They weren't asked what they drive: leave the way open. -->
-            <div class="also">
-              {#if !guest}
-                <button
-                  type="button"
-                  class="mn-text-button"
-                  on:click={() => (step = "you")}
-                >
-                  Change machine
-                </button>
-              {/if}
-              {#if others.length}
-                <button
-                  type="button"
-                  class="mn-text-button"
-                  on:click={() => (step = "farm")}
-                >
-                  Open a different farm
-                </button>
-              {/if}
-            </div>
-          {:else}
-            <button type="button" class="back" on:click={() => (step = "you")}>
-              <ArrowLeft size={16} /> Back
-            </button>
-          {/if}
         {/if}
       </div>
     {/key}
   </div>
 </div>
+
+<style>
+  /* ── Picking a machine: a heading, a scroll, a foot ── */
+  .panel.framed {
+    --jx: max(4.5vw, 1rem);
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+  }
+  .panel.framed .inner {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    max-width: none;
+    min-height: 0;
+  }
+  .jhead {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.8rem var(--jx) 0.75rem;
+    background: var(--mn-band, #15261c);
+    box-shadow: inset 0 -3px 0 var(--lp-yellow, #f7db5c);
+    color: var(--mn-band-text, #f4f1e6);
+  }
+  .jhead .t {
+    flex: 1;
+    min-width: 0;
+  }
+  .jhead .lp-eyebrow {
+    overflow: hidden;
+    color: var(--lp-yellow, #f7db5c);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .jhead h1 {
+    margin-top: 0.1rem;
+    overflow: hidden;
+    font-size: clamp(1.3rem, 5.6vw, 1.7rem);
+    line-height: 1.1;
+    color: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .jhead .swap {
+    flex-shrink: 0;
+    min-height: 2.5rem;
+    padding: 0 0.8rem;
+    border: 1.5px solid rgba(244, 241, 230, 0.45);
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: inherit;
+    white-space: nowrap;
+  }
+  .jbody {
+    flex: 1;
+    min-height: 0;
+    padding: 0.8rem var(--jx) 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .jbody .ask {
+    margin-bottom: 0.7rem;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+  .jbody .sub {
+    margin-top: 0;
+  }
+  .jfoot {
+    display: flex;
+    flex-shrink: 0;
+    align-items: flex-end;
+    gap: 0.7rem;
+    padding: 0.55rem var(--jx) max(0.7rem, env(safe-area-inset-bottom));
+    background: var(--lp-paper-2, #efe9d6);
+    box-shadow: inset 0 1px 0 var(--lp-line);
+  }
+  .jfoot .wide {
+    display: grid;
+    flex-shrink: 0;
+    gap: 0.2rem;
+  }
+  .jfoot .lp-eyebrow {
+    font-size: 0.6rem;
+    white-space: nowrap;
+  }
+  .jfoot .lp-btn {
+    flex: 1;
+    min-width: 0;
+    min-height: 3rem;
+    padding-inline: 0.9rem;
+  }
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  .stepper button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--lp-card);
+    color: var(--lp-ink);
+    box-shadow: 0 0 0 1.5px var(--lp-line);
+  }
+  .stepper button:disabled {
+    opacity: 0.4;
+  }
+  .stepper b {
+    min-width: 3.1rem;
+    font-family: var(--lp-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .stepper small {
+    margin-left: 2px;
+    font-family: var(--lp-mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--lp-ink-faint);
+  }
+  @media (min-width: 860px) and (orientation: landscape) {
+    .panel.framed {
+      --jx: 1.3rem;
+    }
+  }
+
+  /* ── The location screens: a line and a button ── */
+  .up {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    margin: -0.5rem 0 0.2rem -0.6rem;
+    border-radius: 50%;
+    color: var(--lp-ink-soft);
+  }
+  .up:hover {
+    background: var(--lp-paper-2);
+  }
+  .up + h1 {
+    margin-top: 0;
+  }
+  .inner > h1:first-child {
+    margin-top: 0;
+  }
+  .actions .lp-btn {
+    min-height: 3.4rem;
+    font-size: 1.05rem;
+  }
+  .quiet {
+    min-height: 2.9rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--lp-ink-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  button:focus-visible {
+    outline: 2px solid var(--lp-accent-text);
+    outline-offset: 2px;
+  }
+</style>

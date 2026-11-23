@@ -410,13 +410,12 @@
 
     {#if trails.length}
       <!-- ── Its trails: all at once, or one picked from a list ── -->
-      <div class="mn-ptrails">
-        <p class="lp-eyebrow">
-          {trails.length}
-          {trails.length === 1 ? "trail" : "trails"} through here{operation
-            ? ` · ${operation}`
-            : ""}
-        </p>
+      <!-- (One row and no more: all of them is the button, one of them is
+           the list beside it.) -->
+      <div
+        class="mn-ptrails"
+        title={operation ? `Trails through here in ${operation}` : null}
+      >
         {#if trails.length === 1}
           <!-- Only one: it is simply offered. -->
           <div class="row">
@@ -426,7 +425,7 @@
               on:click={() => dispatch("trail", trails[0].id)}
             >
               <i style="background: {drawColour(trails[0].colour)}"></i>
-              Open it · {when(trails[0].start)}{trails[0].operator
+              Open its trail · {when(trails[0].start)}{trails[0].operator
                 ? ` · ${trails[0].operator.split(/\s+/)[0]}`
                 : ""}
             </button>
@@ -438,7 +437,7 @@
               class="all"
               on:click={() => dispatch("allTrails", true)}
             >
-              <Layers size={17} /> Show all {trails.length}
+              <Layers size={17} /> Show all {trails.length} trails
             </button>
             <Dropdown
               look="pill"
@@ -457,22 +456,8 @@
               }))}
               on:change={(e) => dispatch("trail", e.detail)}
             >
-              Open one
+              Pick one
             </Dropdown>
-          </div>
-          <!-- The latest few, as many as fit on one line. -->
-          <div class="recent">
-            {#each trails.slice(0, 6) as trail (trail.id)}
-              <button
-                type="button"
-                on:click={() => dispatch("trail", trail.id)}
-              >
-                <i style="background: {drawColour(trail.colour)}"></i>
-                {when(trail.start)}{trail.operator
-                  ? ` · ${trail.operator.split(/\s+/)[0]}`
-                  : ""}
-              </button>
-            {/each}
           </div>
         {/if}
         {#if allTrails && stats}

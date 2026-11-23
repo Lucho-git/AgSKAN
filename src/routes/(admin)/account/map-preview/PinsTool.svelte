@@ -373,7 +373,7 @@
         <!-- The pin in hand: what can be done with it. -->
         <div class="hand">
           <div class="who">
-            <PinArt look={choiceLook(inHand)} size={34} />
+            <PinArt look={choiceLook(inHand)} size={28} />
             <strong>{nameOf(inHand)}</strong>
             {#if justAdded === inHand}
               <em class="added">Button added</em>
@@ -388,7 +388,7 @@
               aria-label="Put {nameOf(inHand)} down"
               on:click={putDown}
             >
-              <X size={18} />
+              <X size={17} />
             </button>
           </div>
           <div class="acts">
@@ -596,8 +596,8 @@
   /* The pin in hand: a block of its own in the band. */
   .hand {
     display: grid;
-    gap: 8px;
-    padding: 8px 8px 9px 10px;
+    gap: 6px;
+    padding: 5px 6px 7px 8px;
     border: 2px solid var(--lp-ink);
     border-radius: 14px;
     background: var(--mn-block);
@@ -650,8 +650,8 @@
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    width: 30px;
+    height: 30px;
     margin-left: auto;
     border-radius: 50%;
     color: var(--lp-ink-soft);
@@ -659,21 +659,25 @@
   .who .x:hover {
     background: var(--lp-paper-2);
   }
+  /* One line of them, always: they share it, and shrink before they wrap. */
   .acts {
     display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    gap: 5px;
   }
   .acts button {
     display: inline-flex;
+    flex: 0 1 auto;
     align-items: center;
-    gap: 5px;
-    min-height: 40px;
-    padding: 0 12px;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    min-height: 34px;
+    padding: 0 10px;
+    overflow: hidden;
     border: 1.5px solid var(--lp-line);
     border-radius: 99px;
     background: var(--lp-paper);
-    font-size: 0.82rem;
+    font-size: 0.78rem;
     font-weight: 700;
     color: var(--lp-ink);
     white-space: nowrap;
@@ -692,26 +696,26 @@
     color: var(--lp-rust);
   }
   .acts .dot {
-    width: 16px;
-    height: 16px;
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     box-shadow: 0 0 0 1.5px var(--lp-line);
   }
 
-  /* The colours for the pin in hand: squares, five to a row and wrapping
-     to a second, so each is a proper size to hit on a narrow rail and on a
-     phone alike (ten little discs in one row were neither). */
+  /* The colours for the pin in hand: ten squares in one row, so the block
+     stays short and the kinds below keep their room to scroll. */
   .hand .mn-swatches {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(10, minmax(0, 1fr));
     justify-content: stretch;
-    gap: 6px;
+    gap: 4px;
   }
   .hand .mn-swatches button {
     position: relative;
     aspect-ratio: auto;
-    height: 36px;
+    height: 30px;
     border: 0;
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: inset 0 0 0 1.5px rgba(21, 38, 28, 0.22);
   }
   .hand .mn-swatches button.selected {
@@ -724,8 +728,8 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 13px;
-    height: 7px;
+    width: 11px;
+    height: 6px;
     border-bottom: 2.5px solid #fff;
     border-left: 2.5px solid #fff;
     content: "";

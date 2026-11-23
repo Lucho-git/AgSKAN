@@ -23,6 +23,8 @@
   export let swath: number
   /** Show every machine, or just the current group with a way to see more. */
   export let compact = false
+  /** Show the working width here (off when the screen has its own). */
+  export let width = true
 
   const dispatch = createEventDispatcher<{
     change: { type: VehicleType; colour: string; swath: number }
@@ -109,31 +111,33 @@
     </button>
   {/if}
 
-  <div class="width">
-    <span class="about">
-      <span class="lp-eyebrow">Working width</span>
-      <span class="note">
-        {current.paints
-          ? "How wide a trail it paints"
-          : "Only if you start a trail in it"}
+  {#if width}
+    <div class="width">
+      <span class="about">
+        <span class="lp-eyebrow">Working width</span>
+        <span class="note">
+          {current.paints
+            ? "How wide a trail it paints"
+            : "Only if you start a trail in it"}
+        </span>
       </span>
-    </span>
-    <span class="stepper">
-      <button
-        type="button"
-        aria-label="Narrower"
-        disabled={swath <= 2}
-        on:click={() => nudge(-1)}><Minus size={20} /></button
-      >
-      <b>{swath}<small>m</small></b>
-      <button
-        type="button"
-        aria-label="Wider"
-        disabled={swath >= 60}
-        on:click={() => nudge(1)}><Plus size={20} /></button
-      >
-    </span>
-  </div>
+      <span class="stepper">
+        <button
+          type="button"
+          aria-label="Narrower"
+          disabled={swath <= 2}
+          on:click={() => nudge(-1)}><Minus size={20} /></button
+        >
+        <b>{swath}<small>m</small></b>
+        <button
+          type="button"
+          aria-label="Wider"
+          disabled={swath >= 60}
+          on:click={() => nudge(1)}><Plus size={20} /></button
+        >
+      </span>
+    </div>
+  {/if}
 </div>
 
 <style>
