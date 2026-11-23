@@ -128,8 +128,6 @@ export const TRAIL_PALETTE_CHOICES: { key: TrailPalette; label: string }[] = [
   { key: "machine", label: "Machine" },
   { key: "soft", label: "Soft" },
   { key: "classic", label: "Classic" },
-  { key: "earth", label: "Earth" },
-  { key: "records", label: "Records" },
 ]
 export const asTrailPalette = (saved: unknown): TrailPalette =>
   TRAIL_PALETTE_CHOICES.find((choice) => choice.key === saved)?.key ?? "machine"

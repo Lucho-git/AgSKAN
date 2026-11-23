@@ -118,8 +118,6 @@
     commit: void
     photo: File
     removePhoto: PinPhoto
-    /** The map needs to sit here for the menu to have room beside the pin. */
-    room: LngLat
   }>()
 
   // The colours the current viewer's pin menu offers. "default" is no colour
@@ -178,7 +176,6 @@
     view = "main"
     viewing = null
     armed = false
-    settled = false
     trying = null
   }
   $: if (!noting) note = pin.note
@@ -319,8 +316,6 @@
   let smooth = false
   let smoothTimer: ReturnType<typeof setTimeout>
   let frame = 0
-  /** The map has been moved (once) to make room for the menu. */
-  let settled = false
   const SLIDE = 56
   /** From the pin's middle to the menu's near edge. */
   const REACH = 36
@@ -385,38 +380,6 @@
     smoothTimer = setTimeout(() => (smooth = false), 320)
   }
 
-  /**
-   * A pin in the middle of a small screen leaves no room for the menu on
-   * either side of it: the map is nudged, once, so the pin sits near the top
-   * with the menu under it.
-   */
-  function makeRoom() {
-    if (settled || !map || !pop || picked || moving) return
-    settled = true
-    const at = place()
-    if (!at) return
-    const container = map.getContainer() as HTMLElement
-    const wide = container.clientWidth
-    const tall = container.clientHeight
-    const menu = pop.offsetHeight || 360
-    const p = map.project(at)
-    const roomBelow = tall - 8 - insets.bottom - (p.y + REACH)
-    const roomAbove = p.y - REACH - 8
-    const half = (pop.offsetWidth || 300) / 2
-    const sideways = p.x < insets.left + half + 8 || p.x > wide - half - 8
-    if (!sideways && (roomBelow >= menu || roomAbove >= menu)) return
-    const targetY = Math.max(
-      70,
-      Math.min(tall - 8 - insets.bottom - menu - REACH, tall * 0.3),
-    )
-    const targetX = sideways ? insets.left + (wide - insets.left) / 2 : p.x
-    const centre = map.unproject([
-      p.x + wide / 2 - targetX,
-      p.y + tall / 2 - targetY,
-    ])
-    dispatch("room", [centre.lng, centre.lat])
-  }
-
   // Mid-move the pin is eased towards the finger frame by frame.
   function follow() {
     position()
@@ -436,7 +399,6 @@
     }
     tick().then(() => {
       position()
-      makeRoom()
       requestAnimationFrame(() => requestAnimationFrame(() => (ready = true)))
     })
   })
@@ -451,7 +413,6 @@
   // The pin (or the drawing the menu sits over) changed: move with it.
   $: if (pop && (pin || picked !== undefined || insets)) {
     positionSmooth()
-    if (!settled) tick().then(makeRoom)
   }
 </script>
 

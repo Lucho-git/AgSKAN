@@ -453,6 +453,10 @@
                   ...(trail.machine ? [machineFor(trail.machine).label] : []),
                   ...(trail.ha !== null ? [`${formatHa(trail.ha)} ha`] : []),
                 ].join(" · "),
+                // (The machine that laid it, in the trail's own colour; an arrow
+                // when it wasn't recorded.)
+                machine: trail.machine || "Pointer",
+                colour: drawColour(trail.colour),
               }))}
               on:change={(e) => dispatch("trail", e.detail)}
             >

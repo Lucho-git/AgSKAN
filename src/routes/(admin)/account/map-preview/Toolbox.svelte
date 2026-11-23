@@ -709,6 +709,7 @@
           {undoLog}
           on:settings={() => (view = "crewSettings")}
           on:home={() => dispatch("home")}
+          on:driver={() => dispatch("driver")}
           on:look={(e) => dispatch("lookCrew", e.detail)}
           on:message={(e) => dispatch("messageCrew", e.detail)}
           on:invite={() => dispatch("invite")}
@@ -842,6 +843,7 @@
         {undoLog}
         on:settings={() => (view = "crewSettings")}
         on:home={() => dispatch("home")}
+        on:driver={() => dispatch("driver")}
         on:look={(e) => dispatch("lookCrew", e.detail)}
         on:message={(e) => dispatch("messageCrew", e.detail)}
         on:invite={() => dispatch("invite")}
@@ -1167,8 +1169,8 @@
           {/each}
         </div>
         <p class="mn-note">
-          Machine is the colour each machine is drawn in. Records gives every
-          finished trail a colour of its own.
+          Machine is the colour each machine is drawn in. Soft and Classic are
+          the same colours in other shades.
         </p>
       </section>
 

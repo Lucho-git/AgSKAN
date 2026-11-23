@@ -293,25 +293,28 @@
       <i></i>
     </button>
 
-    {#if confirming}
-      <div class="confirm">
-        <span>Delete this bin?</span>
-        <button type="button" class="yes" on:click={() => dispatch("remove")}>
-          Delete
+    <!-- (Stays at the foot of the menu while the settings scroll.) -->
+    <div class="foot">
+      {#if confirming}
+        <div class="confirm">
+          <span>Delete this bin?</span>
+          <button type="button" class="yes" on:click={() => dispatch("remove")}>
+            Delete
+          </button>
+          <button type="button" on:click={() => (confirming = false)}>
+            Cancel
+          </button>
+        </div>
+      {:else}
+        <button
+          type="button"
+          class="wide danger"
+          on:click={() => (confirming = true)}
+        >
+          <Trash2 size={16} /> Delete bin
         </button>
-        <button type="button" on:click={() => (confirming = false)}>
-          Cancel
-        </button>
-      </div>
-    {:else}
-      <button
-        type="button"
-        class="wide danger"
-        on:click={() => (confirming = true)}
-      >
-        <Trash2 size={16} /> Delete bin
-      </button>
-    {/if}
+      {/if}
+    </div>
   {/if}
 </div>
 
@@ -499,6 +502,18 @@
     box-shadow:
       0 0 0 2px var(--lp-card),
       0 0 0 4px var(--lp-ink);
+  }
+  /* Delete, held at the foot of whatever the settings scroll in (which
+     says how much padding it has, so the band reaches its edges). */
+  .foot {
+    position: sticky;
+    bottom: calc(-1 * var(--bin-pad, 0px));
+    z-index: 1;
+    display: grid;
+    margin: 0 calc(-1 * var(--bin-pad, 0px)) calc(-1 * var(--bin-pad, 0px));
+    padding: 8px var(--bin-pad, 0px) max(var(--bin-pad, 0px), 2px);
+    background: var(--bin-ground, var(--lp-card));
+    box-shadow: 0 -1px 0 var(--lp-line);
   }
   .danger {
     border-color: color-mix(in srgb, var(--lp-rust) 50%, var(--lp-line));

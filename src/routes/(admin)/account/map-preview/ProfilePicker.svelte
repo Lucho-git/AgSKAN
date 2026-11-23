@@ -8,10 +8,12 @@
    * turns the screen into the list.
    *
    * The list (after No, from Profile, or before a trail when nobody is set)
-   * is the farm's profiles to pick from, and a box to add a new one.
+   * is the farm's names to pick from, and a box to add a new one. A name
+   * that is added goes on the list and no more: it is picked with a tap, as
+   * any other. Opened from the toolbox, names can be taken off the list too.
    */
   import { createEventDispatcher } from "svelte"
-  import { Check, Plus, X } from "lucide-svelte"
+  import { Check, Plus, Trash2, X } from "lucide-svelte"
   import type { Operator } from "$lib/stores/operatorStore"
 
   /** The farm's profiles. */
@@ -24,6 +26,8 @@
   export let busy = false
   /** Asked because a trail is about to start: picking one starts it. */
   export let forTrail = false
+  /** Opened to look after the list: names can be taken off it. */
+  export let manage = false
 
   const dispatch = createEventDispatcher<{
     /** Carry on as the current profile. */
@@ -31,7 +35,11 @@
     /** Something else was touched: stop counting down. */
     hold: void
     pick: Operator
+    /** Put a new name on the list (it is not picked). */
     add: string
+    /** Take a name off the list, or put it back. */
+    remove: Operator
+    restore: Operator
     close: void
   }>()
 
@@ -60,13 +68,37 @@
     declined = true
     dispatch("hold")
   }
+  // A new name goes on the list; it is marked there for a moment, to be
+  // found and tapped. (One that is on the list already is only marked.)
+  let added = ""
+  let addedTimer: ReturnType<typeof setTimeout> | undefined
   function add() {
     const wanted = name.trim()
     if (!wanted || busy) return
-    const known = operators.find((choice) => same(choice.name, wanted))
-    if (known) dispatch("pick", known)
-    else dispatch("add", wanted)
+    if (!operators.some((choice) => same(choice.name, wanted)))
+      dispatch("add", wanted)
+    added = wanted
+    clearTimeout(addedTimer)
+    addedTimer = setTimeout(() => (added = ""), 6000)
     name = ""
+  }
+
+  // Taking a name off: asked on its own row first, and undone from a line
+  // under the list for a while after.
+  let removing: string | null = null
+  let removed: Operator | null = null
+  let removedTimer: ReturnType<typeof setTimeout> | undefined
+  function remove(choice: Operator) {
+    removing = null
+    removed = choice
+    clearTimeout(removedTimer)
+    removedTimer = setTimeout(() => (removed = null), 8000)
+    dispatch("remove", choice)
+  }
+  function restore() {
+    if (!removed) return
+    dispatch("restore", removed)
+    removed = null
   }
 </script>
 
@@ -137,28 +169,67 @@
               <span class="face">{initials(current)}</span>
               <b>{current}</b>
               {#if !offered}
-                <i><Check size={16} strokeWidth={3} /> Driving</i>
+                <i><Check size={16} strokeWidth={3} /> Current</i>
               {/if}
             </button>
           {/if}
           {#each others as choice (choice.id)}
-            <button
-              type="button"
-              disabled={busy}
-              on:click={() => dispatch("pick", choice)}
-            >
-              <span class="face" style="--c: {choice.color || '#60a5fa'}">
-                {initials(choice.name)}
-              </span>
-              <b>
-                {choice.name}
-                {#if choice.in_use_by}
-                  <small>in {choice.in_use_by} now</small>
+            {#if removing === choice.id}
+              <div class="ask">
+                <b>Remove {choice.name}?</b>
+                <button
+                  type="button"
+                  class="yes"
+                  disabled={busy}
+                  on:click={() => remove(choice)}
+                >
+                  Remove
+                </button>
+                <button type="button" on:click={() => (removing = null)}>
+                  Keep
+                </button>
+              </div>
+            {:else}
+              <div class="row" class:new={same(choice.name, added)}>
+                <button
+                  type="button"
+                  class="pick"
+                  disabled={busy}
+                  on:click={() => dispatch("pick", choice)}
+                >
+                  <span class="face" style="--c: {choice.color || '#60a5fa'}">
+                    {initials(choice.name)}
+                  </span>
+                  <b>
+                    {choice.name}
+                    {#if choice.in_use_by}
+                      <small>in {choice.in_use_by} now</small>
+                    {/if}
+                  </b>
+                  {#if same(choice.name, added)}<i>Added</i>{/if}
+                </button>
+                {#if manage && !choice.in_use_by}
+                  <button
+                    type="button"
+                    class="bin"
+                    aria-label="Remove {choice.name}"
+                    title="Remove {choice.name}"
+                    disabled={busy}
+                    on:click={() => (removing = choice.id)}
+                  >
+                    <Trash2 size={18} />
+                  </button>
                 {/if}
-              </b>
-            </button>
+              </div>
+            {/if}
           {/each}
         </div>
+      {/if}
+      {#if removed}
+        <p class="undo">
+          {removed.name} removed.
+          <button type="button" on:click={restore}>Undo</button>
+        </p>
       {/if}
 
       <form on:submit|preventDefault={add}>
@@ -336,7 +407,8 @@
     grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr));
     gap: 6px;
   }
-  .people button {
+  .people .me,
+  .people .pick {
     display: flex;
     align-items: center;
     gap: 11px;
@@ -347,6 +419,94 @@
     background: var(--lp-card);
     color: var(--lp-ink);
     text-align: left;
+  }
+  /* A name, and (looking after the list) the bin beside it. */
+  .row {
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+  }
+  .row .pick {
+    flex: 1;
+    min-width: 0;
+  }
+  .row .bin {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 16px;
+    background: var(--lp-card);
+    color: var(--lp-rust);
+  }
+  .row .bin:hover:not(:disabled) {
+    border-color: var(--lp-rust);
+  }
+  /* Just added: marked, so it is found and tapped. */
+  .row.new .pick {
+    border-color: #1f8a4c;
+    box-shadow: inset 0 0 0 1px #1f8a4c;
+  }
+  .row.new .pick i {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 99px;
+    background: #1f8a4c;
+    font-size: 0.74rem;
+    font-style: normal;
+    font-weight: 700;
+    color: #fff;
+    animation: added 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes added {
+    from {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+  }
+  /* "Remove Dave?" in the row's own place. */
+  .ask {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 58px;
+    padding: 7px 8px 7px 14px;
+    border: 1.5px solid var(--lp-rust);
+    border-radius: 16px;
+    background: var(--lp-card);
+  }
+  .ask b {
+    flex: 1;
+  }
+  .ask button {
+    flex-shrink: 0;
+    min-height: 40px;
+    padding: 0 13px;
+    border: 1.5px solid var(--lp-line);
+    border-radius: 12px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--lp-ink);
+  }
+  .ask .yes {
+    border-color: var(--lp-rust);
+    background: var(--lp-rust);
+    color: #fff;
+  }
+  .undo {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--lp-ink-soft);
+  }
+  .undo button {
+    min-height: 2.4rem;
+    padding: 0 6px;
+    font-weight: 800;
+    color: var(--lp-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .people b {
     flex: 1;
@@ -362,7 +522,8 @@
     font-weight: 600;
     color: var(--lp-ink-soft);
   }
-  .people button:hover:not(:disabled) {
+  .people .me:hover:not(:disabled),
+  .people .pick:hover:not(:disabled) {
     border-color: var(--lp-ink);
   }
   .people .me.set {

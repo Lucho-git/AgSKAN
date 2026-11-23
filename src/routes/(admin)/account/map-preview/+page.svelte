@@ -107,7 +107,9 @@
   } from "./liveEngine"
   import {
     DRAWING_COLOURS,
+    addMapOperator,
     createGuestInvite,
+    setMapOperatorListed,
     removeFromMap,
     flashLabel,
     type Job,
@@ -137,6 +139,7 @@
   import Toolbox from "./Toolbox.svelte"
   import CrewPanel from "./CrewPanel.svelte"
   import BinCard from "./BinCard.svelte"
+  import InviteCard from "./InviteCard.svelte"
   import ProfilePicker from "./ProfilePicker.svelte"
   import type { LogUndo } from "./FarmLog.svelte"
   import PinCard from "./PinCard.svelte"
@@ -499,7 +502,6 @@
   } | null = null
   /** The invite card: its link once it has been made. */
   let invite: { link: string | null } | null = null
-  let copied = ""
 
   // ── Pins, all of them, and the lasso for removing several ──
   let pins: LivePin[] = []
@@ -1349,13 +1351,43 @@
     } else startTrail()
   }
 
-  // Change who is driving, from the toolbox.
+  // Change who is driving, from the toolbox. (From here the list can be
+  // looked after as well: names taken off it.)
+  let manageNames = false
+  $: if (!operatorAsk) manageNames = false
   async function chooseDriver() {
     if (!mapId) return
     if (!wide) closePanel()
     driverOnly = true
     operatorAsk = true
+    manageNames = true
     operators = await operatorApi.getMapOperators(mapId)
+  }
+
+  // A new name goes on the farm's list, and that is all: it is picked with
+  // a tap like any other.
+  async function addProfile(name: string) {
+    if (!mapId || operatorBusy) return
+    operatorBusy = true
+    const ok = await addMapOperator(mapId, name)
+    if (ok) operators = await operatorApi.getMapOperators(mapId)
+    operatorBusy = false
+    if (!ok) say("Couldn't add that name. Try again.")
+  }
+  // A name comes off the list (it is put away; trails it signed keep it),
+  // or goes back on.
+  async function listProfile(who: Operator, listed: boolean) {
+    if (!mapId || operatorBusy) return
+    operatorBusy = true
+    const ok = await setMapOperatorListed(who.id, listed)
+    if (ok) operators = await operatorApi.getMapOperators(mapId)
+    operatorBusy = false
+    if (!ok)
+      say(
+        listed
+          ? "Couldn't put that name back. Try again."
+          : "Couldn't remove that name. Try again.",
+      )
   }
 
   // ── Layers: the same switches (and saved setting) as the current viewer ──
@@ -1742,20 +1774,6 @@
   $: teamLink = `https://www.skanfarming.com.au/login?map_code=${
     $connectedMapStore?.join_code || mapId || ""
   }`
-  async function copyLink(link: string) {
-    try {
-      await navigator.clipboard.writeText(link)
-      copied = link
-      setTimeout(() => (copied = ""), 2000)
-    } catch {
-      say("Couldn't copy it. Press and hold the link instead.")
-    }
-  }
-  function shareLink(link: string) {
-    navigator
-      .share?.({ title: `Join ${farmName} on AgSKAN`, url: link })
-      .catch(() => {})
-  }
 
   async function removeCrew(person: {
     id: string
@@ -2527,7 +2545,7 @@
                 look={engine?.pinLook(bin.pin) ?? {
                   iconClass: bin.pin.iconClass,
                 }}
-                size={wide ? 46 : 42}
+                size={wide ? 56 : 50}
               />
               <b>{bin.tonnes} t</b>
             </span>
@@ -2623,7 +2641,8 @@
 
     <!-- The working buttons sit down the right: trail, pin, and where am I
          at the very bottom. -->
-    <div class="mn-corner bottom-right" class:away={!wide && bottomTaken}>
+    <!-- (The crew's card on a phone stops short of them: they stay.) -->
+    <div class="mn-corner bottom-right" class:away={!wide && cardOpen}>
       {#if !guest}
         <!-- A button for each default pin, the first one lowest. One tap
                drops its pin where the machine is. Off the first, a "+" then
@@ -2954,59 +2973,14 @@
       </div>
     {:else if invite}
       <!-- ── Inviting someone onto the map ── -->
-      <div class="mn-card mn-menu" in:rise>
-        <div class="mn-card-head">
-          <p class="lp-eyebrow">Invite to {farmName}</p>
-          <button
-            type="button"
-            class="mn-icon-button"
-            aria-label="Close"
-            on:click={() => (invite = null)}
-          >
-            <X size={22} />
-          </button>
-        </div>
-        <p class="mn-card-text">
-          <b>A guest</b> can look at the map without an account. The link works for
-          a week and lets them in for 48 hours.
-        </p>
-        {#if invite.link}
-          <p class="mn-link-box">{invite.link}</p>
-          <div class="mn-menu-actions">
-            <button
-              type="button"
-              on:click={() => invite?.link && copyLink(invite.link)}
-            >
-              {copied === invite.link ? "Copied" : "Copy link"}
-            </button>
-            {#if typeof navigator !== "undefined" && "share" in navigator}
-              <button
-                type="button"
-                on:click={() => invite?.link && shareLink(invite.link)}
-              >
-                Send it
-              </button>
-            {/if}
-          </div>
-        {:else}
-          <p class="mn-note">
-            <span class="mn-spin"><LoaderCircle size={16} /></span> Making a link…
-          </p>
-        {/if}
-        <p class="mn-card-text">
-          <b>One of the crew</b> signs up with this link and joins the farm for good.
-        </p>
-        <p class="mn-link-box">{teamLink}</p>
-        <div class="mn-menu-actions">
-          <button type="button" on:click={() => copyLink(teamLink)}>
-            {copied === teamLink ? "Copied" : "Copy link"}
-          </button>
-          {#if typeof navigator !== "undefined" && "share" in navigator}
-            <button type="button" on:click={() => shareLink(teamLink)}>
-              Send it
-            </button>
-          {/if}
-        </div>
+      <div class="mn-riser" in:rise>
+        <InviteCard
+          {farmName}
+          guestLink={invite.link}
+          {teamLink}
+          on:say={(e) => say(e.detail)}
+          on:close={() => (invite = null)}
+        />
       </div>
     {:else if roadAsk}
       <!-- ── A trail in a machine that doesn't usually lay one ── -->
@@ -3630,11 +3604,6 @@
             selectedPin &&
             engine?.startDrawing(selectedPin.id, e.detail, drawColourNow)}
           on:drawing={(e) => engine?.pickDrawing(e.detail)}
-          on:room={(e) => {
-            // (Not while the map is following a machine: it would fight.)
-            if (follow === "free" && !following)
-              engine?.map.easeTo({ center: e.detail, duration: 500 })
-          }}
           on:removeDrawing={async (e) => {
             if (await engine?.removeDrawing(e.detail)) say("Drawing removed")
           }}
@@ -4020,6 +3989,7 @@
           on:close={() => (crewCard = false)}
           on:settings={() => openPanel("crewSettings")}
           on:home={goHome}
+          on:driver={chooseDriver}
           on:look={(e) => lookCrew(e.detail)}
           on:message={(e) => openChat(e.detail)}
           on:invite={openInvite}
@@ -4040,10 +4010,13 @@
         total={DRIVER_WAIT}
         busy={operatorBusy}
         forTrail={operatorAsk && !driverOnly}
+        manage={manageNames && !driverOffer}
         on:confirm={() => (driverOffer ? confirmDriver() : closeProfile())}
         on:hold={holdDriver}
         on:pick={(e) => pickProfile(e.detail)}
-        on:add={(e) => pickProfile(null, e.detail)}
+        on:add={(e) => addProfile(e.detail)}
+        on:remove={(e) => listProfile(e.detail, false)}
+        on:restore={(e) => listProfile(e.detail, true)}
         on:close={closeProfile}
       />
     {/if}
@@ -4054,6 +4027,7 @@
         <button
           type="button"
           class="mn-scrim"
+          class:clear={toolView === "map"}
           aria-label="Close"
           on:click={closePanel}
         ></button>

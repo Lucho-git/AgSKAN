@@ -31,6 +31,8 @@
     invite: void
     settings: void
     home: void
+    /** Change who is driving. */
+    driver: void
     close: void
     lookPlace: LngLat
     logCrew: string
@@ -107,6 +109,8 @@
       {unreadBy}
       {hideStale}
       canInvite={!guest}
+      canDrive={!guest}
+      on:driver={() => dispatch("driver")}
       on:look={(e) => dispatch("look", e.detail)}
       on:message={(e) => dispatch("message", e.detail)}
       on:invite={() => dispatch("invite")}

@@ -72,6 +72,10 @@
     gap: 10px;
     max-width: 24rem;
   }
+  /* (The card's own padding, for the settings' foot to reach its edges.) */
+  .mn-bin :global(.bin) {
+    --bin-pad: 14px;
+  }
   .mn-bin .head {
     gap: 6px;
   }

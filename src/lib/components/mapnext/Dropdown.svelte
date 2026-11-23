@@ -14,8 +14,17 @@
    */
   import { createEventDispatcher, onDestroy, tick } from "svelte"
   import { Check, ChevronDown } from "lucide-svelte"
+  import vehicles from "$lib/vehicles"
+  import { machineFor } from "./machines"
 
-  type Option = { value: string; label: string; note?: string }
+  type Option = {
+    value: string
+    label: string
+    note?: string
+    /** A machine to picture beside it (its saved type), in this colour. */
+    machine?: string | null
+    colour?: string
+  }
 
   export let options: Option[] = []
   /** The chosen value ("pill" and "item" pick without holding one). */
@@ -140,6 +149,18 @@
         aria-selected={option.value === value}
         on:click|stopPropagation={() => pick(option)}
       >
+        {#if option.machine}
+          <b class="art">
+            <svelte:component
+              this={vehicles[machineFor(option.machine).type]}
+              size="30px"
+              bodyColor={option.colour ?? "#9AA39B"}
+              outlineColor="#ffffff"
+              wheelColor="#15261C"
+              loadColor="#F7DB5C"
+            />
+          </b>
+        {/if}
         <span>
           {option.label}
           {#if option.note}<small>{option.note}</small>{/if}
@@ -321,7 +342,19 @@
   }
   .mn-dd-list button span {
     display: grid;
+    flex: 1;
     min-width: 0;
+  }
+  /* The machine a row is about, pictured at its start. */
+  .mn-dd-list button .art {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: #cdbd92;
   }
   .mn-dd-list button small {
     font-size: 0.76rem;

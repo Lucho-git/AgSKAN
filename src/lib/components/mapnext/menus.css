@@ -3351,10 +3351,8 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--lp-card);
-  box-shadow:
-    0 0 0 1px var(--lp-line),
-    0 8px 20px -10px rgba(10, 25, 15, 0.8);
+  /* No disc behind it: the bin's own ring (its level) is its edge. */
+  filter: drop-shadow(0 4px 7px rgba(10, 25, 15, 0.55));
 }
 .mn:not(.wide) .mn-binbtn .disc {
   width: 50px;
@@ -3362,8 +3360,8 @@
 }
 .mn-binbtn.open .disc {
   box-shadow:
-    0 0 0 2.5px var(--lp-ink),
-    0 8px 20px -10px rgba(10, 25, 15, 0.8);
+    0 0 0 2px var(--lp-yellow),
+    0 0 0 4.5px #15261c;
 }
 .mn-binbtn .disc b {
   position: absolute;
@@ -4757,4 +4755,158 @@
   padding: 10px 14px 14px;
   overflow-y: auto;
   border-radius: 20px;
+}
+
+/* ── Twenty-sixth pass: the crew, a short row each ──────────────────────── */
+/* Rows are two lines beside a small machine, with a hairline between them
+   rather than a box round each, so a phone shows eight or so where it
+   showed three. */
+.mn .mn-crew {
+  gap: 0;
+}
+.mn .mn-crew li {
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--mn-hair, rgba(21, 38, 28, 0.12));
+}
+.mn .mn-crew li:last-child {
+  border-bottom: 0;
+}
+.mn .mn-crew li > button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  box-shadow: none;
+}
+.mn .mn-crew li > button:first-child {
+  gap: 9px;
+  padding: 3px 6px 3px 3px;
+}
+.mn .mn-crew li > button:first-child:hover:not(:disabled) {
+  background: var(--mn-block);
+}
+.mn .mn-crew li > button.live {
+  background: var(--mn-live);
+}
+.mn .mn-crew .art {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+.mn .mn-crew .who {
+  gap: 1px;
+}
+.mn .mn-crew .line {
+  align-items: center;
+  gap: 5px;
+}
+.mn .mn-crew .who strong {
+  flex: 0 1 auto;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+.mn .mn-crew .acct {
+  flex: 0 2 auto;
+  min-width: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.mn .mn-crew .line .pace {
+  font-size: 0.7rem;
+}
+.mn .mn-crew .line .doing,
+.mn .mn-crew .place {
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+/* What they are doing is said in full; the paddock gives way before it,
+   and the job they are on (last on the line) before either. */
+.mn .mn-crew .line .doing {
+  flex: 0 1 auto;
+}
+.mn .mn-crew .place {
+  flex: 0 4 auto;
+}
+.mn .mn-crew .line .job {
+  flex: 0 12 auto;
+  font-size: 0.58rem;
+}
+.mn .mn-crew .line .job.on {
+  flex-shrink: 0;
+  padding: 1px 7px 1px 5px;
+}
+/* The buttons at the end of a row: messages; on your own, names and Home. */
+.mn .mn-crew .msg {
+  width: 40px;
+  min-height: 40px;
+  border-radius: 12px;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn .mn-crew .msg.home {
+  background: var(--lp-yellow);
+  box-shadow: 0 0 0 1.5px var(--lp-ink);
+}
+.mn .mn-crew .invite {
+  border: 0;
+}
+.mn .mn-crew .invite .art {
+  width: 36px;
+  height: 30px;
+}
+/* The crew's card on a phone: bottom left, where its button is, stopping
+   short of the buttons down the right (which stay), and taller than it was
+   now that there is less of it across. */
+.mn:not(.wide) .mn-crewcard {
+  right: calc(var(--mn-gap) + 78px);
+  max-height: min(62dvh, 36rem);
+  margin-inline: 0;
+  gap: 6px;
+}
+
+/* The Map tool on a phone: a panel down the left side rather than a sheet
+   over the bottom, and nothing dimmed, so the map it is changing shows
+   beside it as each thing is tried. */
+.mn-scrim.clear {
+  background: none;
+}
+.mn:not(.wide) .mn-panel.t-map {
+  top: 0;
+  right: auto;
+  width: min(64vw, 17.5rem);
+  max-height: none;
+  padding-top: max(14px, env(safe-area-inset-top));
+  border-radius: 0 22px 22px 0;
+  box-shadow: 18px 0 50px -20px rgba(10, 25, 15, 0.7);
+}
+/* (There is less room across in it: the looks go three to a row with
+   their names only, and the notes under each section are left out.) */
+.mn:not(.wide) .mn-panel.t-map {
+  gap: 10px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-looks {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-look {
+  min-width: 0;
+  padding: 4px 3px 6px;
+  font-size: 0.72rem;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-presets .pins {
+  gap: 0;
+  padding: 2px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-presets .pins .mn-pin-art {
+  width: 16px;
+  height: 16px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-look small,
+.mn:not(.wide) .mn-panel.t-map .mn-note {
+  display: none;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-presets button {
+  font-size: 0.76rem;
 }

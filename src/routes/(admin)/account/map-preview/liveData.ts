@@ -2682,6 +2682,59 @@ export async function saveBoundary(
   return { polygons: paddock.polygons, ha: paddock.ha, t: Date.parse(at) }
 }
 
+// ── The farm's names: who can be driving ────────────────────────────────
+
+/** A name as the list keeps it: each word with a capital. */
+const nameCase = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ")
+
+/**
+ * Add a name to the farm's list, without making it the one that is driving.
+ * A name that was taken off the list before comes back.
+ */
+export async function addMapOperator(
+  mapId: string,
+  name: string,
+): Promise<boolean> {
+  const wanted = nameCase(name)
+  if (!wanted) return false
+  const { data: session } = await supabase.auth.getSession()
+  const userId = session?.session?.user?.id
+  if (!userId) return false
+  const { error } = await supabase
+    .from("map_operators")
+    .insert({ map_id: mapId, name: wanted, created_by: userId })
+  if (!error) return true
+  if (error.code !== "23505") return false
+  // The name is there already (perhaps put away): make sure it shows.
+  const { error: back } = await supabase
+    .from("map_operators")
+    .update({ is_active: true })
+    .eq("map_id", mapId)
+    .eq("name", wanted)
+  return !back
+}
+
+/**
+ * Take a name off the farm's list, or put it back. It is put away rather
+ * than destroyed, so the trails it signed keep their name.
+ */
+export async function setMapOperatorListed(
+  id: string,
+  listed: boolean,
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("map_operators")
+    .update({ is_active: listed })
+    .eq("id", id)
+  return !error
+}
+
 // ── Who is on the map: inviting and removing ────────────────────────────
 
 /**

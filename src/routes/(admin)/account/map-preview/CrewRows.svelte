@@ -1,13 +1,14 @@
 <script lang="ts">
   /**
-   * The crew, one row each. An account is usually a machine ("H3",
-   * "Wheels") that people take turns in, so its name sits over the machine's
-   * picture and the name beside it is whoever is in it now (the driver they
-   * picked), when that is known. Under the name, one line each and never
-   * wrapped: what they are doing (the trailing badge when a trail is being
-   * laid), then the paddock they are in with their speed. How far off they
-   * are sits beside the name. Your own machine is first. Tapping a row finds
-   * them on the map; the button beside it opens their messages.
+   * The crew, a short row each: two lines beside a small picture of the
+   * machine, so a phone shows a good many at once. An account is usually a
+   * machine ("H3", "Wheels") that people take turns in, so the name is
+   * whoever is in it now (the driver they picked), when that is known, with
+   * the account's name small after it. The second line is what they are
+   * doing (the trailing badge when a trail is being laid) and the paddock
+   * they are in; their speed sits at the end of the first. Your own machine
+   * is first, with who is driving to change and Home beside it. Tapping a
+   * row finds them on the map; the button beside it opens their messages.
    *
    * Whoever is on the map now (or laying a trail) sits on a light blue
    * shade; someone laying a trail also carries a badge in the colour the
@@ -15,9 +16,14 @@
    * decides it) so rows don't jump about.
    */
   import { createEventDispatcher } from "svelte"
-  import { Home, MapPin, MessageCircle, UserPlus } from "lucide-svelte"
+  import {
+    Home,
+    MapPin,
+    MessageCircle,
+    UserPlus,
+    UserRound,
+  } from "lucide-svelte"
   import vehicles from "$lib/vehicles"
-  import { formatDistance } from "$lib/components/mapnext/format"
   import type { CrewRow } from "./liveEngine"
 
   export let crew: CrewRow[] = []
@@ -31,6 +37,8 @@
   export let hideStale = false
   /** Offer an "Invite" row at the end. */
   export let canInvite = false
+  /** Offer, on your own row, to change who is driving. */
+  export let canDrive = false
 
   const dispatch = createEventDispatcher<{
     look: string
@@ -38,6 +46,8 @@
     invite: void
     /** Back to the view the map opens on. */
     home: void
+    /** Change who is driving (the names menu). */
+    driver: void
   }>()
 
   const STALE = 10 * 86_400_000
@@ -79,9 +89,7 @@
     <!-- (Not on the map yet: Home still has a row.) -->
     <li>
       <button type="button" class="invite" on:click={() => dispatch("home")}>
-        <span class="unit">
-          <span class="art"><Home size={22} /></span>
-        </span>
+        <span class="art"><Home size={19} /></span>
         <span class="who">
           <strong>Home</strong>
           <span class="doing">Back to the farm</span>
@@ -98,32 +106,30 @@
         disabled={!person.placed}
         on:click={() => dispatch("look", person.id)}
       >
-        <span class="unit">
-          {#if said.over}
-            <b class="acct" title={said.over}>{said.over}</b>
+        <span class="art" class:away={person.away}>
+          <svelte:component
+            this={vehicles[person.type]}
+            size="30px"
+            bodyColor={person.colour}
+            outlineColor="#ffffff"
+            wheelColor="#15261C"
+            loadColor="#F7DB5C"
+          />
+          {#if person.online && !person.me}
+            <i aria-label="On the map now"></i>
           {/if}
-          <span class="art" class:away={person.away}>
-            <svelte:component
-              this={vehicles[person.type]}
-              size="40px"
-              bodyColor={person.colour}
-              outlineColor="#ffffff"
-              wheelColor="#15261C"
-              loadColor="#F7DB5C"
-            />
-            {#if person.online && !person.me}
-              <i aria-label="On the map now"></i>
-            {/if}
-          </span>
         </span>
         <span class="who">
           <span class="line">
             <strong>{said.head}</strong>
+            {#if said.over}
+              <span class="acct" title={said.over}>{said.over}</span>
+            {/if}
             {#if person.guest}
               <em class="guest">Guest</em>
             {/if}
-            {#if person.distance !== null}
-              <span class="far">{formatDistance(person.distance)}</span>
+            {#if person.speed > 0}
+              <span class="pace">{Math.round(person.speed)} km/h</span>
             {/if}
           </span>
           <span class="line">
@@ -134,30 +140,35 @@
                   person.colour,
                 )}"
               >
-                <i></i>Trailing{person.operation
-                  ? ` · ${person.operation}`
-                  : ""}
+                <i></i>Trailing
               </span>
             {:else}
               <span class="doing">{person.action}</span>
-              {#if person.operation}
-                <span class="job">{person.operation}</span>
-              {/if}
+            {/if}
+            {#if person.where}
+              <span class="place"><MapPin size={11} />{person.where}</span>
+            {/if}
+            <!-- (Your own job is on the chip at the top of the map.) -->
+            {#if person.operation && !person.me}
+              <span class="job">{person.operation}</span>
             {/if}
           </span>
-          {#if person.where || person.speed > 0}
-            <span class="line">
-              <span class="place">
-                {#if person.where}<MapPin size={12} />{person.where}{/if}
-              </span>
-              {#if person.speed > 0}
-                <span class="pace">{Math.round(person.speed)} km/h</span>
-              {/if}
-            </span>
-          {/if}
         </span>
       </button>
       {#if person.me}
+        {#if canDrive}
+          <button
+            type="button"
+            class="msg"
+            aria-label="Change who's driving{selfDriver
+              ? ` (now ${selfDriver})`
+              : ''}"
+            title="Change who's driving"
+            on:click={() => dispatch("driver")}
+          >
+            <UserRound size={19} />
+          </button>
+        {/if}
         <button
           type="button"
           class="msg home"
@@ -165,7 +176,7 @@
           title="Home: back to the farm"
           on:click={() => dispatch("home")}
         >
-          <Home size={20} />
+          <Home size={19} />
         </button>
       {:else}
         <button
@@ -176,7 +187,7 @@
             : ''}"
           on:click={() => dispatch("message", person.id)}
         >
-          <MessageCircle size={20} />
+          <MessageCircle size={19} />
           {#if unreadBy[person.id]}
             <span class="mn-badge">{unreadBy[person.id]}</span>
           {/if}
@@ -187,12 +198,9 @@
   {#if canInvite}
     <li>
       <button type="button" class="invite" on:click={() => dispatch("invite")}>
-        <span class="unit">
-          <span class="art"><UserPlus size={22} /></span>
-        </span>
+        <span class="art"><UserPlus size={19} /></span>
         <span class="who">
           <strong>Invite someone</strong>
-          <span class="doing">Send a link that lets them onto this map</span>
         </span>
       </button>
     </li>
