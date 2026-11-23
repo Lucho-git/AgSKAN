@@ -2755,6 +2755,41 @@ export async function createGuestInvite(): Promise<string> {
 }
 
 /**
+ * Send an invite for them, by text or by email, through AgSKAN's own
+ * senders (the ones the current viewer's "Invite to map" uses). Gives back
+ * nothing when it went, or what went wrong.
+ */
+export async function sendInvite(
+  by: "text" | "email",
+  to: string,
+  farm: string,
+  message: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke(
+      by === "text" ? "send-invite-sms" : "send-invite-email",
+      {
+        body:
+          by === "text"
+            ? { phone: to, message }
+            : { email: to, subject: `Join ${farm} on AgSKAN`, message },
+      },
+    )
+    if (error) {
+      // (The sender's own words, when it gave any.)
+      const said = await (error as { context?: Response }).context
+        ?.json?.()
+        .catch(() => null)
+      return said?.error || error.message || "It couldn't be sent."
+    }
+    if (data?.error) return String(data.error)
+    return null
+  } catch (problem) {
+    return problem instanceof Error ? problem.message : "It couldn't be sent."
+  }
+}
+
+/**
  * Take someone off this map. A guest is removed the way the current
  * viewer's people menu does it; one of the crew the way the account page
  * does (which only the farm's owner is offered).

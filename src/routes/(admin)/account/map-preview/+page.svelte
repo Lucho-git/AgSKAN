@@ -3757,6 +3757,7 @@
           paddock={selectedPaddock}
           farms={farmNames}
           {guest}
+          compact={!wide}
           here={readout.paddock?.name === selectedPaddock.name}
           trails={paddockTrails}
           operation={operation?.name ?? ""}

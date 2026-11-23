@@ -252,6 +252,16 @@
   .mn-trailset h2 {
     font-size: 1.1rem;
   }
+  /* Where and when: a line each, cut short before either wraps. */
+  .mn-trailset .about {
+    min-width: 0;
+  }
+  .mn-trailset .about h2,
+  .mn-trailset .about p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .strip-row {
     display: flex;
     align-items: stretch;

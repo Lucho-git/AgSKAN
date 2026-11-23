@@ -1140,8 +1140,14 @@ export class LiveEngine {
    * press that began on a menu, picks nothing; and nor does lifting the
    * finger that has just dropped a pin by holding.
    */
-  private tap: { x: number; y: number; moved: boolean; held: boolean } | null =
-    null
+  private tap: {
+    x: number
+    y: number
+    moved: boolean
+    held: boolean
+    /** A finger, not a mouse: it is given a little more room. */
+    touch: boolean
+  } | null = null
   private trailsInTimer: ReturnType<typeof setTimeout> | undefined
   private destroyed = false
 
@@ -1223,6 +1229,8 @@ export class LiveEngine {
         // would snatch it out from under the finger dragging it.)
         this.setFollow("free", undefined, true)
         this.followCrew(null)
+        // (And a replay is left to run without the map moving under it.)
+        this.watch = null
       }
     })
     // Moving the camera cancels a gesture in progress, so following waits
@@ -1271,7 +1279,13 @@ export class LiveEngine {
         return
       if ((event.target as HTMLElement | null)?.closest?.(".mapboxgl-marker"))
         return
-      this.tap = { x: e.point.x, y: e.point.y, moved: false, held: false }
+      this.tap = {
+        x: e.point.x,
+        y: e.point.y,
+        moved: false,
+        held: false,
+        touch: "touches" in event,
+      }
       if (
         this.editing ||
         this.move ||
@@ -1349,8 +1363,14 @@ export class LiveEngine {
           this.ripple([e.lngLat.lng, e.lngLat.lat], true)
           return
         }
-        // A finger is wider than a pin: look a little around the tap.
-        const reach = 16
+        // Which pin was tapped, if one was. The tap has to land on the pin
+        // itself: within its own radius of its middle, and a little more
+        // for a finger than for a mouse. (It used to be anything whose box
+        // came within 16px of the tap, which took in pins a good way off
+        // and gave whichever was drawn last, not whichever was nearest.)
+        // Of pins that overlap, the one drawn on top keeps the tap unless
+        // one under it is clearly nearer.
+        const reach = pinPixels() / 2 + (tap.touch ? 9 : 3)
         const hits = this.map.getLayer(PIN_LAYER)
           ? this.map.queryRenderedFeatures(
               [
@@ -1360,7 +1380,21 @@ export class LiveEngine {
               { layers: [PIN_LAYER] },
             )
           : []
-        const id = hits[0]?.properties?.id as string | undefined
+        let id: string | undefined
+        let nearest = Infinity
+        const tried = new Set<string>()
+        for (const hit of hits) {
+          const hitId = hit.properties?.id as string | undefined
+          const known = hitId ? this.pinsById.get(hitId) : undefined
+          if (!hitId || !known || tried.has(hitId)) continue
+          tried.add(hitId)
+          const spot = this.map.project(known.at)
+          const off = Math.hypot(spot.x - e.point.x, spot.y - e.point.y)
+          if (off <= reach && off < nearest - 6) {
+            nearest = off
+            id = hitId
+          }
+        }
         // The picked pin is drawn by its marker, not the layer, so the layer
         // can't say it was tapped (it would give whichever pin is beside or
         // under it): measure to it instead. A tap on it lets go of it.
@@ -3661,6 +3695,231 @@ export class LiveEngine {
       )
   }
 
+  // ── The camera on a replay ─────────────────────────────────────────────
+  // Starting a replay brings the trail into the middle of the map. One that
+  // covers so much ground that its machine would be a speck is watched from
+  // closer in, the map sliding along only as the machine nears the edge of
+  // what shows. Several trails together are framed round whoever is working
+  // at that moment (and where they are about to go). Dragging the map lets
+  // go of all of it; zooming doesn't.
+  private watch: {
+    /** It all fits and the map stays put; slide with one machine; or frame
+     *  the machines that are working. */
+    mode: "whole" | "ride" | "fleet"
+    /** The ground being held in frame (fleet): west, south, east, north. */
+    held: [number, number, number, number] | null
+    /** Nothing moves before this: an ease is still running. */
+    quiet: number
+    /** Since when the machines have sat in a small part of the frame. */
+    snug: number
+  } | null = null
+
+  /** The edges of the map that menus cover, with a trail's card up. */
+  private watchPadding() {
+    const canvas = this.map.getCanvas()
+    const tall = canvas.clientHeight
+    const bottom = Math.min(200 + this.insets.bottom, tall * 0.55)
+    return { top: 100, right: 60, bottom, left: 60 + this.insets.left }
+  }
+
+  private canWatch(now: number) {
+    return (
+      !!this.watch &&
+      now > this.watch.quiet &&
+      now > this.followPausedUntil &&
+      !this.touching &&
+      !this.mouseHeld
+    )
+  }
+
+  /** Begin watching one trail's replay. */
+  private watchReplay(running: Replay) {
+    let w = Infinity
+    let s = Infinity
+    let e = -Infinity
+    let n = -Infinity
+    for (const point of running.points) {
+      w = Math.min(w, point.at[0])
+      e = Math.max(e, point.at[0])
+      s = Math.min(s, point.at[1])
+      n = Math.max(n, point.at[1])
+    }
+    if (!Number.isFinite(w)) return
+    this.setFollow("free")
+    const padding = this.watchPadding()
+    const fit = this.map.cameraForBounds(
+      [
+        [w, s],
+        [e, n],
+      ],
+      { padding, maxZoom: 16.5 },
+    )
+    if (!fit) return
+    const quiet = performance.now() + 950
+    // Close enough in to see the machine working: the whole trail is put
+    // in the middle and left there.
+    const CLOSE = 13.4
+    if (fit.zoom >= CLOSE) {
+      this.watch = { mode: "whole", held: null, quiet, snug: 0 }
+      this.map.easeTo({
+        center: fit.center,
+        zoom: fit.zoom,
+        bearing: 0,
+        duration: 800,
+      })
+      return
+    }
+    // Too much ground for that: start where the trail starts, closer in,
+    // and go along with the machine.
+    this.watch = { mode: "ride", held: null, quiet, snug: 0 }
+    this.map.easeTo({
+      center: running.points[0].at,
+      zoom: CLOSE + 0.5,
+      bearing: 0,
+      offset: [
+        (padding.left - padding.right) / 2,
+        (padding.top - padding.bottom) / 2,
+      ],
+      duration: 800,
+    })
+  }
+
+  /**
+   * Going along with one machine: it has the middle of the open map to
+   * work in without anything moving, and the map slides only as it nears
+   * the edge of that.
+   */
+  private rideWatch(at: LngLat, dt: number, now: number) {
+    if (this.watch?.mode !== "ride" || !this.canWatch(now)) return
+    const canvas = this.map.getCanvas()
+    const wide = canvas.clientWidth
+    const tall = canvas.clientHeight
+    const pad = this.watchPadding()
+    const roomX = Math.max(40, wide - pad.left - pad.right)
+    const roomY = Math.max(40, tall - pad.top - pad.bottom)
+    const x0 = pad.left + roomX * 0.2
+    const x1 = pad.left + roomX * 0.8
+    const y0 = pad.top + roomY * 0.2
+    const y1 = pad.top + roomY * 0.8
+    const p = this.map.project(at)
+    const dx = p.x < x0 ? p.x - x0 : p.x > x1 ? p.x - x1 : 0
+    const dy = p.y < y0 ? p.y - y0 : p.y > y1 ? p.y - y1 : 0
+    // (Out past the open part of the map altogether, as after a jump along
+    // the bar, it is fetched back smartly.)
+    const lost =
+      p.x < pad.left ||
+      p.x > wide - pad.right ||
+      p.y < pad.top ||
+      p.y > tall - pad.bottom
+    const k = 1 - Math.exp(-dt * (lost ? 9 : 3.2))
+    // (Under a third of a pixel isn't worth drawing the map again for.)
+    if (Math.abs(dx * k) < 0.3 && Math.abs(dy * k) < 0.3) return
+    this.map.jumpTo({
+      center: this.map.unproject([wide / 2 + dx * k, tall / 2 + dy * k]),
+    })
+  }
+
+  /**
+   * Several machines: hold in frame the ground those working now are on
+   * and are about to cover. The frame is left alone while they are inside
+   * it, and drawn again (in one glide) when one of them is about to leave,
+   * or when they have all drawn into a small part of it.
+   */
+  private frameFleet(
+    run: SetRun,
+    active: SetTrack[],
+    rate: number,
+    now: number,
+  ) {
+    const watch = this.watch
+    if (watch?.mode !== "fleet" || !this.canWatch(now)) return
+    let working = active.filter((track) => track.vehicle)
+    if (!working.length) return
+    // Most of them, not all at any price: one machine a long way from the
+    // rest is left out, or the frame would be mostly empty ground.
+    if (working.length >= 3) {
+      const spots = working.map((track) => track.vehicle!.pos)
+      const mid = (values: number[]) =>
+        [...values].sort((a, b) => a - b)[values.length >> 1]
+      const centre: LngLat = [
+        mid(spots.map((spot) => spot[0])),
+        mid(spots.map((spot) => spot[1])),
+      ]
+      const far = spots
+        .map((spot, i) => ({ i, d: distanceM(spot, centre) }))
+        .sort((a, b) => b.d - a.d)
+      if (far[0].d > Math.max(1500, far[1].d * 4))
+        working = working.filter((_, i) => i !== far[0].i)
+    }
+    // Where each is now, where it has just been, and where the next few
+    // seconds of the replay will take it.
+    const perSecond = (run.total / run.seconds) * rate
+    const back = run.cursor - perSecond * 2
+    const ahead = run.cursor + perSecond * 7
+    let w = Infinity
+    let s = Infinity
+    let e = -Infinity
+    let n = -Infinity
+    const take = (at: LngLat) => {
+      w = Math.min(w, at[0])
+      e = Math.max(e, at[0])
+      s = Math.min(s, at[1])
+      n = Math.max(n, at[1])
+    }
+    for (const track of working) {
+      take(track.vehicle!.pos)
+      const points = track.points
+      let from = track.index
+      while (from > 0 && points[from].axis > back) from--
+      let to = track.index
+      while (to < points.length - 1 && points[to].axis < ahead) to++
+      const stride = Math.max(1, Math.floor((to - from) / 50))
+      for (let i = from; i <= to; i += stride) take(points[i].at)
+      take(points[to].at)
+    }
+    if (!Number.isFinite(w)) return
+    const held = watch.held
+    if (held) {
+      const marginX = (held[2] - held[0]) * 0.05
+      const marginY = (held[3] - held[1]) * 0.05
+      const inside =
+        w >= held[0] + marginX &&
+        e <= held[2] - marginX &&
+        s >= held[1] + marginY &&
+        n <= held[3] - marginY
+      if (inside) {
+        const across = distanceM([held[0], held[1]], [held[2], held[1]])
+        const small =
+          across > 900 &&
+          e - w < (held[2] - held[0]) * 0.3 &&
+          n - s < (held[3] - held[1]) * 0.3
+        if (!small) {
+          watch.snug = 0
+          return
+        }
+        if (!watch.snug) watch.snug = now
+        if (now - watch.snug < 2500) return
+      }
+    }
+    // Room round them: a third of their spread, and never less than 150 m.
+    const lat = (s + n) / 2
+    const perLng = 111_320 * Math.cos((lat * Math.PI) / 180)
+    const roomX = Math.max(150, (e - w) * perLng * 0.35) / perLng
+    const roomY = Math.max(150, (n - s) * 110_540 * 0.35) / 110_540
+    watch.held = [w - roomX, s - roomY, e + roomX, n + roomY]
+    watch.snug = 0
+    const fit = this.map.cameraForBounds(
+      [
+        [watch.held[0], watch.held[1]],
+        [watch.held[2], watch.held[3]],
+      ],
+      { padding: this.watchPadding(), maxZoom: 15.6 },
+    )
+    if (!fit) return
+    watch.quiet = now + 1300
+    this.map.easeTo({ center: fit.center, zoom: fit.zoom, duration: 1200 })
+  }
+
   // ── Several trails replayed together ───────────────────────────────────
   // One clock runs through all of them in the order they happened. Two
   // machines that were working at the same time are on the map at the same
@@ -3670,7 +3929,12 @@ export class LiveEngine {
   async playSet(trails: TrailInfo[], rate = 4) {
     const going = this.setRun
     if (going) {
-      if (going.cursor >= going.total) going.cursor = 0
+      if (going.cursor >= going.total) {
+        going.cursor = 0
+        // From the top again: the camera takes them up again too.
+        this.setFollow("free")
+        this.watch = { mode: "fleet", held: null, quiet: 0, snug: 0 }
+      }
       this.setReplay.update((s) => (s ? { ...s, phase: "playing" } : s))
       return
     }
@@ -3796,6 +4060,9 @@ export class LiveEngine {
     this.throughIds = tracks.map((track) => track.info.id)
     this.map.getSource(THROUGH_SOURCE)?.setData(collection([]))
     this.paintPicked()
+    // The camera keeps whoever is working in frame, until the map is dragged.
+    this.setFollow("free")
+    this.watch = { mode: "fleet", held: null, quiet: 0, snug: 0 }
     this.setReplay.update((s) => (s ? { ...s, phase: "playing" } : s))
   }
 
@@ -3824,6 +4091,7 @@ export class LiveEngine {
     const run = this.setRun
     this.setRun = null
     if (!get(this.setReplay) && !run) return
+    if (this.watch?.mode === "fleet") this.watch = null
     this.setReplay.set(null)
     for (const track of run?.tracks ?? []) {
       track.vehicle?.view.$destroy()
@@ -3907,6 +4175,7 @@ export class LiveEngine {
 
     if (now - run.told < 90) return
     run.told = now
+    if (state.phase === "playing") this.frameFleet(run, active, state.rate, now)
     if (run.cursor !== run.drawn) {
       run.drawn = run.cursor
       // What is finished is drawn once; only what is being laid is redrawn.
@@ -4315,7 +4584,11 @@ export class LiveEngine {
     if (!info) return
     const running = this.replaying
     if (running) {
-      if (running.cursor >= running.total) running.cursor = 0
+      if (running.cursor >= running.total) {
+        running.cursor = 0
+        // From the top again: the trail is brought back into the middle.
+        this.watchReplay(running)
+      }
       this.replay.update((r) => (r ? { ...r, phase: "playing" } : r))
       return
     }
@@ -4421,6 +4694,9 @@ export class LiveEngine {
       info.colour,
     )
     showArrowsTo(this.map, 0)
+    // The trail is put in the middle of the map (or, a very long one, the
+    // map goes along with its machine) until the map is dragged.
+    this.watchReplay(this.replaying)
     this.replay.set({
       trailId: info.id,
       phase: "playing",
@@ -4466,6 +4742,7 @@ export class LiveEngine {
     const running = this.replaying
     this.replay.set(null)
     if (!running) return
+    if (this.watch?.mode !== "fleet") this.watch = null
     running.vehicle.view.$destroy()
     running.vehicle.marker.remove()
     this.replaying = null
@@ -4573,6 +4850,7 @@ export class LiveEngine {
     const { vehicle } = running
     vehicle.pos = at
     vehicle.marker.setLngLat(at)
+    this.rideWatch(at, dt, now)
     // Only the last of the jitter is eased out; the path does the turning.
     vehicle.eased = Number.isNaN(vehicle.eased)
       ? vehicle.heading

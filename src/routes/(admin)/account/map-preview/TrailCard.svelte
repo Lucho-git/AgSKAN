@@ -1,3 +1,8 @@
+<script context="module" lang="ts">
+  // Folded down on one trail, it stays folded for the next.
+  let keptShort = false
+</script>
+
 <script lang="ts">
   /**
    * A trail, picked out. The head says it is a trail (in its own colour),
@@ -6,7 +11,12 @@
    * through (the job's, or just those through one paddock): a block each in
    * the order they were driven, grouped by day, squeezed to fit the card
    * however many there are, with the step buttons fixed at either end.
-   * Then the replay, and one row of buttons for everything else.
+   * Then the replay (beside the way back to all of the set together), and
+   * one row of buttons for everything else.
+   *
+   * On a phone the card can be folded down, by dragging its heading down
+   * (or tapping the bar on it), to leave that last row off and more of the
+   * map showing while a replay runs. Dragging up brings it back.
    */
   import { createEventDispatcher, tick } from "svelte"
   import {
@@ -88,6 +98,31 @@
     return `${date.getDate()} ${date.toLocaleDateString(undefined, { month: "short" })}`
   }
 
+  // ── Folding the card down (a phone) ──
+  let short = keptShort
+  $: keptShort = short
+  let grab: { y: number; id: number; bar: boolean } | null = null
+  function gripDown(e: PointerEvent) {
+    const target = e.target as Element
+    const bar = !!target.closest(".grip")
+    // (The heading's own buttons are left to be buttons.)
+    if (!bar && target.closest("button")) return
+    grab = { y: e.clientY, id: e.pointerId, bar }
+    try {
+      ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    } catch {
+      // (A pointer that can't be held still gets its up and down.)
+    }
+  }
+  function gripUp(e: PointerEvent) {
+    if (!grab || grab.id !== e.pointerId) return
+    const moved = e.clientY - grab.y
+    if (moved > 18) short = true
+    else if (moved < -18) short = false
+    else if (grab.bar) short = !short
+    grab = null
+  }
+
   // Deleting asks for a second tap, as a pin's menu does.
   let armed = false
   let armedTimer: ReturnType<typeof setTimeout>
@@ -166,8 +201,21 @@
   }
 </script>
 
-<div class="mn-card mn-menu mn-trail" style="--accent: {colour}">
-  <div class="head">
+<div class="mn-card mn-menu mn-trail" class:short style="--accent: {colour}">
+  <div
+    class="head"
+    on:pointerdown={gripDown}
+    on:pointerup={gripUp}
+    on:pointercancel={() => (grab = null)}
+  >
+    <button
+      type="button"
+      class="grip"
+      aria-label={short ? "Show the rest of the trail's menu" : "Show less"}
+      aria-expanded={!short}
+    >
+      <i></i>
+    </button>
     <span class="mark" style="background: {colour}; color: {onColour(colour)}">
       <Route size={24} />
     </span>
@@ -273,38 +321,31 @@
           <ChevronRight size={22} />
         </button>
       </div>
-      <button type="button" class="set" on:click={() => dispatch("all")}>
-        <Layers size={14} />
-        All {ordered.length} together{scope ? ` · through ${scope}` : ""}
-      </button>
     </div>
   {/if}
 
-  <!-- ── Watching it being laid ── -->
+  <!-- ── Watching it being laid; and the way back to all of them ── -->
   <div class="replay">
-    <button
-      type="button"
-      class="play"
-      aria-label={replay?.phase === "playing"
-        ? "Pause the replay"
-        : replay?.phase === "done"
-          ? "Replay again"
-          : "Replay this trail"}
-      disabled={replay?.phase === "loading"}
-      on:click={() =>
-        replay?.phase === "playing" ? dispatch("pause") : dispatch("play")}
-    >
-      {#if replay?.phase === "loading"}
-        <span class="mn-spin"><LoaderCircle size={22} /></span>
-      {:else if replay?.phase === "playing"}
-        <Pause size={22} fill="currentColor" />
-      {:else if replay?.phase === "done"}
-        <RotateCcw size={22} />
-      {:else}
-        <Play size={22} fill="currentColor" />
-      {/if}
-    </button>
     {#if replay && replay.phase !== "loading"}
+      <button
+        type="button"
+        class="play"
+        aria-label={replay.phase === "playing"
+          ? "Pause the replay"
+          : replay.phase === "done"
+            ? "Replay again"
+            : "Carry on with the replay"}
+        on:click={() =>
+          replay?.phase === "playing" ? dispatch("pause") : dispatch("play")}
+      >
+        {#if replay.phase === "playing"}
+          <Pause size={22} fill="currentColor" />
+        {:else if replay.phase === "done"}
+          <RotateCcw size={22} />
+        {:else}
+          <Play size={22} fill="currentColor" />
+        {/if}
+      </button>
       <input
         class="mn-scrub"
         type="range"
@@ -325,8 +366,44 @@
       >
         {replay.rate}×
       </button>
+      {#if ordered.length > 1}
+        <button
+          type="button"
+          class="rate all"
+          aria-label="All {ordered.length} together{scope
+            ? `, through ${scope}`
+            : ''}"
+          title="All {ordered.length} together"
+          on:click={() => dispatch("all")}
+        >
+          <Layers size={17} />
+        </button>
+      {/if}
     {:else}
-      <span class="idle">Replay: watch it being laid</span>
+      <button
+        type="button"
+        class="start"
+        disabled={replay?.phase === "loading"}
+        on:click={() => dispatch("play")}
+      >
+        {#if replay?.phase === "loading"}
+          <span class="mn-spin"><LoaderCircle size={19} /></span>
+        {:else}
+          <Play size={18} fill="currentColor" />
+        {/if}
+        Replay
+      </button>
+      {#if ordered.length > 1}
+        <button
+          type="button"
+          class="set"
+          title={scope ? `Every trail through ${scope}` : null}
+          on:click={() => dispatch("all")}
+        >
+          <Layers size={16} />
+          All {ordered.length} together
+        </button>
+      {/if}
     {/if}
   </div>
 
@@ -379,6 +456,49 @@
   }
   .mn-trail h2 {
     font-size: 1.1rem;
+  }
+  /* Who and when: a line each, cut short before either wraps. */
+  .mn-trail .about {
+    min-width: 0;
+  }
+  .mn-trail .about h2,
+  .mn-trail .about p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* The bar to fold the card down by: a phone only. */
+  .grip {
+    display: none;
+  }
+  :global(.mn:not(.wide)) .mn-trail .head {
+    position: relative;
+    touch-action: none;
+  }
+  :global(.mn:not(.wide)) .mn-trail .grip {
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 76px;
+    height: 22px;
+    transform: translateX(-50%);
+  }
+  .grip i {
+    width: 38px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--mn-band-soft, rgba(244, 241, 230, 0.6));
+  }
+  :global(.mn:not(.wide)) .mn-trail.short .tiles {
+    display: none;
+  }
+  /* (Which of the set it is: left off a phone, where the date needs the
+     room. The strip under it shows the same.) */
+  :global(.mn:not(.wide)) .mn-trail .count {
+    display: none;
   }
   .count {
     flex-shrink: 0;
@@ -450,17 +570,32 @@
     gap: 4px;
     min-width: 0;
   }
+  /* Before a replay: Replay, and all of the set together, side by side. */
+  .start,
   .set {
     display: inline-flex;
+    flex: 1 1 0;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    min-height: 34px;
+    gap: 7px;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 10px;
     border: 1.5px solid var(--lp-line);
     border-radius: 99px;
-    font-size: 0.8rem;
+    font-size: 0.86rem;
     font-weight: 700;
     color: var(--lp-ink);
+    white-space: nowrap;
+  }
+  .start {
+    border-color: var(--lp-ink);
+    background: var(--lp-ink);
+    font-weight: 800;
+    color: var(--lp-paper);
+  }
+  .start:disabled {
+    opacity: 0.7;
   }
   .set:hover {
     border-color: var(--lp-ink);
@@ -564,11 +699,6 @@
     font-weight: 700;
     white-space: nowrap;
   }
-  .replay .idle {
-    flex: 1;
-    font-size: 0.9rem;
-    color: var(--lp-ink-soft);
-  }
   .replay .rate {
     flex-shrink: 0;
     min-width: 44px;
@@ -579,6 +709,16 @@
     font-size: 0.85rem;
     font-weight: 700;
     color: var(--lp-ink);
+  }
+  .replay .rate.all {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    width: 38px;
+  }
+  .replay {
+    gap: 8px;
   }
   .tiles {
     display: grid;

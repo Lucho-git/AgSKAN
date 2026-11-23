@@ -6,11 +6,17 @@
    * in blocks; tapping a block changes it. It also lists what has been kept
    * on it (areas and lines with a name) and the trails of the job on show
    * that have been through it.
+   *
+   * On a phone (`compact`) a picked paddock is only a bar along the bottom
+   * to begin with: its picture, name and size, so the map stays in view.
+   * "More" on the bar (or a tap on the name) pulls the rest of the menu up.
    */
   import { createEventDispatcher, tick } from "svelte"
   import {
     ArrowLeft,
     Check,
+    ChevronDown,
+    ChevronUp,
     History,
     Layers,
     Pencil,
@@ -31,6 +37,8 @@
   export let guest = false
   /** The viewer is standing in it. */
   export let here = false
+  /** A phone: it opens as a bar, and the rest is pulled up from it. */
+  export let compact = false
   /** Finished trails of the job on show that have been through it. */
   export let trails: TrailInfo[] = []
   /** The name of that job. */
@@ -95,12 +103,17 @@
   let deleting = false
   /** Asked to draw: something on it, or its own boundary? */
   let drawAsk = false
+  /** The rest of the menu has been pulled up (a phone). */
+  let more = false
   $: if (paddock.id !== last) {
     last = paddock.id
     editing = null
     deleting = false
     drawAsk = false
+    more = false
   }
+  // (With all its trails showing, their figures are in the menu: it opens.)
+  $: bar = compact && !more && !allTrails
 
   // (Reactive, so the blocks follow the paddock when another is picked.)
   $: value = (block: Block) =>
@@ -162,23 +175,40 @@
 </script>
 
 <div
-  class="mn-card mn-menu"
+  class="mn-card mn-menu mn-paddock"
+  class:bar
   style={paddock.colour ? `--accent: ${paddock.colour}` : ""}
 >
   <div class="head">
     <span class="art">
       <ShapeArt polygons={paddock.polygons} colour={paddock.colour} size={46} />
     </span>
-    <div class="about">
+    <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+    <div class="about" on:click={() => compact && (more = true)}>
       <h2>{paddock.name}</h2>
       <p>
         {[
           ...(paddock.ha > 0 ? [`${formatHa(paddock.ha)} ha`] : []),
+          ...(paddock.crop ? [paddock.crop] : []),
           ...(paddock.farm ? [paddock.farm] : []),
           ...(here ? ["You're in it"] : []),
         ].join(" · ") || "Paddock"}
       </p>
     </div>
+    {#if compact && !allTrails}
+      <button
+        type="button"
+        class="pull"
+        aria-expanded={more}
+        on:click={() => (more = !more)}
+      >
+        {#if more}
+          <ChevronDown size={18} /> Less
+        {:else}
+          <ChevronUp size={18} /> More
+        {/if}
+      </button>
+    {/if}
     <button
       type="button"
       class="mn-icon-button"
@@ -189,7 +219,9 @@
     </button>
   </div>
 
-  {#if deleting}
+  {#if bar}
+    <!-- (Only the bar: the rest waits to be pulled up.) -->
+  {:else if deleting}
     <p class="mn-warning">
       Delete {paddock.name} for good? Its boundary goes with it and can't be brought
       back; you'd have to draw it again.
@@ -504,3 +536,41 @@
     {/if}
   {/if}
 </div>
+
+<style>
+  /* The bar a phone shows first: the heading and nothing under it. */
+  .mn-paddock.bar {
+    padding-bottom: 0;
+  }
+  .mn-paddock.bar > .head {
+    box-shadow: none;
+  }
+  .mn-paddock .about {
+    min-width: 0;
+  }
+  .mn-paddock .about h2,
+  .mn-paddock .about p {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pull {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    min-height: 40px;
+    padding: 0 12px 0 9px;
+    border: 1.5px solid var(--mn-band-soft, rgba(244, 241, 230, 0.6));
+    border-radius: 99px;
+    font-size: 0.86rem;
+    font-weight: 700;
+    color: var(--mn-band-text, #f4f1e6);
+    white-space: nowrap;
+  }
+  .mn-paddock.bar .pull {
+    border-color: var(--lp-yellow);
+    background: var(--lp-yellow);
+    color: #15261c;
+  }
+</style>
