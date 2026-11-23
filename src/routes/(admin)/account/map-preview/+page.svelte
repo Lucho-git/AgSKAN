@@ -51,6 +51,7 @@
   import { operatorApi } from "$lib/api/operatorApi"
   import { resolveDefaultMarkerPreference } from "$lib/utils/defaultMarkerPreference"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
+  import SelectedPin from "$lib/components/mapnext/SelectedPin.svelte"
   import {
     IMAGERY,
     type BaseLook,
@@ -67,6 +68,7 @@
     pinStyle,
     preferenceIconClass,
     type PinStyle,
+    pinImageKey,
   } from "$lib/components/mapnext/pins"
   import { asMenuLook, type MenuLook } from "$lib/components/mapnext/menuLook"
   import {
@@ -340,11 +342,10 @@
     clearTimeout(pinMoreTimer)
     pinMoreTimer = setTimeout(() => (pinMore = false), 5000)
   }
-  // Dragged off its button, a pin is carried over the map (drawn a little
-  // above the finger, so it can be seen) and put down where it is let go;
-  // its menu then opens. Let go over "Cancel", or back on the button, and
-  // nothing is dropped.
-  const PIN_LIFT = 54
+  // Dragged off its button, a pin is carried over the map under the finger,
+  // drawn as a pin being moved is (lifted, ringed, glowing), and put down
+  // where it is let go; its menu then opens. Let go over "Cancel", or back
+  // on the button, and nothing is dropped.
   let pinPress: {
     kind: string
     id: number
@@ -412,7 +413,7 @@
     if (!drag || drag.cancel || !engine) return
     const pin = await engine.dropPin(
       press.kind,
-      engine.lngLatAt(drag.x, drag.y - PIN_LIFT),
+      engine.lngLatAt(drag.x, drag.y),
     )
     // Its menu opens: a note, another kind or colour, or delete it again.
     if (pin) engine.selectedPin.set(pin)
@@ -3927,11 +3928,12 @@
       <div
         class="mn-pinghost"
         class:cancel={pinDrag.cancel}
-        style="left: {pinDrag.x}px; top: {pinDrag.y - PIN_LIFT}px"
+        style="left: {pinDrag.x}px; top: {pinDrag.y}px"
         aria-hidden="true"
       >
-        <PinArt look={choiceLook(pinDrag.kind)} size={50} />
-        <i></i>
+        <!-- (Drawn as a pin being moved is: lifted, ringed and glowing,
+             and right under the finger.) -->
+        <SelectedPin image={pinImageKey(choiceLook(pinDrag.kind))} size={37} />
       </div>
       <div
         class="mn-pincancel"

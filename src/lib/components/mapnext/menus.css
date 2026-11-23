@@ -4541,15 +4541,7 @@
   position: fixed;
   z-index: 80;
   pointer-events: none;
-  filter: drop-shadow(0 12px 12px rgba(10, 25, 15, 0.55));
   transform: translate(-50%, -50%);
-}
-.mn-pinghost i {
-  position: absolute;
-  inset: -7px;
-  border: 2px dashed #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.35);
 }
 .mn-pinghost.cancel {
   opacity: 0.4;
