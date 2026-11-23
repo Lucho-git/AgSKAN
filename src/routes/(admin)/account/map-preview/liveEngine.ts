@@ -1127,6 +1127,12 @@ export class LiveEngine {
   private touching = false
   /** So is the mouse button: the same. */
   private mouseHeld = false
+  /** The pin just let go of, while it eases back into the layer. */
+  private letGoOf: {
+    id: string
+    at: { lng: number; lat: number }
+    until: number
+  } | null = null
   /**
    * The press now down on the map itself, if there is one. A tap only
    * counts if it began as a press on the map, stayed put, and didn't turn
@@ -1370,6 +1376,17 @@ export class LiveEngine {
           : id
             ? this.pinsById.get(id)
             : undefined
+        // (A second quick tap on a pin lands while it is shrinking back:
+        // it is that pin again, not the paddock it sits on.)
+        const gone = this.letGoOf
+        if (!pin && gone && performance.now() < gone.until) {
+          const spot = this.map.project(gone.at)
+          if (
+            Math.hypot(spot.x - e.point.x, spot.y - e.point.y) <=
+            (pinPixels() * 1.3) / 2 + 6
+          )
+            pin = this.pinsById.get(gone.id)
+        }
         // A tap on something drawn picks the pin it belongs to.
         let drawingId: string | null = null
         if (!pin && this.map.getLayer(DRAWING_LAYERS[0])) {
@@ -1828,6 +1845,11 @@ export class LiveEngine {
       // Let go: it eases back to its size in the layer, then the layer's
       // own pin takes over again.
       this.picked = null
+      this.letGoOf = {
+        id: old.id,
+        at: old.marker.getLngLat(),
+        until: performance.now() + 450,
+      }
       old.view.$set({ leaving: true })
       setTimeout(() => {
         old.view.$destroy()
@@ -4888,6 +4910,16 @@ export class LiveEngine {
     this.recorder.carryOn()
     this.link.saveSoon()
     this.sendNow()
+  }
+
+  /** Throw the trail being laid away, unsaved. */
+  async discardTrail() {
+    const gone = await this.recorder.discard()
+    if (!gone) return false
+    this.link.saveSoon()
+    this.sendNow()
+    this.liveDirty = true
+    return true
   }
 
   async stopTrail(): Promise<FinishedTrail | null> {

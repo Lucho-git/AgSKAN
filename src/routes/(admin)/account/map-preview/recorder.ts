@@ -441,6 +441,30 @@ export class TrailRecorder {
     }
   }
 
+  /**
+   * Throw the running trail away: nothing of it is kept. False if it
+   * couldn't be done (no signal), in which case it is still running and
+   * `state.problem` says why.
+   */
+  async discard(): Promise<boolean> {
+    const { phase, trail } = get(this.state)
+    if (phase !== "on" || !trail) return false
+    this.state.update((s) => ({ ...s, phase: "stopping", problem: null }))
+    try {
+      const removed = (await trailsApi.deleteTrail(trail.id)) as Row
+      if (removed?.error) throw new Error("not deleted")
+      this.reset()
+      return true
+    } catch {
+      this.state.update((s) => ({
+        ...s,
+        phase: "on",
+        problem: "Couldn't delete the trail. Try again when you're in range.",
+      }))
+      return false
+    }
+  }
+
   private reset() {
     this.points = []
     this.queue = []

@@ -33,7 +33,16 @@
 </script>
 
 {#if src}
-  <img class="mn-pin-art" {src} width={size} height={size} alt="" />
+  <!-- (Not draggable: a browser's own image drag would take over a press
+       on a pin button, and the button's own drag would never start.) -->
+  <img
+    class="mn-pin-art"
+    {src}
+    width={size}
+    height={size}
+    alt=""
+    draggable="false"
+  />
 {:else}
   <span class="mn-pin-art blank" style="width: {size}px; height: {size}px"
   ></span>
@@ -43,6 +52,9 @@
   .mn-pin-art {
     display: block;
     flex-shrink: 0;
+    -webkit-user-drag: none;
+    user-select: none;
+    -webkit-touch-callout: none;
   }
   .blank {
     border-radius: 50%;

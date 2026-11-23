@@ -30,6 +30,8 @@
     ArrowLeft,
     Pause,
     Play,
+    Wifi,
+    WifiOff,
   } from "lucide-svelte"
   import "../../../(marketing)/landing/landing-theme.css"
   import "$lib/components/mapnext/chrome.css"
@@ -789,6 +791,16 @@
     created.setTrailFixes(load<string[]>("trail-fixes") ?? [])
     created.onTrailFixes = (ids) => save("trail-fixes", ids)
     created.onAway = () => {
+      // A tap on open ground puts these away (and does no more): the
+      // connection card, "stop the trail?" (the trail carries on), a bin.
+      if (netOpen) {
+        netOpen = false
+        return true
+      }
+      if (stopAsk && recording.phase !== "stopping") {
+        stopAsk = false
+        return true
+      }
       if (!binOpen) return false
       binOpen = null
       return true
@@ -1967,6 +1979,30 @@
     ? Math.max(0, broadcast.started + BROADCAST_FOR - now)
     : 0
 
+  // Throwing the running trail away takes a second tap.
+  let deleteArmed = false
+  let deleteTimer: ReturnType<typeof setTimeout> | undefined
+  $: if (!stopAsk) deleteArmed = false
+  async function deleteRunningTrail() {
+    if (!deleteArmed) {
+      deleteArmed = true
+      clearTimeout(deleteTimer)
+      deleteTimer = setTimeout(() => (deleteArmed = false), 3500)
+      return
+    }
+    deleteArmed = false
+    if (await engine?.discardTrail()) {
+      stopAsk = false
+      say("Trail deleted")
+    }
+  }
+
+  // ── The connection: what the status chip stands for, spelled out ──
+  let netOpen = false
+  // (Counted on the second, with the clock.)
+  $: trailPoints = trailOn && now ? (engine?.recorder.points.length ?? 0) : 0
+  $: trailSaved = Math.max(0, trailPoints - recording.waiting)
+
   async function stopTrail() {
     if (!engine) return
     const finished = await engine.stopTrail()
@@ -2356,16 +2392,105 @@
         <button
           type="button"
           class="mn-status {status.tone}"
-          disabled={status.tone !== "off"}
-          on:click={askForLocation}
+          aria-expanded={netOpen}
+          aria-label="Connection: {status.text}{trailOn
+            ? `, ${trailSaved} trail points saved, ${recording.waiting} waiting`
+            : ''}"
+          on:click={() =>
+            status.tone === "off" ? askForLocation() : (netOpen = !netOpen)}
         >
           <!-- (Once it is live, the operation on the map says more than
                "Live" does; the dot still shows the fix is good.) -->
-          <span class="dot"></span>{status.tone === "live"
-            ? (operation?.name ?? status.text)
-            : status.text}
+          <span class="dot"></span><span class="name"
+            >{status.tone === "live"
+              ? (operation?.name ?? status.text)
+              : status.text}</span
+          >
+          {#if trailOn}
+            <!-- The trail's points: saved, or waiting for signal. -->
+            <span class="sync" class:waiting={recording.waiting > 0 || !online}>
+              {#if recording.waiting > 0 || !online}
+                <WifiOff size={13} />{recording.waiting}
+              {:else}
+                <Wifi size={13} />{trailSaved}
+              {/if}
+            </span>
+          {/if}
         </button>
       </div>
+      {#if netOpen}
+        <!-- ── The connection, spelled out (as the current viewer's trail
+             and network panel does) ── -->
+        <div class="mn-net" role="dialog" aria-label="Connection">
+          <div class="top">
+            <strong>Connection</strong>
+            <button
+              type="button"
+              class="mn-icon-button"
+              aria-label="Close"
+              on:click={() => (netOpen = false)}
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <dl>
+            <div class:bad={gps !== "live" || readout.stale}>
+              <dt>Location</dt>
+              <dd>
+                {gps !== "live"
+                  ? gps === "asking"
+                    ? "Finding you"
+                    : "Off"
+                  : readout.stale
+                    ? "Looking for GPS"
+                    : readout.accuracy !== null
+                      ? `Good to ${Math.round(readout.accuracy)} m`
+                      : "Live"}
+              </dd>
+            </div>
+            <div class:bad={!online}>
+              <dt>Internet</dt>
+              <dd>{online ? "Online" : "No signal"}</dd>
+            </div>
+            <div class:bad={!linked}>
+              <dt>Crew link</dt>
+              <dd>{linked ? "Connected" : "Reconnecting"}</dd>
+            </div>
+            <div>
+              <dt>Operation</dt>
+              <dd>{operation?.name ?? "None"}</dd>
+            </div>
+          </dl>
+          {#if trailOn && recording.trail}
+            <p class="lp-eyebrow">
+              Trail · started {clock(recording.trail.start)}
+            </p>
+            <dl class="three">
+              <div>
+                <dt>Points</dt>
+                <dd>{trailPoints}</dd>
+              </div>
+              <div>
+                <dt>Saved</dt>
+                <dd>{trailSaved}</dd>
+              </div>
+              <div class:bad={recording.waiting > 0}>
+                <dt>Waiting</dt>
+                <dd>{recording.waiting}</dd>
+              </div>
+            </dl>
+            {#if recording.waiting > 0}
+              <p class="note">
+                {online
+                  ? "Sending the points that are waiting."
+                  : "No signal: the points are kept on this device and sent when it is back. Keep this page open."}
+              </p>
+            {/if}
+          {:else}
+            <p class="note">No trail is being recorded.</p>
+          {/if}
+        </div>
+      {/if}
       {#if devGps}
         <!-- A made-up position is being fed in: say so, and stop it. -->
         <button
@@ -2593,6 +2718,7 @@
                 on:pointermove={pinMove}
                 on:pointerup={pinUp}
                 on:pointercancel={pinCancel}
+                on:dragstart|preventDefault
                 on:click={(e) => e.detail === 0 && pinTap(kind)}
               >
                 <PinArt look={choiceLook(kind)} size={wide ? 54 : 50} />
@@ -2758,7 +2884,7 @@
       </div>
     {:else if boundaryEdit?.shape}
       <!-- ── Changing a line or an area that is drawn on a pin ── -->
-      <div in:rise>
+      <div class="mn-riser" in:rise>
         <ShapeCard
           edit={boundaryEdit}
           on:colour={(e) => engine?.setShapeColour(e.detail)}
@@ -2771,7 +2897,7 @@
       </div>
     {:else if boundaryEdit}
       <!-- ── Changing a paddock's boundary ── -->
-      <div in:rise>
+      <div class="mn-riser" in:rise>
         <BoundaryCard
           bind:name={newPaddockName}
           edit={boundaryEdit}
@@ -3012,6 +3138,19 @@
             {recording.phase === "stopping" ? "Saving…" : "Stop and save"}
           </button>
         </div>
+        <!-- Or throw it away: nothing of it is kept. -->
+        <button
+          type="button"
+          class="mn-discard"
+          class:armed={deleteArmed}
+          disabled={recording.phase === "stopping"}
+          on:click={deleteRunningTrail}
+        >
+          <Trash2 size={16} />
+          {deleteArmed
+            ? "Tap again to delete this trail"
+            : "Delete this trail instead"}
+        </button>
       </div>
     {:else if sprayCard}
       <!-- ── The spray record a finished trail produced ── -->
@@ -3090,7 +3229,7 @@
       </div>
     {:else if trailSet && !selectedTrail}
       <!-- ── A set of trails, together ── -->
-      <div in:rise>
+      <div class="mn-riser" in:rise>
         <TrailSetCard
           where={trailSet.where}
           trails={trailSet.trails}
@@ -3106,7 +3245,7 @@
       </div>
     {:else if selectedTrail}
       <!-- ── A trail, picked out: what it was, and a replay of it ── -->
-      <div in:rise>
+      <div class="mn-riser" in:rise>
         <TrailCard
           trail={selectedTrail}
           list={stepList}
@@ -3498,7 +3637,7 @@
     {:else if binPin && engine}
       <!-- ── A grain bin: its level, and its settings ── -->
       {#key binPin.id}
-        <div in:rise>
+        <div class="mn-riser" in:rise>
           <BinCard
             pin={binPin}
             look={engine.pinLook(binPin)}
@@ -3578,7 +3717,7 @@
       {/key}
     {:else if mineSelected}
       <!-- ── Your own machine ── -->
-      <div in:rise>
+      <div class="mn-riser" in:rise>
         <MachineCard
           {marker}
           {follow}
@@ -3708,7 +3847,7 @@
       {/key}
     {:else if selectedPaddock}
       <!-- ── A paddock ── -->
-      <div in:rise>
+      <div class="mn-riser" in:rise>
         <PaddockCard
           paddock={selectedPaddock}
           farms={farmNames}

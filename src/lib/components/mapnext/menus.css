@@ -4601,3 +4601,174 @@
     animation: none;
   }
 }
+
+/* ── Twenty-fourth pass ─────────────────────────────────────────────────── */
+/* A card that slides up is slid by a wrapper. The slide is a transform, and
+   a transformed box becomes what its absolutely placed children are placed
+   against: with a wrapper of no size at the top of the page, the card was
+   drawn above the screen for as long as the slide lasted (its shadow showed
+   along the top edge) and then jumped down. The wrapper is the whole page
+   instead, so the card is in the same place with or without it. */
+.mn-riser {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+.mn-riser > * {
+  pointer-events: auto;
+}
+
+/* The operation list in the toolbox's heading: room round it for what has
+   the focus, and the focus drawn inside each control so nothing is cut off
+   or laid over its neighbour. */
+.mn-oplist {
+  gap: 6px;
+  margin: 0 -3px -3px;
+  padding: 3px;
+}
+.mn-oplist form.new {
+  gap: 6px;
+}
+.mn-oplist form.new input,
+.mn-oplist form.new select.year,
+.mn-oplist form.new button {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+}
+.mn .mn-op:focus-visible,
+.mn .mn-oplist button:focus-visible,
+.mn-oplist form.new input:focus,
+.mn-oplist form.new select.year:focus {
+  outline: 2.5px solid var(--mn-band-accent);
+  outline-offset: -2.5px;
+}
+.mn-oplist form.new input:focus,
+.mn-oplist form.new select.year:focus {
+  outline-color: #1f8a4c;
+}
+
+/* The status chip: the fix, the operation, and (while a trail is laid) how
+   many of its points are saved or waiting. It opens the connection card. */
+.mn-status .sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 1px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(244, 241, 230, 0.28);
+  letter-spacing: 0.04em;
+  color: #8fe3b0;
+}
+.mn-status .sync.waiting {
+  color: #f7b23b;
+}
+.mn-net {
+  display: grid;
+  gap: 8px;
+  width: min(21rem, calc(100vw - 2 * var(--mn-gap)));
+  padding: 8px 12px 12px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1.5px #15261c,
+    0 18px 38px -14px rgba(10, 25, 15, 0.75);
+  color: var(--lp-ink);
+}
+.mn-net .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mn-net .top strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.mn-net .top .mn-icon-button {
+  width: 38px;
+  height: 38px;
+  margin-right: -6px;
+}
+.mn-net dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0;
+}
+.mn-net dl.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+.mn-net dl div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: var(--lp-paper);
+}
+.mn-net dt {
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+}
+.mn-net dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-net dl div.bad {
+  background: rgba(245, 158, 11, 0.18);
+  box-shadow: inset 0 0 0 1.5px rgba(217, 119, 6, 0.5);
+}
+.mn-net .lp-eyebrow,
+.mn-net .note {
+  margin: 0;
+}
+.mn-net .note {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--lp-ink-soft);
+}
+
+/* Under "stop the trail?": throw it away instead. */
+.mn-discard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 8px;
+  border-radius: 99px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--lp-rust);
+}
+.mn-discard:hover {
+  background: rgba(217, 93, 57, 0.1);
+}
+.mn-discard.armed {
+  background: var(--lp-rust);
+  color: #fff;
+}
+/* (A long operation name is cut short on a phone, where the chip shares the
+   top of the screen with the bins.) */
+.mn-status .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn:not(.wide) .mn-status .name {
+  max-width: 7.5rem;
+}
+.mn:not(.wide) .mn-status:has(.sync) .name {
+  max-width: 5.2rem;
+}

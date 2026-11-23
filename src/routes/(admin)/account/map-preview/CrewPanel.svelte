@@ -83,36 +83,51 @@
     {/if}
   </span>
 </div>
-{#if tab === "log" && mapId}
-  <FarmLog
-    {mapId}
-    {guest}
-    undo={undoLog}
-    on:look={(e) => dispatch("lookPlace", e.detail)}
-    on:crew={(e) => dispatch("logCrew", e.detail)}
-    on:trail={(e) => dispatch("logTrail", e.detail)}
-  />
-{:else if crew.length || self || !guest}
-  <CrewRows
-    {crew}
-    {self}
-    {selfDriver}
-    {unreadBy}
-    {hideStale}
-    canInvite={!guest}
-    on:look={(e) => dispatch("look", e.detail)}
-    on:message={(e) => dispatch("message", e.detail)}
-    on:invite={() => dispatch("invite")}
-    on:home={() => dispatch("home")}
-  />
-{:else}
-  <p class="mn-empty">
-    Nobody else has joined this farm yet. Invite the crew from the dashboard and
-    they'll show up here.
-  </p>
+<!-- Both sides are kept on the page and only one is shown: going from
+     Crew to Log and back swaps them at once, with nothing built again (and
+     the log already read). -->
+{#if mapId}
+  <div class="side" class:off={tab !== "log"}>
+    <FarmLog
+      {mapId}
+      {guest}
+      undo={undoLog}
+      on:look={(e) => dispatch("lookPlace", e.detail)}
+      on:crew={(e) => dispatch("logCrew", e.detail)}
+      on:trail={(e) => dispatch("logTrail", e.detail)}
+    />
+  </div>
 {/if}
+<div class="side" class:off={tab === "log" && !!mapId}>
+  {#if crew.length || self || !guest}
+    <CrewRows
+      {crew}
+      {self}
+      {selfDriver}
+      {unreadBy}
+      {hideStale}
+      canInvite={!guest}
+      on:look={(e) => dispatch("look", e.detail)}
+      on:message={(e) => dispatch("message", e.detail)}
+      on:invite={() => dispatch("invite")}
+      on:home={() => dispatch("home")}
+    />
+  {:else}
+    <p class="mn-empty">
+      Nobody else has joined this farm yet. Invite the crew from the dashboard
+      and they'll show up here.
+    </p>
+  {/if}
+</div>
 
 <style>
+  /* (No box of its own: what is in it lays out as if it weren't there.) */
+  .side {
+    display: contents;
+  }
+  .side.off {
+    display: none;
+  }
   .ends {
     display: flex;
     align-items: center;
