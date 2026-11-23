@@ -1,17 +1,22 @@
 <script lang="ts">
   /**
-   * Pins, inside the toolbox. The page is built round the pin buttons on the
-   * map (each drops its pin with one tap): they sit in a strip that stays at
-   * the top however far the kinds under it are scrolled. Pick a button in
-   * the strip (or "Add"), then tap a kind below: a line under the strip asks
-   * to change that button to it, and the button changes on the yes. So the
-   * controls are always in reach, and a stray tap while scrolling changes
-   * nothing.
+   * Pins, inside the toolbox.
    *
-   * Under the strip: every pin on the farm (and its bins), rounding pins up
-   * to delete, and the colour new pins of the kind in hand get.
+   * At the very top, the two things that aren't about choosing a pin: the
+   * list of every pin (and bin) on the farm, and rounding pins up to delete.
+   *
+   * Then the pin buttons that are on the map, in a strip that stays put
+   * while the kinds scroll under it. Nothing is picked to begin with. Tap
+   * any pin, in the strip or in the kinds below, and it is "in hand": it is
+   * outlined, and the strip grows a row for it with what can be done with
+   * that pin: make it the default, give it a button or take its button
+   * away, set the colour its new pins get. Each of those shows at once in
+   * the strip. The cross puts the pin down again.
+   *
+   * A search for a kind appears only once the kinds have been scrolled
+   * into, where it is wanted, and floats over them without moving them.
    */
-  import { createEventDispatcher } from "svelte"
+  import { createEventDispatcher, onMount } from "svelte"
   import { ArrowLeft, List, Plus, Search, Trash2, X } from "lucide-svelte"
   import PinArt from "$lib/components/mapnext/PinArt.svelte"
   import {
@@ -56,19 +61,14 @@
     bin: string
   }>()
 
-  // Pins that do something more than mark a spot, and what that is.
-  const SPECIAL: Record<string, string> = {
-    "custom-svg-gate":
-      "A gate can be marked open or closed, and the pin shows which.",
-    "custom-svg-fiver_field_bin_v4":
-      "A field bin holds grain: say what is in it and how full it is, and the pin shows the level.",
-    "custom-svg-fiver2_mother_bin":
-      "A mother bin works like a field bin, with more room in it.",
-    "custom-svg-rock":
-      "A rock can be ticked as picked once it has been dealt with.",
-    "custom-svg-rock_pile":
-      "A rock pile can be ticked as picked once it has been cleared.",
-  }
+  // Pins that do something more than mark a spot.
+  const SPECIAL = new Set([
+    "custom-svg-gate",
+    "custom-svg-fiver_field_bin_v4",
+    "custom-svg-fiver2_mother_bin",
+    "custom-svg-rock",
+    "custom-svg-rock_pile",
+  ])
 
   // "default" follows the colour all your pins get; then the current
   // viewer's choices, in its order.
@@ -100,74 +100,84 @@
   $: nameOf = (iconClass: string) =>
     pinChoices.find((choice) => choice.iconClass === iconClass)?.label ?? "Pin"
 
-  // ── The buttons, and changing one ──
-  /** The button in hand: its place in `quick`, or one past the end to add. */
-  let slot = 0
-  /** A kind tapped below, waiting for the yes. */
-  let pick: string | null = null
-  let kindSearch = ""
-  $: if (slot > quick.length) slot = 0
-  $: adding = slot >= quick.length
-  $: slotKind = adding ? null : quick[slot]
-  /** The kind the colour row (and the line about it) is for. */
-  $: inHand = pick ?? slotKind ?? quick[0] ?? "default"
-  $: inHandColour = typeColours[inHand] ?? "default"
-  // "rock pins", "gate pins", and for the plain one just "pins".
-  $: kindWords =
-    nameOf(inHand) === "Pin" ? "pins" : `${nameOf(inHand).toLowerCase()} pins`
+  // ── The pin in hand, and what can be done with it ──
+  let inHand: string | null = null
+  /** "Add" was tapped: the next pin picked is wanted as a button. */
+  let adding = false
+  let colouring = false
+  $: isDefault = !!inHand && quick[0] === inHand
+  $: hasButton = !!inHand && quick.includes(inHand)
+  $: handColour = inHand ? (typeColours[inHand] ?? "default") : "default"
 
-  function choose(index: number) {
-    slot = index
-    pick = null
-  }
-  function tapKind(iconClass: string) {
-    pick = iconClass === slotKind ? null : iconClass
-  }
-  function confirm() {
-    if (!pick) return
-    let next: string[]
-    if (adding) {
-      if (quick.includes(pick)) return
-      next = [...quick, pick].slice(0, MOST)
-    } else {
-      next = [...quick]
-      // Two buttons never drop the same pin: one that has it swaps with
-      // this one.
-      const other = quick.indexOf(pick)
-      if (other >= 0) next[other] = quick[slot]
-      next[slot] = pick
+  function pickUp(iconClass: string, fromStrip = false) {
+    if (inHand === iconClass && !adding) {
+      putDown()
+      return
     }
-    dispatch("quickKinds", next)
-    if (adding) slot = Math.min(next.length - 1, slot)
-    pick = null
+    inHand = iconClass
+    colouring = false
+    if (fromStrip) adding = false
   }
-  function removeSlot() {
-    if (adding || quick.length < 2) return
+  function putDown() {
+    inHand = null
+    adding = false
+    colouring = false
+  }
+  function wantToAdd() {
+    adding = !adding
+    inHand = null
+    colouring = false
+  }
+  // The default takes this pin. One that had no button takes the default's
+  // place; one that had moves to the front and the old default keeps a
+  // button.
+  function makeDefault() {
+    if (!inHand || isDefault) return
     dispatch(
       "quickKinds",
-      quick.filter((_, index) => index !== slot),
+      hasButton
+        ? [inHand, ...quick.filter((kind) => kind !== inHand)]
+        : [inHand, ...quick.slice(1)],
     )
-    slot = 0
-    pick = null
+    adding = false
   }
-  function makeDefault() {
-    if (adding || !slotKind) return
-    dispatch("quickKinds", [
-      slotKind,
-      ...quick.filter((kind) => kind !== slotKind),
-    ])
-    slot = 0
-    pick = null
+  function addButton() {
+    if (!inHand || hasButton || quick.length >= MOST) return
+    dispatch("quickKinds", [...quick, inHand])
+    adding = false
+  }
+  function removeButton() {
+    if (!inHand || !hasButton || quick.length < 2) return
+    dispatch(
+      "quickKinds",
+      quick.filter((kind) => kind !== inHand),
+    )
   }
 
+  // ── Finding a kind: offered once the kinds have been scrolled into ──
+  let kindSearch = ""
+  let band: HTMLElement | undefined
+  let mark: HTMLElement | undefined
+  let deep = false
+  onMount(() => {
+    const scroller = document.querySelector(".mn-panel")
+    const check = () => {
+      if (!band || !mark) return
+      deep =
+        mark.getBoundingClientRect().top <
+        band.getBoundingClientRect().bottom - 60
+    }
+    scroller?.addEventListener("scroll", check, { passive: true })
+    return () => scroller?.removeEventListener("scroll", check)
+  })
   $: wantedKind = kindSearch.trim().toLowerCase()
   $: kinds = wantedKind
     ? pinChoices.filter((choice) =>
         choice.label.toLowerCase().includes(wantedKind),
       )
     : pinChoices
-  $: special = kinds.filter((choice) => SPECIAL[choice.iconClass])
-  $: ordinary = kinds.filter((choice) => !SPECIAL[choice.iconClass])
+  $: special = kinds.filter((choice) => SPECIAL.has(choice.iconClass))
+  $: ordinary = kinds.filter((choice) => !SPECIAL.has(choice.iconClass))
 
   // ── Every pin on the farm ──
   let listing = false
@@ -288,105 +298,7 @@
     </p>
   {/if}
 {:else}
-  {#if !guest}
-    <!-- ── The pin buttons on the map: always at the top ── -->
-    <div class="top">
-      <div class="strip" role="tablist" aria-label="Pin buttons on the map">
-        {#each quick as iconClass, index (iconClass)}
-          <button
-            type="button"
-            role="tab"
-            class="slot"
-            class:on={slot === index}
-            aria-selected={slot === index}
-            title="{nameOf(iconClass)} button"
-            on:click={() => choose(index)}
-          >
-            <PinArt look={choiceLook(iconClass)} size={32} />
-            <span>{nameOf(iconClass)}</span>
-            {#if index === 0}<em>Default</em>{/if}
-          </button>
-        {/each}
-        {#if quick.length < MOST}
-          <button
-            type="button"
-            role="tab"
-            class="slot new"
-            class:on={adding}
-            aria-selected={adding}
-            on:click={() => choose(quick.length)}
-          >
-            <i><Plus size={18} strokeWidth={3} /></i>
-            <span>Add</span>
-          </button>
-        {/if}
-      </div>
-
-      <!-- What a tap below will do, and the yes that does it. -->
-      <div class="ask" class:picked={!!pick}>
-        {#if pick}
-          <PinArt look={choiceLook(pick)} size={32} />
-          <p>
-            <b>{nameOf(pick)}</b>
-            {#if adding}
-              {quick.includes(pick)
-                ? "already has a button"
-                : "as a new button"}
-            {:else}
-              in place of {nameOf(slotKind ?? "")}
-            {/if}
-          </p>
-          <button type="button" class="no" on:click={() => (pick = null)}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="yes"
-            disabled={adding && quick.includes(pick)}
-            on:click={confirm}
-          >
-            {adding ? "Add" : "Change"}
-          </button>
-        {:else if adding}
-          <p>Tap a pin below to give it a button on the map.</p>
-        {:else}
-          <p>
-            {#if slot === 0}
-              Tap a pin below to change the default. A long press on the map
-              drops it too.
-            {:else}
-              Tap a pin below to change this button.
-            {/if}
-          </p>
-          {#if slot > 0}
-            <button type="button" class="no" on:click={makeDefault}>
-              Make default
-            </button>
-            <button
-              type="button"
-              class="no off"
-              aria-label="Take the {nameOf(slotKind ?? '')} button off the map"
-              title="Take this button off the map"
-              on:click={removeSlot}
-            >
-              <X size={16} />
-            </button>
-          {/if}
-        {/if}
-      </div>
-
-      <label class="mn-search find">
-        <Search size={17} />
-        <input
-          type="search"
-          bind:value={kindSearch}
-          placeholder="Find a kind of pin"
-          autocomplete="off"
-        />
-      </label>
-    </div>
-  {/if}
-
+  <!-- ── Not about choosing a pin: first, out of the way ── -->
   <div class="mn-menu-actions">
     <button type="button" on:click={() => (listing = true)}>
       <List size={18} /> My pins{bins.length ? " and bins" : ""}
@@ -404,51 +316,140 @@
   </div>
 
   {#if !guest}
-    {#if !wantedKind}
-      <!-- The kind in hand: what it does, and the colour its pins get. -->
-      <section class="mn-pin-kind">
-        <div class="top-line">
-          <PinArt look={choiceLook(inHand)} size={40} />
-          <div>
+    <!-- ── The pin buttons on the map, and the pin in hand ── -->
+    <div
+      class="band"
+      bind:this={band}
+      role="group"
+      aria-label="Pin buttons on the map"
+    >
+      <div class="strip">
+        {#each quick as iconClass, index (iconClass)}
+          <button
+            type="button"
+            class="slot"
+            class:on={inHand === iconClass}
+            aria-pressed={inHand === iconClass}
+            title="{nameOf(iconClass)} button"
+            on:click={() => pickUp(iconClass, true)}
+          >
+            <PinArt look={choiceLook(iconClass)} size={32} />
+            <span>{nameOf(iconClass)}</span>
+            {#if index === 0}<em>Default</em>{/if}
+          </button>
+        {/each}
+        {#if quick.length < MOST}
+          <button
+            type="button"
+            class="slot new"
+            class:on={adding}
+            aria-pressed={adding}
+            on:click={wantToAdd}
+          >
+            <i><Plus size={18} strokeWidth={3} /></i>
+            <span>Add</span>
+          </button>
+        {/if}
+      </div>
+
+      {#if inHand}
+        <!-- The pin in hand: what can be done with it. -->
+        <div class="hand">
+          <div class="who">
+            <PinArt look={choiceLook(inHand)} size={34} />
             <strong>{nameOf(inHand)}</strong>
-            <span>
-              {SPECIAL[inHand] ??
-                "Marks a spot. Add a note, photos or a drawing once it is down."}
-            </span>
-          </div>
-        </div>
-        <p class="lp-eyebrow">
-          Colour for new {kindWords} ·
-          <b>{colourName(inHandColour)}</b>
-        </p>
-        <div class="mn-swatches" style="--across: 10" role="group">
-          {#each COLOURS as key}
+            {#if isDefault}
+              <em>Default</em>
+            {:else if hasButton}
+              <em class="quiet">Has a button</em>
+            {/if}
             <button
               type="button"
-              class:selected={inHandColour === key}
-              style="--swatch: {swatch(key)}"
-              aria-label={colourName(key)}
-              aria-pressed={inHandColour === key}
-              on:click={() =>
-                inHandColour !== key &&
-                dispatch("colour", { iconClass: inHand, colour: key })}
-            ></button>
-          {/each}
+              class="x"
+              aria-label="Put {nameOf(inHand)} down"
+              on:click={putDown}
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div class="acts">
+            {#if !hasButton && quick.length < MOST}
+              <button type="button" class:go={adding} on:click={addButton}>
+                <Plus size={15} strokeWidth={3} /> Add button
+              </button>
+            {/if}
+            {#if !isDefault}
+              <button type="button" class:go={!adding} on:click={makeDefault}>
+                Make default
+              </button>
+            {/if}
+            {#if hasButton && quick.length > 1}
+              <button type="button" class="off" on:click={removeButton}>
+                Remove button
+              </button>
+            {/if}
+            <button
+              type="button"
+              aria-expanded={colouring}
+              on:click={() => (colouring = !colouring)}
+            >
+              <i class="dot" style="background: {swatch(handColour)}"></i> Colour
+            </button>
+          </div>
+          {#if colouring}
+            <div
+              class="mn-swatches"
+              style="--across: 10"
+              role="group"
+              aria-label="Colour for new {nameOf(inHand)} pins"
+            >
+              {#each COLOURS as key}
+                <button
+                  type="button"
+                  class:selected={handColour === key}
+                  style="--swatch: {swatch(key)}"
+                  aria-label={colourName(key)}
+                  title={colourName(key)}
+                  aria-pressed={handColour === key}
+                  on:click={() =>
+                    inHand &&
+                    handColour !== key &&
+                    dispatch("colour", { iconClass: inHand, colour: key })}
+                ></button>
+              {/each}
+            </div>
+          {/if}
         </div>
-      </section>
-    {/if}
+      {/if}
 
+      {#if deep || wantedKind}
+        <!-- (Floats under the band, over the kinds: it moves nothing.) -->
+        <label class="mn-search find">
+          <Search size={17} />
+          <input
+            type="search"
+            bind:value={kindSearch}
+            placeholder="Find a kind of pin"
+            autocomplete="off"
+          />
+        </label>
+      {/if}
+    </div>
+
+    <span class="mark" bind:this={mark}></span>
     {#if special.length}
-      <p class="lp-eyebrow">Pins that do more</p>
+      <p class="lp-eyebrow">
+        {adding && !inHand ? "Pick a pin to add" : "Pins that do more"}
+      </p>
       <div class="mn-kinds all" style="margin: 0; padding: 0">
         {#each special as choice (choice.iconClass)}
           <button
             type="button"
             class="mn-kind"
-            class:selected={(pick ?? slotKind) === choice.iconClass}
+            class:selected={inHand === choice.iconClass}
             class:has={quick.includes(choice.iconClass)}
-            aria-pressed={(pick ?? slotKind) === choice.iconClass}
-            on:click={() => tapKind(choice.iconClass)}
+            aria-pressed={inHand === choice.iconClass}
+            on:click={() => pickUp(choice.iconClass)}
           >
             <PinArt look={choiceLook(choice.iconClass)} size={36} />
             {choice.label}
@@ -465,10 +466,10 @@
           <button
             type="button"
             class="mn-kind"
-            class:selected={(pick ?? slotKind) === choice.iconClass}
+            class:selected={inHand === choice.iconClass}
             class:has={quick.includes(choice.iconClass)}
-            aria-pressed={(pick ?? slotKind) === choice.iconClass}
-            on:click={() => tapKind(choice.iconClass)}
+            aria-pressed={inHand === choice.iconClass}
+            on:click={() => pickUp(choice.iconClass)}
           >
             <PinArt look={choiceLook(choice.iconClass)} size={36} />
             {choice.label}
@@ -483,27 +484,27 @@
 {/if}
 
 <style>
-  /* The strip of buttons, the line under it and the search: one band that
-     stays under the toolbox's heading (which is 65px tall and sits 14px
-     up, so its foot is at 51px) while the kinds scroll beneath. */
-  .top {
+  /* The strip of buttons (and the pin in hand, when there is one): a band
+     that stays under the toolbox's heading (which is 65px tall and sits
+     14px up, so its foot is at 51px) while the kinds scroll beneath. */
+  .band {
     position: sticky;
     top: 51px;
     z-index: 5;
     display: grid;
     flex-shrink: 0;
     gap: 8px;
-    margin: -14px calc(-1 * var(--pad)) 0;
-    padding: 10px var(--pad);
+    margin: 0 calc(-1 * var(--pad));
+    padding: 9px var(--pad) 10px;
     background: var(--mn-ground-2);
-    box-shadow: inset 0 -1px 0 var(--mn-hair);
-  }
-  :global(.mn.wide) .top {
-    margin-top: -12px;
+    box-shadow:
+      inset 0 1px 0 var(--mn-hair),
+      inset 0 -1px 0 var(--mn-hair);
   }
   .strip {
     display: flex;
     gap: 5px;
+    padding-top: 5px;
   }
   .slot {
     position: relative;
@@ -570,85 +571,114 @@
     height: 32px;
   }
 
-  .ask {
+  /* The pin in hand: a block of its own in the band. */
+  .hand {
+    display: grid;
+    gap: 8px;
+    padding: 8px 8px 9px 10px;
+    border: 2px solid var(--lp-ink);
+    border-radius: 14px;
+    background: var(--mn-block);
+  }
+  .who {
     display: flex;
     align-items: center;
-    gap: 7px;
-    min-height: 40px;
-  }
-  .ask p {
-    flex: 1;
+    gap: 8px;
     min-width: 0;
-    margin: 0;
-    font-size: 0.8rem;
-    line-height: 1.3;
-    color: var(--lp-ink-soft);
   }
-  .ask.picked p {
-    font-size: 0.86rem;
-    color: var(--lp-ink);
-  }
-  .ask b {
-    display: block;
+  .who strong {
+    min-width: 0;
     overflow: hidden;
+    font-size: 1rem;
     font-weight: 800;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .ask button {
+  .who em {
+    flex-shrink: 0;
+    padding: 1px 7px;
+    border-radius: 99px;
+    background: var(--lp-ink);
+    font-family: var(--lp-mono);
+    font-size: 0.58rem;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--lp-paper);
+    text-transform: uppercase;
+  }
+  .who em.quiet {
+    background: var(--lp-paper-2);
+    color: var(--lp-ink);
+  }
+  .who .x {
     display: flex;
     flex-shrink: 0;
     align-items: center;
     justify-content: center;
+    width: 36px;
+    height: 36px;
+    margin-left: auto;
+    border-radius: 50%;
+    color: var(--lp-ink-soft);
+  }
+  .who .x:hover {
+    background: var(--lp-paper-2);
+  }
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .acts button {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
     min-height: 40px;
-    padding: 0 13px;
+    padding: 0 12px;
     border: 1.5px solid var(--lp-line);
     border-radius: 99px;
-    background: var(--mn-block);
+    background: var(--lp-paper);
     font-size: 0.82rem;
     font-weight: 700;
     color: var(--lp-ink);
     white-space: nowrap;
   }
-  .ask .off {
-    width: 40px;
-    padding: 0;
-    color: var(--lp-rust);
+  .acts button:hover {
+    border-color: var(--lp-ink);
   }
-  .ask .yes {
+  .acts .go {
+    --lp-ink: #15261c;
     border-color: #15261c;
     background: #f7db5c;
     font-weight: 800;
     color: #15261c;
   }
-  .ask .yes:disabled {
-    opacity: 0.45;
+  .acts .off {
+    color: var(--lp-rust);
   }
-  .find {
-    min-height: 2.6rem;
-    border-color: transparent;
-    background: var(--mn-block);
-    box-shadow: 0 0 0 1px var(--mn-hair);
+  .acts .dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1.5px var(--lp-line);
   }
 
-  .top-line {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+  /* Finding a kind: hangs under the band, over the kinds. */
+  .find {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: var(--pad);
+    left: var(--pad);
+    min-height: 2.6rem;
+    border-color: var(--lp-ink);
+    background: var(--mn-block);
+    box-shadow: 0 10px 22px -10px rgba(10, 25, 15, 0.7);
   }
-  .top-line div {
-    display: grid;
-    min-width: 0;
-  }
-  .top-line strong {
-    font-size: 1rem;
-    font-weight: 800;
-    line-height: 1.2;
-  }
-  .top-line span {
-    font-size: 0.8rem;
-    line-height: 1.3;
-    color: var(--lp-ink-soft);
+  .mark {
+    display: block;
+    height: 0;
+    margin: -7px 0;
   }
 
   /* A kind that already has a button on the map carries a dot. */
