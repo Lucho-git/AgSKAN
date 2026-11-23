@@ -20,6 +20,7 @@
     FolderPlus,
     Plus,
     ClipboardList,
+    FlaskConical,
     LandPlot,
     Layers,
     LoaderCircle,
@@ -71,6 +72,7 @@
   import type {
     BaseChoice,
     CrewRow,
+    DevGps,
     Loading,
     Operation,
     ToolView,
@@ -91,6 +93,10 @@
   export let marker: VehicleMarkerData
   export let recording: RecorderState
   export let guest = false
+  /** An admin account: offered the testing tools. */
+  export let admin = false
+  /** The made-up position being fed in, if one is. */
+  export let devGps: DevGps | null = null
   export let hasFix = false
   export let crew: CrewRow[] = []
   /** Who the trail is signed by, if anyone is set. */
@@ -181,6 +187,11 @@
     trailPalette: TrailPalette
     pinStyle: PinStyle
     menuLook: MenuLook
+    /** Add an operation to this map, and put it on the map. */
+    newOperation: { name: string; year: number }
+    /** Start, change or stop the made-up position (testing). */
+    devGps: { mode: "roam" | "drive" } | null
+    devSpeed: number
     /** Open a bin's card. */
     bin: string
     layer: { key: string; on: boolean }
@@ -229,6 +240,22 @@
     opOpen = false
     if (option.id !== operation?.id) dispatch("operation", option)
   }
+  // A new operation, made from the same list.
+  let addingOp = false
+  let newOpName = ""
+  let newOpYear = new Date().getFullYear()
+  function addOperation() {
+    const name = newOpName.trim()
+    if (!name) return
+    dispatch("newOperation", {
+      name,
+      year: Number(newOpYear) || new Date().getFullYear(),
+    })
+    newOpName = ""
+    addingOp = false
+    opOpen = false
+  }
+  const DEV_SPEEDS = [8, 15, 30, 60]
 
   // The crew section has two sides: who is on the map, and what has been
   // happening on it.
@@ -273,6 +300,7 @@
     layers: "Layers",
     broadcast: "Broadcast",
     farm: "Farm",
+    dev: "Dev mode",
   }
 
   /** Each tool's mark, shown beside its name at the top of its page. */
@@ -290,6 +318,7 @@
     layers: Layers,
     broadcast: RadioTower,
     farm: LandPlot,
+    dev: FlaskConical,
   }
 
   /**
@@ -438,7 +467,7 @@
         class:open={opOpen}
         aria-expanded={opOpen}
         aria-label="Operation: {operation?.name ?? 'none'}. Change operation"
-        disabled={!operations.length}
+        disabled={!operations.length && guest}
         on:click={() => (opOpen = !opOpen)}
       >
         <span>
@@ -447,7 +476,7 @@
             {operation?.name ?? (operations.length ? "Pick one" : "None yet")}
           </b>
         </span>
-        {#if operations.length}<ChevronDown size={18} />{/if}
+        {#if operations.length || !guest}<ChevronDown size={18} />{/if}
       </button>
       {#if wide}
         <button
@@ -490,6 +519,42 @@
               {#if option.year}<span>{option.year}</span>{/if}
             </button>
           {/each}
+          {#if !guest}
+            {#if addingOp}
+              <form class="new" on:submit|preventDefault={addOperation}>
+                <!-- svelte-ignore a11y-autofocus -->
+                <input
+                  type="text"
+                  bind:value={newOpName}
+                  maxlength="60"
+                  placeholder="Harvest, Spraying…"
+                  aria-label="Name of the new operation"
+                  autofocus
+                />
+                <input
+                  type="number"
+                  class="year"
+                  bind:value={newOpYear}
+                  min="2000"
+                  max="2100"
+                  aria-label="Year"
+                />
+                <button type="submit" disabled={!newOpName.trim() || trailOn}>
+                  Add
+                </button>
+              </form>
+            {:else}
+              <button
+                type="button"
+                class="add"
+                disabled={trailOn}
+                on:click={() => (addingOp = true)}
+              >
+                <Plus size={16} />
+                <strong>New operation</strong>
+              </button>
+            {/if}
+          {/if}
         </div>
       {/if}
     </header>
@@ -620,6 +685,18 @@
         <span class="icon"><Layers size={28} /></span>
         <strong>Layers</strong>
       </button>
+      {#if admin}
+        <button
+          type="button"
+          class="mn-tile t-dev"
+          class:on={!!devGps}
+          style={devGps ? "--on: #b4236a" : ""}
+          on:click={() => (view = "dev")}
+        >
+          <span class="icon"><FlaskConical size={28} /></span>
+          <strong>Dev</strong>
+        </button>
+      {/if}
     </nav>
 
     {#if wide}
@@ -1242,6 +1319,66 @@
           {/each}
         </div>
       {/if}
+    {:else if view === "dev"}
+      <!-- ── Testing tools (admin accounts): a made-up position ── -->
+      <section class="mn-section">
+        <p class="lp-eyebrow">Made-up GPS</p>
+        <div class="mn-presets" role="group" aria-label="Made-up GPS">
+          <button
+            type="button"
+            aria-pressed={!devGps}
+            on:click={() => devGps && dispatch("devGps", null)}
+          >
+            Off
+          </button>
+          <button
+            type="button"
+            aria-pressed={devGps?.mode === "roam"}
+            on:click={() =>
+              devGps?.mode !== "roam" && dispatch("devGps", { mode: "roam" })}
+          >
+            Roam
+          </button>
+          <button
+            type="button"
+            aria-pressed={devGps?.mode === "drive"}
+            on:click={() =>
+              devGps?.mode !== "drive" && dispatch("devGps", { mode: "drive" })}
+          >
+            Drive
+          </button>
+        </div>
+        <p class="mn-note">
+          {#if devGps?.mode === "roam"}
+            Your machine is working up and down the nearest paddock, then the
+            next one.
+          {:else if devGps?.mode === "drive"}
+            Tap the map and your machine drives there.
+          {:else}
+            Roam works the nearest paddocks by itself. Drive goes wherever you
+            tap the map.
+          {/if}
+        </p>
+      </section>
+      <section class="mn-section">
+        <p class="lp-eyebrow">Speed</p>
+        <div class="mn-presets four" role="group" aria-label="Speed">
+          {#each DEV_SPEEDS as kmh}
+            <button
+              type="button"
+              aria-pressed={(devGps?.kmh ?? 12) === kmh}
+              disabled={!devGps}
+              on:click={() => dispatch("devSpeed", kmh)}
+            >
+              {kmh} km/h
+            </button>
+          {/each}
+        </div>
+      </section>
+      <p class="mn-warning">
+        The crew sees this position as your real one, and a trail started while
+        it runs is saved like any other. Use a test operation.
+      </p>
     {:else if view === "farm"}
       <section class="mn-you">
         <div class="mn-you-top">

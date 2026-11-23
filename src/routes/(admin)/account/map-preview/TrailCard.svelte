@@ -334,14 +334,6 @@
   <div class="tiles">
     <button
       type="button"
-      aria-pressed={marks.centre}
-      on:click={() => dispatch("mark", "centre")}
-    >
-      <span class="line" aria-hidden="true"></span>
-      Centre line
-    </button>
-    <button
-      type="button"
       aria-pressed={marks.arrows}
       on:click={() => dispatch("mark", "arrows")}
     >
@@ -631,12 +623,5 @@
   }
   .tiles button:disabled {
     opacity: 0.55;
-  }
-  .tiles .line {
-    width: 22px;
-    height: 0;
-    margin: 8px 0;
-    border-top: 3px solid currentColor;
-    border-radius: 2px;
   }
 </style>

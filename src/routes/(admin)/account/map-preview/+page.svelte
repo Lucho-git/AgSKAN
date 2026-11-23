@@ -94,6 +94,7 @@
     type Readout,
     type ReplayState,
     type TrailSuspect,
+    type DevGps,
     type Guide,
     type BoundaryEdit,
     type PickedShape,
@@ -381,6 +382,7 @@
   let selectedTrail: TrailInfo | null = null
   let replay: ReplayState | null = null
   let trailSuspect: TrailSuspect | null = null
+  let devGps: DevGps | null = null
   // The trail being followed, and which one it is in words.
   let guide: Guide | null = null
   let guideLabel = ""
@@ -745,6 +747,7 @@
       created.placing.subscribe((v) => (placing = v)),
       created.replay.subscribe((v) => (replay = v)),
       created.trailSuspect.subscribe((v) => (trailSuspect = v)),
+      created.devGps.subscribe((v) => (devGps = v)),
       created.setReplay.subscribe((v) => (setReplay = v)),
       created.guide.subscribe((v) => (guide = v)),
       created.boundary.subscribe((v) => (boundaryEdit = v)),
@@ -1902,7 +1905,8 @@
     centre: false,
     arrows: false,
   }
-  $: engine?.setTrailMarks(trailMarks)
+  // (The centre line is always drawn; only the arrows are a choice.)
+  $: engine?.setTrailMarks({ ...trailMarks, centre: true })
   function toggleMark(mark: "centre" | "arrows") {
     trailMarks = { ...trailMarks, [mark]: !trailMarks[mark] }
     save("trail-marks", trailMarks)
@@ -1957,6 +1961,26 @@
         ? "Spray record confirmed"
         : "Couldn't confirm it. Find it in Records.",
     )
+  }
+
+  // A new operation, made from the toolbox's heading: added to this map and
+  // put on the map straight away, as the dashboard does.
+  async function addOperation(name: string, year: number) {
+    if (!mapId || !userId || trailOn) return
+    const result = await operationApi.addOperation(mapId, name, year)
+    const made = result?.success ? (result.operation as Operation | null) : null
+    if (!made) {
+      say("Couldn't add that operation. Try again.")
+      return
+    }
+    operationStore.update((list) => [...(list ?? []), made as never])
+    selectedOperationStore.set(made as never)
+    profileStore.update((profile) => ({
+      ...profile,
+      selected_operation_id: made.id,
+    }))
+    await operationApi.updateSelectedOperation(userId, made.id)
+    say(`${made.name} added`)
   }
 
   async function chooseOperation(next: Operation) {
@@ -2302,6 +2326,21 @@
           <span class="dot"></span>{status.text}
         </button>
       </div>
+      {#if devGps}
+        <!-- A made-up position is being fed in: say so, and stop it. -->
+        <button
+          type="button"
+          class="mn-chip cast"
+          style="--on: #b4236a"
+          aria-label="Made-up GPS is on. Tap to stop it"
+          on:click={() => engine?.stopDevGps()}
+        >
+          <span class="dot"></span>Dev GPS · {devGps.mode === "roam"
+            ? "roaming"
+            : "tap to drive"}
+          <X size={14} />
+        </button>
+      {/if}
       {#if broadcast}
         <button
           type="button"
@@ -3951,6 +3990,14 @@
               : quickKinds.filter((kind) => kind !== e.detail.iconClass),
           )}
         on:operation={(e) => chooseOperation(e.detail)}
+        on:newOperation={(e) => addOperation(e.detail.name, e.detail.year)}
+        admin={!!$userSettingsStore.isAdmin}
+        {devGps}
+        on:devGps={(e) => {
+          if (e.detail) engine?.startDevGps(e.detail.mode)
+          else engine?.stopDevGps()
+        }}
+        on:devSpeed={(e) => engine?.setDevSpeed(e.detail)}
         on:lookTrail={(e) => {
           if (pickTrail(e.detail) && !wide) closePanel()
         }}

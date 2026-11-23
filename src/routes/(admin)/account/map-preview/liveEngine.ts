@@ -82,6 +82,7 @@ import {
   turn,
   type LngLat,
   type Projector,
+  workingPasses,
 } from "$lib/components/mapnext/geo"
 import { formatAgo, formatHa } from "$lib/components/mapnext/format"
 import { machineFor, type VehicleType } from "$lib/components/mapnext/machines"
@@ -235,6 +236,14 @@ export type ToolView =
   | "layers"
   | "broadcast"
   | "farm"
+  | "dev"
+
+/**
+ * A made-up position for testing, in place of the device's own (admin
+ * accounts only): "roam" works its way through the nearest paddocks,
+ * "drive" goes wherever the map is tapped.
+ */
+export type DevGps = { mode: "roam" | "drive"; kmh: number }
 export type BaseChoice = { key: string; label: string; note: string }
 
 /** This person's own marker colour settings (which colour a pin gets). */
@@ -1074,6 +1083,23 @@ export class LiveEngine {
   private armed: string | null = null
   private insets = { left: 0, bottom: 0 }
   private watchId: number | null = null
+  /** The made-up position being fed in, if one is (see `DevGps`). */
+  readonly devGps: Writable<DevGps | null> = writable(null)
+  private dev: {
+    mode: "roam" | "drive"
+    kmh: number
+    at: LngLat
+    heading: number
+    /** Where it is going, and how far along that it has got. */
+    route: LngLat[]
+    next: number
+    /** The paddock it last worked, so it moves on to another. */
+    worked: string | null
+    timer: ReturnType<typeof setInterval>
+    last: number
+  } | null = null
+  /** The map is zooming about its middle (it is locked to a machine). */
+  private zoomCentred = false
   private wakeLock: { release: () => Promise<void> } | null = null
   private raf = 0
   private lastFrame = 0
@@ -1135,6 +1161,12 @@ export class LiveEngine {
     })
     this.map.touchZoomRotate.disableRotation()
     this.map.dragRotate.disable()
+    // Locked to a machine (yours, or one of the crew's), zooming in or out
+    // keeps that machine where it is: the lock is only let go by a drag.
+    const lock = () =>
+      this.zoomAboutCentre(get(this.follow) !== "free" || !!get(this.following))
+    this.follow.subscribe(lock)
+    this.following.subscribe(lock)
 
     // The style, not the first full screen of tiles: on a slow connection the
     // farm should be drawn long before the last imagery tile arrives.
@@ -1267,6 +1299,13 @@ export class LiveEngine {
         if (this.move) return
         if (this.armed) {
           this.dropPin(this.armed, [e.lngLat.lng, e.lngLat.lat])
+          return
+        }
+        // Driving the made-up position: a tap is where to go.
+        if (this.dev?.mode === "drive") {
+          this.dev.route = [[e.lngLat.lng, e.lngLat.lat]]
+          this.dev.next = 0
+          this.ripple([e.lngLat.lng, e.lngLat.lat], true)
           return
         }
         // A finger is wider than a pin: look a little around the tap.
@@ -7152,6 +7191,150 @@ export class LiveEngine {
     return this.crewById.get(id)?.vehicle?.pos ?? null
   }
 
+  /**
+   * Zoom about the middle of the map (true) or about the fingers or the
+   * cursor, as a map usually does (false).
+   */
+  private zoomAboutCentre(on: boolean) {
+    if (on === this.zoomCentred) return
+    this.zoomCentred = on
+    const options = on ? { around: "center" } : undefined
+    // (Each is switched off first: switching on what is already on changes
+    // nothing, the option included.)
+    this.map.scrollZoom.disable()
+    this.map.scrollZoom.enable(options)
+    this.map.touchZoomRotate.disable()
+    this.map.touchZoomRotate.enable(options)
+    this.map.touchZoomRotate.disableRotation()
+  }
+
+  // ── A made-up position, for testing ─────────────────────────────────────
+  // Everything downstream takes it for the real thing: the machine moves,
+  // the crew sees it move, and a trail started while it runs is recorded.
+  // That is the point (it is how to test all of that from a desk), and why
+  // only admin accounts are offered it.
+
+  /** Feed in a made-up position in place of the device's own. */
+  startDevGps(mode: "roam" | "drive", kmh = this.dev?.kmh ?? 12) {
+    if (this.destroyed) return
+    const centre = this.map.getCenter()
+    const at: LngLat = this.dev?.at ??
+      this.mine?.pos ??
+      this.lastFix?.at ?? [centre.lng, centre.lat]
+    if (this.dev) clearInterval(this.dev.timer)
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId)
+      this.watchId = null
+    }
+    this.dev = {
+      mode,
+      kmh,
+      at,
+      heading: this.dev?.heading ?? this.mine?.heading ?? 0,
+      route: [],
+      next: 0,
+      worked: null,
+      timer: setInterval(() => this.stepDevGps(), 1000),
+      last: performance.now(),
+    }
+    this.devGps.set({ mode, kmh })
+    this.stepDevGps()
+  }
+
+  setDevSpeed(kmh: number) {
+    if (!this.dev) return
+    this.dev.kmh = kmh
+    this.devGps.set({ mode: this.dev.mode, kmh })
+  }
+
+  /** Back to the device's own position. */
+  stopDevGps() {
+    if (!this.dev) return
+    clearInterval(this.dev.timer)
+    this.dev = null
+    this.devGps.set(null)
+    this.startGps()
+  }
+
+  /** Once a second: move along, and report where that is as a fix. */
+  private stepDevGps() {
+    const dev = this.dev
+    if (!dev || this.destroyed) return
+    const now = performance.now()
+    const dt = Math.min(3, Math.max(0.2, (now - dev.last) / 1000))
+    dev.last = now
+    if (dev.mode === "roam" && dev.next >= dev.route.length) {
+      dev.route = this.roamRoute(dev.at)
+      dev.next = 0
+    }
+    let left = (dev.kmh / 3.6) * dt
+    let moved = 0
+    while (left > 0 && dev.next < dev.route.length) {
+      const target = dev.route[dev.next]
+      const gap = distanceM(dev.at, target)
+      if (gap > 0.05) dev.heading = bearingDeg(dev.at, target)
+      if (gap <= left) {
+        dev.at = target
+        dev.next += 1
+        left -= gap
+        moved += gap
+      } else {
+        const share = left / gap
+        dev.at = [
+          lerp(dev.at[0], target[0], share),
+          lerp(dev.at[1], target[1], share),
+        ]
+        moved += left
+        left = 0
+      }
+    }
+    this.gps.set("live")
+    this.onFix({
+      at: dev.at,
+      t: Date.now(),
+      accuracy: 4,
+      speed: moved / dt,
+      heading: dev.heading,
+    })
+  }
+
+  /**
+   * Where a roaming machine goes next: up and down the nearest paddock it
+   * hasn't just worked, a pass every machine-width. With no paddocks on the
+   * farm it wanders a few hundred metres at a time.
+   */
+  private roamRoute(from: LngLat): LngLat[] {
+    const dev = this.dev
+    const paddock = this.paddocks
+      .filter((p) => p.id !== dev?.worked && p.polygons.length)
+      .map((p) => ({
+        p,
+        far: distanceM(from, [
+          (p.bbox[0] + p.bbox[2]) / 2,
+          (p.bbox[1] + p.bbox[3]) / 2,
+        ]),
+      }))
+      .sort((a, b) => a.far - b.far)[0]?.p
+    if (!paddock) {
+      const turn = Math.random() * Math.PI * 2
+      const reach = 150 + Math.random() * 250
+      return [
+        projector(from).toLngLat([
+          Math.cos(turn) * reach,
+          Math.sin(turn) * reach,
+        ]),
+      ]
+    }
+    if (dev) dev.worked = paddock.id
+    const proj = projector([
+      (paddock.bbox[0] + paddock.bbox[2]) / 2,
+      (paddock.bbox[1] + paddock.bbox[3]) / 2,
+    ])
+    const rings = paddock.polygons[0].map((ring) => ring.map(proj.toXY))
+    const passes = workingPasses(rings, Math.max(8, this.me.swath || 12))
+    return passes.map(proj.toLngLat)
+  }
+
   // ── Real position ───────────────────────────────────────────────────────
 
   /** Ask the browser for the viewer's position and keep watching it. */
@@ -7605,6 +7788,7 @@ export class LiveEngine {
     cancelAnimationFrame(this.raf)
     document.removeEventListener("visibilitychange", this.onVisibility)
     if (this.watchId !== null) navigator.geolocation.clearWatch(this.watchId)
+    if (this.dev) clearInterval(this.dev.timer)
     this.wakeLock?.release().catch(() => {})
     this.stops.forEach((stop) => stop())
     this.stopTrailWatch?.()

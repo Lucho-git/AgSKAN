@@ -4335,3 +4335,56 @@
 .mn-presets .shades i {
   flex: 1;
 }
+
+/* ── Twenty-first pass ──────────────────────────────────────────────────── */
+/* The testing tools' colour. */
+.t-dev {
+  --hue: #b4236a;
+}
+/* A new operation, at the foot of the list in the toolbox's heading. */
+.mn-oplist .add {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--mn-band-wash);
+}
+.mn-oplist form.new {
+  display: flex;
+  gap: 5px;
+}
+.mn-oplist form.new input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mn-band-text);
+  font-size: 1rem;
+  color: var(--mn-band);
+}
+.mn-oplist form.new input::placeholder {
+  color: var(--mn-band);
+  opacity: 0.55;
+}
+.mn-oplist form.new input.year {
+  flex: 0 0 74px;
+  padding: 0 8px;
+  text-align: center;
+}
+.mn-oplist form.new button {
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0 15px;
+  background: #f7db5c;
+  font-weight: 800;
+  color: #15261c;
+}
+/* (The form squeezes to the list's width rather than widening it.) */
+.mn-oplist {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mn-oplist form.new {
+  min-width: 0;
+}
+.mn-oplist form.new input {
+  width: 0;
+}
