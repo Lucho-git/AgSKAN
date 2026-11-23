@@ -802,9 +802,16 @@
         stopAsk = false
         return true
       }
-      if (!binOpen) return false
-      binOpen = null
-      return true
+      if (binOpen) {
+        binOpen = null
+        return true
+      }
+      // The crew's own card (not the toolbox's list): put away too.
+      if (crewCard && !railOn && !cardOpen) {
+        crewCard = false
+        return true
+      }
+      return false
     }
     created.onHold = (at) => {
       if (guest) return
@@ -1635,12 +1642,12 @@
     pickTrail(trail.id)
   }
 
-  // Someone picked in the crew list: found on the map, with their card up.
-  // (On a phone the list is a card too, and comes back when theirs goes.)
+  // Someone picked in the crew list: the map goes to them, and that is all.
+  // They aren't picked out (their card would cover the list): the list stays
+  // up, to go on to the next one. (Their card is a tap on their machine.)
   function lookCrew(id: string) {
     if (id === ME) engine?.setFollow("follow")
-    else if (engine?.lookAt(id)) engine.pickCrew(id)
-    else return
+    else if (!engine?.lookAt(id)) return
     if (!wide) closePanel()
   }
 

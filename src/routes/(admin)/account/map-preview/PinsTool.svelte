@@ -698,6 +698,41 @@
     box-shadow: 0 0 0 1.5px var(--lp-line);
   }
 
+  /* The colours for the pin in hand: squares, five to a row and wrapping
+     to a second, so each is a proper size to hit on a narrow rail and on a
+     phone alike (ten little discs in one row were neither). */
+  .hand .mn-swatches {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 6px;
+  }
+  .hand .mn-swatches button {
+    position: relative;
+    aspect-ratio: auto;
+    height: 36px;
+    border: 0;
+    border-radius: 10px;
+    box-shadow: inset 0 0 0 1.5px rgba(21, 38, 28, 0.22);
+  }
+  .hand .mn-swatches button.selected {
+    box-shadow:
+      inset 0 0 0 2px var(--mn-block),
+      0 0 0 2.5px var(--lp-ink);
+  }
+  /* (The one chosen is ticked, as well as ringed.) */
+  .hand .mn-swatches button.selected::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 13px;
+    height: 7px;
+    border-bottom: 2.5px solid #fff;
+    border-left: 2.5px solid #fff;
+    content: "";
+    filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.7));
+    transform: translate(-50%, -70%) rotate(-45deg);
+  }
+
   /* Finding a kind: hangs under the band, over the kinds. */
   .find {
     position: absolute;
