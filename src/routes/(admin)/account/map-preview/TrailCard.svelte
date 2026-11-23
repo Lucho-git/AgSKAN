@@ -1,6 +1,6 @@
 <script context="module" lang="ts">
   // Folded down on one trail, it stays folded for the next.
-  let keptShort = false
+  let keptShort: boolean = false
 </script>
 
 <script lang="ts">
@@ -99,8 +99,11 @@
   }
 
   // ── Folding the card down (a phone) ──
-  let short = keptShort
-  $: keptShort = short
+  let short: boolean = keptShort
+  function fold(down: boolean) {
+    short = down
+    keptShort = down
+  }
   let grab: { y: number; id: number; bar: boolean } | null = null
   function gripDown(e: PointerEvent) {
     const target = e.target as Element
@@ -117,9 +120,9 @@
   function gripUp(e: PointerEvent) {
     if (!grab || grab.id !== e.pointerId) return
     const moved = e.clientY - grab.y
-    if (moved > 18) short = true
-    else if (moved < -18) short = false
-    else if (grab.bar) short = !short
+    if (moved > 18) fold(true)
+    else if (moved < -18) fold(false)
+    else if (grab.bar) fold(!short)
     grab = null
   }
 
