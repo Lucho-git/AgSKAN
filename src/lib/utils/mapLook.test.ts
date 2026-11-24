@@ -6,9 +6,8 @@ import {
   MAP_STYLES,
   TRAIL_STYLES,
   basemapPaint,
-  RECORD_TRAIL_COLORS,
   composeLook,
-  trailColorFor,
+  trailLegend,
   buildOutsideMask,
   fieldColors,
   resolveLook,
@@ -53,9 +52,10 @@ describe("presets", () => {
   })
 
   it("keeps trail opacity where one pass and two passes stay distinguishable", () => {
-    // Records is the exception: it copies the Records page's solid trails.
-    for (const [name, look] of Object.entries(PRESETS)) {
-      if (name === "records") continue
+    for (const look of [
+      ...Object.values(PRESETS),
+      ...Object.values(TRAIL_STYLES).map((trails) => ({ trails })),
+    ]) {
       expect(look.trails.opacity).toBeGreaterThanOrEqual(0.45)
       expect(look.trails.opacity).toBeLessThanOrEqual(0.65)
     }
@@ -167,24 +167,19 @@ describe("resolveTrailColor", () => {
   })
 })
 
-describe("trailColorFor", () => {
-  const records = PRESETS.records
-
-  it("colours by machine unless the look colours by trail", () => {
-    expect(trailColorFor("Red", "trail-1", PRESETS.muted)).toBe("#ef4444")
-    expect(trailColorFor("Red", null, records)).toBe("#ef4444")
-  })
-
-  it("gives each trail a stable colour from the Records palette", () => {
-    const a = trailColorFor("Red", "trail-1", records)
-    expect(RECORD_TRAIL_COLORS).toContain(a)
-    expect(trailColorFor("Blue", "trail-1", records)).toBe(a)
-    const spread = new Set(
-      Array.from({ length: 40 }, (_, i) =>
-        trailColorFor("Red", `trail-${i}`, records),
-      ),
-    )
-    expect(spread.size).toBeGreaterThan(6)
+describe("trailLegend", () => {
+  it("lists the colour each machine's trails are drawn in", () => {
+    const legend = trailLegend(PRESETS.muted)
+    expect(legend).toHaveLength(9)
+    expect(legend.find((l) => l.key === "red")).toEqual({
+      key: "red",
+      label: "Red",
+      color: "#ef4444",
+    })
+    expect(
+      trailLegend(composeLook("muted", "earth")).find((l) => l.key === "red")!
+        .color,
+    ).toBe("#c8553d")
   })
 })
 

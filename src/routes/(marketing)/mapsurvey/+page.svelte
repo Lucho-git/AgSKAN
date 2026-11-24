@@ -5,7 +5,7 @@
   Farmers make two separate choices and can mix them freely on the map:
 
     - the MAP style  (satellite treatment + paddocks)  shown as Map 1…5
-    - the TRAIL colours                                 shown as Trails A…D
+    - the TRAIL colours                                 shown as Trails A…C
 
   Both come from $lib/utils/mapLook.ts and are drawn with the same apply
   functions as the real map viewer, so what is voted on is what would ship.
@@ -26,7 +26,8 @@
   import {
     composeLook,
     fieldColors,
-    trailColorFor,
+    resolveTrailColor,
+    trailLegend,
     type PresetName,
     type TrailPaletteName,
   } from "$lib/utils/mapLook"
@@ -64,11 +65,15 @@
     { label: "4", key: "mono" },
     { label: "5", key: "records" },
   ]
-  const TRAILS: { label: string; key: TrailPaletteName }[] = [
-    { label: "A", key: "soft" },
-    { label: "B", key: "classic" },
-    { label: "C", key: "earth" },
-    { label: "D", key: "records" },
+  // Ordered from most muted to brightest.
+  const TRAILS: { label: string; key: TrailPaletteName; blurb: string }[] = [
+    { label: "A", key: "earth", blurb: "The most muted: soft, earthy tones." },
+    {
+      label: "B",
+      key: "soft",
+      blurb: "In between: clear colours, toned down a little.",
+    },
+    { label: "C", key: "classic", blurb: "The brightest: bold, pure colours." },
   ]
   const FARMS = ["a", "b", "c", "d", "e"]
 
@@ -106,6 +111,8 @@
   $: look = composeLook(mapChoice, trailChoice)
   $: isCurrent = mapChoice === "classic" && trailChoice === "classic"
   $: mapLabel = MAPS.find((m) => m.key === mapChoice)?.label ?? ""
+  $: legend = trailLegend(look)
+  $: activeTrail = TRAILS.find((t) => t.key === trailChoice)
   $: trailLabel = TRAILS.find((t) => t.key === trailChoice)?.label ?? ""
 
   // ── Form state ──
@@ -222,8 +229,6 @@
       .forEach((trail, i) => {
         const sourceId = `trail-source-${i}`
         const layerId = `trail-layer-${i}`
-        // Stands in for the trail id, so per-trail colouring is stable.
-        const trailKey = `farm-${FARMS[farmIndex]}-trail-${i}`
         map.addSource(sourceId, {
           type: "geojson",
           data: { type: "Feature", properties: {}, geometry: trail.geometry },
@@ -235,11 +240,10 @@
           metadata: {
             agskanTrailColor: trail.color || "Red",
             agskanTrailRole: "work",
-            agskanTrailKey: trailKey,
           },
           layout: { "line-join": "round", "line-cap": "round" },
           paint: {
-            "line-color": trailColorFor(trail.color, trailKey, look),
+            "line-color": resolveTrailColor(trail.color, look),
             "line-width": calculateZoomDependentWidth(trail.width || 12, 1),
             "line-opacity": look.trails.opacity,
           },
@@ -491,21 +495,24 @@
   <title>Map Style Survey — AgSKAN</title>
   <meta
     name="description"
-    content="Help us choose the look of the AgSKAN map — flick through the styles on a demo farm and tell us your favourites."
+    content="Bright, obvious colours or softer, muted tones? Try the AgSKAN map styles on a demo farm and tell us which you prefer."
   />
 </svelte:head>
 
 <div class="survey-wrap text-contrast-content">
   <div class="survey-hero">
-    <h1>Help us choose the look of the map</h1>
+    <h1>Bright and obvious, or calm and muted?</h1>
     <p>
-      We're refreshing the colours of the AgSKAN map. There are two things to
-      choose, and you can mix them however you like on the demo farm below (the <strong
-        >Existing settings</strong
-      >
-      button shows how it looks today): the <strong>map</strong>
-      (the satellite view and your paddocks) and the
-      <strong>trail colours</strong> your machines leave.
+      We're refreshing the colours of the AgSKAN map, and we want to know which
+      way you lean: <strong>bright, obvious colours</strong> that jump out at
+      you, or <strong>softer, muted tones</strong> that are easier on the eye.
+    </p>
+    <p>
+      There are two things to choose on the demo farm below, and you can mix
+      them however you like: the <strong>map</strong> (the satellite view and
+      your paddocks) and the <strong>trail colours</strong> your machines leave.
+      Trails A to C run from most muted to brightest. The
+      <strong>Existing settings</strong> button shows how it looks today.
     </p>
     <p class="survey-sub">
       Try each one, zoom in on where trails overlap, then tell us which map and
@@ -560,6 +567,13 @@
       </button>
     </div>
 
+    {#if activeTrail}
+      <p class="survey-set-note">
+        <strong>Trails {activeTrail.label}.</strong>
+        {activeTrail.blurb}
+      </p>
+    {/if}
+
     <div class="survey-map" bind:this={mapContainer}>
       {#if mapError}
         <div class="survey-map-overlay error">{mapError}</div>
@@ -570,6 +584,18 @@
           Map {mapLabel} · Trails {trailLabel}{isCurrent
             ? " · existing settings"
             : ""}
+        </div>
+        <div class="survey-legend" aria-label="Trail colours in this set">
+          <div class="survey-legend-title">Trails {trailLabel}</div>
+          {#each legend as item (item.key)}
+            <div class="survey-legend-item">
+              <span
+                class="survey-legend-swatch"
+                style="background: {item.color}"
+              ></span>
+              {item.label}
+            </div>
+          {/each}
         </div>
       {/if}
     </div>
@@ -619,7 +645,8 @@
     <div class="survey-card">
       <h2>Which trail colours do you like best?</h2>
       <p class="survey-card-desc">
-        Think about telling machines apart and seeing where passes overlap.
+        A to C run from most muted to brightest. Think about telling machines
+        apart and seeing where trails overlap.
       </p>
       <div class="survey-choices">
         {#each TRAILS as option (option.key)}
@@ -639,7 +666,8 @@
     <div class="survey-card">
       <h2>Comments</h2>
       <p class="survey-card-desc">
-        Optional. Anything you liked or disliked, or that was hard to see?
+        Optional. Do you prefer bright colours or muted tones, and why? Was
+        anything hard to see?
       </p>
       <textarea
         class="survey-textarea"
@@ -872,6 +900,53 @@
     background: #0f172a;
     color: #fff;
   }
+  /* On the map, under the style chip, so it stays in view while switching sets. */
+  .survey-legend {
+    position: absolute;
+    top: 54px;
+    left: 12px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.82);
+    color: #f1f5f9;
+    pointer-events: none;
+  }
+  .survey-legend-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #cbd5e1;
+  }
+  .survey-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .survey-legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+  .survey-set-note {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.5;
+  }
   .survey-choices {
     display: flex;
     flex-wrap: wrap;
@@ -989,6 +1064,19 @@
     .survey-map {
       height: 62vh;
       min-height: 380px;
+    }
+    .survey-legend {
+      top: 50px;
+      left: 8px;
+      gap: 3px;
+      padding: 6px 8px;
+    }
+    .survey-legend-item {
+      font-size: 10px;
+    }
+    .survey-legend-swatch {
+      width: 10px;
+      height: 10px;
     }
     .survey-stylebtn {
       width: 36px;

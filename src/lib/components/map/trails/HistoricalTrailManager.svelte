@@ -278,7 +278,6 @@
       metadata: {
         agskanTrailColor: trail.trail_color || "#FF0000",
         agskanTrailRole: "work",
-        agskanTrailKey: String(trail.id),
       },
       layout: {
         "line-join": "round",
@@ -286,7 +285,7 @@
         visibility: visibility,
       },
       paint: {
-        "line-color": trailLineColor(trail.trail_color, String(trail.id)),
+        "line-color": trailLineColor(trail.trail_color),
         "line-width": zoomDependentWidth,
         "line-opacity": trailOpacity("work"),
       },
@@ -309,7 +308,6 @@
         metadata: {
           agskanTrailColor: trail.trail_color || "#FF0000",
           agskanTrailRole: "pause",
-          agskanTrailKey: String(trail.id),
         },
         layout: {
           "line-join": "round",
@@ -317,7 +315,7 @@
           visibility: visibility,
         },
         paint: {
-          "line-color": trailLineColor(trail.trail_color, String(trail.id)),
+          "line-color": trailLineColor(trail.trail_color),
           "line-width": pauseZoomDependentWidth,
           "line-opacity": trailOpacity("pause"),
           "line-dasharray": [0.12, 1.5],

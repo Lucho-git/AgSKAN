@@ -243,7 +243,6 @@
       metadata: {
         agskanTrailColor: trail.trail_color || "#FF0000",
         agskanTrailRole: "work",
-        agskanTrailKey: String(trail.id),
       },
       layout: {
         "line-join": "round",
@@ -251,7 +250,7 @@
         visibility: "visible",
       },
       paint: {
-        "line-color": trailLineColor(trail.trail_color, String(trail.id)),
+        "line-color": trailLineColor(trail.trail_color),
         "line-width": width,
         "line-opacity": trailOpacity("work"),
       },
