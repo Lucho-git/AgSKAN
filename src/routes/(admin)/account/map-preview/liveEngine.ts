@@ -1148,7 +1148,8 @@ export class LiveEngine {
     /** A finger, not a mouse: it is given a little more room. */
     touch: boolean
   } | null = null
-  private trailsInTimer: ReturnType<typeof setTimeout> | undefined
+  /** The ground each drawn trail covers (west, south, east, north). */
+  private trailBoxes = new WeakMap<object, [number, number, number, number]>()
   private destroyed = false
 
   constructor(
@@ -1525,15 +1526,10 @@ export class LiveEngine {
     this.selectedPaddock.subscribe((paddock) => {
       if (get(this.ready)) pickPaddock(this.map, paddock?.id ?? null)
       this.keepMarching()
-      // Which trails went through it is worked out a moment later (it means
-      // going over every trail), so the paddock is picked out at once.
-      clearTimeout(this.trailsInTimer)
-      this.paddockTrails.set([])
-      if (paddock)
-        this.trailsInTimer = setTimeout(() => {
-          if (get(this.selectedPaddock)?.id === paddock.id)
-            this.paddockTrails.set(this.trailsIn(paddock))
-        }, 80)
+      // Which trails went through it is known with it, so its menu opens
+      // whole (their row used to arrive a moment later and push the menu
+      // up). Only the trails anywhere near it are gone over: see `trailsIn`.
+      this.paddockTrails.set(paddock ? this.trailsIn(paddock) : [])
       if (!paddock) this.pickFeature(null, null)
       const through = get(this.through)
       if (through && through !== paddock?.id) this.showThrough(null)
@@ -6618,6 +6614,21 @@ export class LiveEngine {
         feature as { properties: { id: string; segment?: string } }
       ).properties
       if (properties.segment === "pause" || found.has(properties.id)) continue
+      // A trail that never comes near the paddock is passed over without
+      // looking at its points. (Where each trail goes is worked out once.)
+      let box = this.trailBoxes.get(feature as object)
+      if (!box) {
+        box = [Infinity, Infinity, -Infinity, -Infinity]
+        for (const part of partsOf(feature))
+          for (const at of part) {
+            if (at[0] < box[0]) box[0] = at[0]
+            if (at[1] < box[1]) box[1] = at[1]
+            if (at[0] > box[2]) box[2] = at[0]
+            if (at[1] > box[3]) box[3] = at[1]
+          }
+        this.trailBoxes.set(feature as object, box)
+      }
+      if (box[0] > e || box[2] < w || box[1] > n || box[3] < s) continue
       for (const part of partsOf(feature)) {
         // Every few points is plenty to tell if a trail went through.
         const step = Math.max(1, Math.floor(part.length / 400))

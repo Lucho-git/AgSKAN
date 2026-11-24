@@ -23,6 +23,36 @@
 .mn.wide {
   --mn-rail: 340px;
 }
+/* The map's menus are dressed by the Map tool ("Menus": `data-ui` on this
+   element), not by the app's light or dark theme. The landing tokens they
+   are built from flip to their dark set under the app's dark theme, which
+   put light writing on the menus' light blocks whenever the map was opened
+   from the dashboard with the dark theme on. Here they are held at the
+   light set; the dark menu look sets its own. */
+[data-theme="skanthemedark"] .lp-theme.mn {
+  --lp-paper: #f4f1e6;
+  --lp-paper-2: #ebe7d8;
+  --lp-card: #fbf9f2;
+  --lp-line: #d6d1bd;
+  --lp-ink: #15261c;
+  --lp-ink-soft: rgba(21, 38, 28, 0.72);
+  --lp-ink-faint: rgba(21, 38, 28, 0.5);
+  --lp-contour: rgba(21, 38, 28, 0.09);
+  --lp-accent-text: #0f7a36;
+  --lp-band: #15261c;
+  --lp-band-2: #1d3226;
+
+  --b1: 95.75% 0.0149 94.2;
+  --b2: 92.7% 0.0204 94.5;
+  --b3: 85.93% 0.0276 95.4;
+  --bc: 25% 0.0298 157.6;
+  --n: 25% 0.0298 157.6;
+  --nc: 95.75% 0.0149 94.2;
+  --contrast: 95.75% 0.0149 94.2;
+  --contrast-content: 25% 0.0298 157.6;
+  --dark-card: 25% 0.0298 157.6;
+  --dark-card-content: 95.75% 0.0149 94.2;
+}
 /* Mapbox's own stylesheet sets `position: relative` on its container. */
 .mn .mn-map {
   position: absolute;
