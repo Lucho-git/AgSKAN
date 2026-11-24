@@ -11,10 +11,9 @@
  */
 
 import {
-  RECORD_TRAIL_COLORS,
   TRAIL_PALETTES,
   composeLook,
-  trailColorFor,
+  resolveTrailColor,
   type TrailPaletteName,
 } from "$lib/utils/mapLook"
 
@@ -118,10 +117,8 @@ export function blockColour(id: string): string {
 /**
  * How trails are coloured, chosen in the Map tool. "machine" is this map's
  * own: a trail is exactly the colour its machine is drawn in. The others
- * are the map survey's trail palettes (soft, classic, earth, records): the
- * same nine machine colours in different shades, and with "records" every
- * finished trail gets a colour of its own so neighbouring passes stand
- * apart.
+ * are the current viewer's trail palettes: the same nine machine colours in
+ * different shades.
  */
 export type TrailPalette = "machine" | TrailPaletteName
 export const TRAIL_PALETTE_CHOICES: { key: TrailPalette; label: string }[] = [
@@ -139,23 +136,19 @@ export function setTrailPalette(palette: TrailPalette) {
 
 /**
  * The colour to draw a trail in: its machine's saved colour, in the palette
- * chosen. `trailId` is given for a finished trail (the records palette
- * colours those one by one); a trail still being laid keeps its machine's.
+ * chosen. (`trailId` is taken for the callers' sake; no palette colours
+ * trails one by one any more.)
  */
 export function trailColour(
   saved: string | null | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   trailId?: string | null,
 ): string {
   if (trailPalette === "machine") return drawColour(saved)
   const known = findColour(saved)
   // (A custom colour isn't in any palette: it is drawn as it is.)
-  if (!known && !(trailPalette === "records" && trailId))
-    return drawColour(saved)
-  return trailColorFor(
-    known?.id ?? saved,
-    trailId ?? null,
-    composeLook("classic", trailPalette),
-  )
+  if (!known) return drawColour(saved)
+  return resolveTrailColor(known.id, composeLook("classic", trailPalette))
 }
 
 /** Five colours of a palette, for its sample in the Map tool. */
@@ -163,6 +156,5 @@ export function paletteSample(palette: TrailPalette): string[] {
   const names = ["Red", "Blue", "Green", "Yellow", "Orange"]
   if (palette === "machine")
     return names.map((name) => findColour(name)?.value ?? "#888")
-  if (palette === "records") return RECORD_TRAIL_COLORS.slice(0, 5)
   return names.map((name) => TRAIL_PALETTES[palette][name.toLowerCase()])
 }

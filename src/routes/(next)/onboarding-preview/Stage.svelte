@@ -10,9 +10,9 @@
    *  - crew show as ghosts until they've actually joined
    */
   import { createEventDispatcher } from "svelte"
-  import MapVehicle from "../landing/MapVehicle.svelte"
-  import MapPin from "../landing/MapPin.svelte"
-  import { smilPlayback } from "../landing/motion"
+  import MapVehicle from "../../(marketing)/landing/MapVehicle.svelte"
+  import MapPin from "../../(marketing)/landing/MapPin.svelte"
+  import { smilPlayback } from "../../(marketing)/landing/motion"
   import type { DroppedPin, Machine, Season } from "./machines"
 
   export let farmName = ""

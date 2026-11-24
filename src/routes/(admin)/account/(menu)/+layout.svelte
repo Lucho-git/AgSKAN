@@ -16,6 +16,7 @@
   import { browser } from "$app/environment"
   import { Capacitor } from "@capacitor/core"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
+  import { mapRoute } from "$lib/utils/mapRoute"
 
   const adminSectionStore = writable("")
   const isNavigating = writable(false)
@@ -228,8 +229,9 @@
       isNavigating.set(true)
     }
 
-    // Use SvelteKit's goto for instant navigation
-    goto(item.href)
+    // Use SvelteKit's goto for instant navigation. (The Map button opens
+    // whichever viewer this person has chosen in Settings > Map & display.)
+    goto(item.path === "mapviewer" ? mapRoute() : item.href)
   }
 
   // Function to check if an item should be disabled - make this more explicit

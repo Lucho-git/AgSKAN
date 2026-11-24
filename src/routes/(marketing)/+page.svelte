@@ -1,13 +1,14 @@
 <script lang="ts">
-  import LandingHero from "./landing/LandingHero.svelte"
-  import FeatureShowcase from "./landing/FeatureShowcase.svelte"
-  import RadioToMap from "./landing/RadioToMap.svelte"
-  import UseCases from "./landing/UseCases.svelte"
-  import HowItWorks from "./landing/HowItWorks.svelte"
-  import Reviews from "./landing/Reviews.svelte"
-  import FinalCta from "./landing/FinalCta.svelte"
+  import Hero from "./Hero.svelte"
+  import Features from "./Features.svelte"
+  import Agskan from "./Agskan.svelte"
+  import PaddockPath from "./PaddockPath.svelte"
   import Partners from "./PartnerSection.svelte"
   import QandA from "./QandA.svelte"
+  import ProblemSolution from "./ProblemSolution.svelte"
+  import SignupSection from "./SignupSection.svelte"
+  import Setup from "./Setup.svelte"
+  import Testimonials from "./Testimonials.svelte"
   import Pricing from "./Pricing.svelte"
   import Founders from "./Founders.svelte"
   import { onMount, tick } from "svelte"
@@ -94,25 +95,17 @@
   }
 </script>
 
-<svelte:head>
-  <title>AgSKAN — One live map for the whole farm crew</title>
-  <meta
-    name="description"
-    content="AgSKAN shows every operator, coverage trail and hazard pin on one live farm map. Works on any phone or tablet. Start free."
-  />
-  <link rel="canonical" href="https://www.skanfarming.com.au/" />
-</svelte:head>
-
 <main class="w-full">
-  <LandingHero />
-  <FeatureShowcase id="features" />
-  <RadioToMap />
-  <UseCases id="seasons" />
-  <HowItWorks id="setup" />
-  <Reviews id="testimonials" />
+  <Hero />
+  <Agskan />
+  <ProblemSolution />
+  <Setup id="setup" />
+
+  <Testimonials />
+  <Partners />
+
   <Pricing id="pricing" />
   <QandA id="qanda" />
   <Founders />
-  <Partners />
-  <FinalCta />
+  <!-- <SignupSection /> -->
 </main>

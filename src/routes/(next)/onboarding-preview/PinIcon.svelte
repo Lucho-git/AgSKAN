@@ -1,7 +1,7 @@
 <script lang="ts">
   /** One of the app's pin glyphs as a small standalone icon. */
-  import MapPin from "../landing/MapPin.svelte"
-  import type { PinKind } from "../landing/pinGlyphs"
+  import MapPin from "../../(marketing)/landing/MapPin.svelte"
+  import type { PinKind } from "../../(marketing)/landing/pinGlyphs"
 
   export let kind: PinKind
   export let size = 36

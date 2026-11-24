@@ -2,6 +2,7 @@
   import { onMount } from "svelte"
   import { v4 as uuidv4 } from "uuid"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { mapRoute } from "$lib/utils/mapRoute"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import {
@@ -411,7 +412,7 @@
   }
 
   function handleLaunchMap() {
-    window.location.href = "/account/mapviewer"
+    window.location.href = mapRoute()
     showLaunchMapConfirm = false
   }
 

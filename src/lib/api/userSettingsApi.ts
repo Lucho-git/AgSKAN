@@ -1288,6 +1288,40 @@ export const userSettingsApi = {
     },
 
     /**
+     * Opt in to (or out of) the new map viewer: with it on, the account
+     * menu's Map button opens /account/map-preview instead of the current
+     * viewer. Per user, off by default.
+     */
+    async updateNewMapEnabled(enabled: boolean) {
+        try {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (!sessionData?.session?.user) {
+                console.warn("User not logged in, cannot save new map setting");
+                return { success: false, message: "Not logged in", errorFields: [] };
+            }
+
+            const userId = sessionData.session.user.id;
+
+            const { error } = await supabase.from("user_settings").upsert(
+                { user_id: userId, new_map_enabled: enabled },
+                { onConflict: "user_id" }
+            );
+
+            if (error) {
+                console.error("Error saving new map setting:", error);
+                return { success: false, message: "Failed to save new map setting", errorFields: [] };
+            }
+
+            userSettingsStore.update((settings) => ({ ...settings, newMapEnabled: enabled }));
+
+            return { success: true, message: "New map setting updated" };
+        } catch (error) {
+            console.error("Error in updateNewMapEnabled:", error);
+            return { success: false, message: "An error occurred", errorFields: [] };
+        }
+    },
+
+    /**
      * Toggle spray record confirmation popup on trail close
      */
     async updateSprayConfirmEnabled(sprayConfirmEnabled: boolean) {

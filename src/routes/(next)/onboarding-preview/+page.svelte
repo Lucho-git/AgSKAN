@@ -26,7 +26,7 @@
   import vehicles from "$lib/vehicles"
   import Stage from "./Stage.svelte"
   import MapPinIcon from "./PinIcon.svelte"
-  import StoreBadges from "../landing/StoreBadges.svelte"
+  import StoreBadges from "../../(marketing)/landing/StoreBadges.svelte"
   import {
     COLOURS,
     MACHINES,

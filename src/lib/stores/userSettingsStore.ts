@@ -38,6 +38,7 @@ const defaultSettings = {
     layerVisibility: {} as Record<string, boolean>,
     sprayConfirmEnabled: true, // Show spray record confirmation popup on trail close (default on)
     autoTrailEnabled: false, // Experimental: auto-record a trail per paddock visit (default off; needs field boundaries)
+    newMapEnabled: false, // Opt-in preview: the Map button opens the new map viewer (/account/map-preview) (default off)
     roadOverlaysEnabled: false, // Show Road Overlays (KMZ) menu in map toolbox (default off)
     satelliteMenuEnabled: true, // Show Satellite menu in map toolbox (default on)
     measureMenuEnabled: true, // Show Measure menu in map toolbox (default on)
