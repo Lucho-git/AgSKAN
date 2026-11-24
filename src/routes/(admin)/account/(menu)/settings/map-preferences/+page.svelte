@@ -4,6 +4,9 @@
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
   import { userSettingsStore } from "$lib/stores/userSettingsStore"
   import { userSettingsApi } from "$lib/api/userSettingsApi"
+  import { browser } from "$app/environment"
+  import { Capacitor } from "@capacitor/core"
+  import { NEW_MAP_ROUTE } from "$lib/utils/mapRoute"
 
   const defaultImageryOptions = [
     { key: "mapbox", name: "Mapbox Satellite" },
@@ -18,12 +21,37 @@
   $: zoomToPlacedMarkers = $userSettingsStore.zoomToPlacedMarkers ?? false
   $: autoConfirmMarkers = $userSettingsStore.autoConfirmMarkers ?? false
   $: defaultImagerySource = $userSettingsStore.defaultImagerySource ?? "mapbox"
+  $: newMapEnabled = $userSettingsStore.newMapEnabled ?? false
+  // (The phone app's background tracking belongs to the current map.)
+  const inPhoneApp = browser && Capacitor.isNativePlatform()
 
   $: isConnected = $connectedMapStore?.id
   $: mapName = $connectedMapStore?.map_name || "Unknown Map"
   $: mapOwner = $connectedMapStore?.owner || "Unknown Owner"
 
   $: availableDefaultOptions = defaultImageryOptions
+
+  // The new map viewer, to try: the Map button opens it while this is on.
+  async function toggleNewMap() {
+    const v = !newMapEnabled
+    userSettingsStore.update((s) => ({ ...s, newMapEnabled: v }))
+    try {
+      const r = await userSettingsApi.updateNewMapEnabled(v)
+      if (!r.success) {
+        userSettingsStore.update((s) => ({ ...s, newMapEnabled: !v }))
+        toast.error("Failed")
+      } else {
+        toast.success(
+          v
+            ? "The Map button now opens the new map"
+            : "The Map button is back to the current map",
+        )
+      }
+    } catch {
+      userSettingsStore.update((s) => ({ ...s, newMapEnabled: !v }))
+      toast.error("Failed")
+    }
+  }
 
   async function toggleZoomToLocationMarkers() {
     const v = !zoomToLocationMarkers
@@ -154,6 +182,51 @@
         {/if}
       </div>
     </div>
+  </div>
+
+  <!-- The new map viewer, to try -->
+  <div class="rounded-lg border border-base-300 bg-base-200/30 p-4">
+    <label class="flex cursor-pointer items-start justify-between gap-3">
+      <div class="flex min-w-0 items-start gap-3">
+        <div class="flex-shrink-0 rounded-lg bg-base-content/10 p-2">
+          <Icon
+            icon="solar:map-point-wave-bold-duotone"
+            width="18"
+            height="18"
+            class="text-base-content"
+          />
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-contrast-content">
+            Try the new map
+            <span class="badge badge-warning badge-sm ml-1 align-middle"
+              >Preview</span
+            >
+          </p>
+          <p class="text-xs text-contrast-content/60">
+            The Map button opens the new map we're building. It is still being
+            worked on, and you can switch back here at any time.
+          </p>
+          {#if inPhoneApp}
+            <p class="mt-1 text-xs text-warning">
+              In the phone app the new map only follows you while it is open on
+              screen. Keep this off if you rely on tracking in the background.
+            </p>
+          {/if}
+          {#if newMapEnabled && isConnected}
+            <a class="link mt-1 inline-block text-xs" href={NEW_MAP_ROUTE}>
+              Open the new map now
+            </a>
+          {/if}
+        </div>
+      </div>
+      <input
+        type="checkbox"
+        class="toggle toggle-primary mt-0.5 flex-shrink-0"
+        checked={newMapEnabled}
+        on:change={toggleNewMap}
+      />
+    </label>
   </div>
 
   <!-- Map Interaction -->

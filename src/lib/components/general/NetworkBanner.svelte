@@ -33,6 +33,9 @@
   // On the map the top edge belongs to the back / tools / menu buttons, so the
   // strip docks to the bottom there instead of growing over them.
   $: onMapRoute = browser && $page.url.pathname.startsWith("/account/mapviewer")
+  // The new map viewer says how its connection is on its own chip (top of
+  // the map), where this strip would sit over its buttons: it stays away.
+  $: onNewMap = browser && $page.url.pathname.startsWith("/account/map-preview")
 
   $: status = $networkStore.status
   $: networkDown = status === "offline" || status === "degraded"
@@ -41,7 +44,10 @@
   $: dataIncomplete = !networkDown && failed.length > 0
 
   $: visible =
-    onAccountRoute && (networkDown || dataIncomplete) && !$mapChromeHiddenStore
+    onAccountRoute &&
+    !onNewMap &&
+    (networkDown || dataIncomplete) &&
+    !$mapChromeHiddenStore
 
   $: isHardOffline = status === "offline"
   $: headline = networkDown

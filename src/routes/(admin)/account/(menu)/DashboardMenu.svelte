@@ -2,6 +2,7 @@
   import { onMount } from "svelte"
   import { browser } from "$app/environment"
   import { connectedMapStore } from "$lib/stores/connectedMapStore"
+  import { mapRoute } from "$lib/utils/mapRoute"
   import { mapActivityStore } from "$lib/stores/mapActivityStore"
   import { profileStore } from "$lib/stores/profileStore"
   import { trailsMetaDataStore } from "$lib/stores/trailsMetaDataStore"
@@ -405,7 +406,7 @@
   }
 
   function handleLaunchMap() {
-    window.location.href = "/account/mapviewer"
+    window.location.href = mapRoute()
     showLaunchMapConfirm = false
   }
 

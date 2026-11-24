@@ -1,0 +1,4912 @@
+/*
+ * The new map's menus: the toolbox's grid of tools, its switches and lists,
+ * and the menus that open for something picked on the map (a pin, a machine,
+ * a paddock). Loaded after chrome.css, under the same `.mn` root.
+ */
+
+/* ── The toolbox's front page: a grid of tools, each saying what it is set to ── */
+.mn-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.mn-tile {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 3px;
+  min-height: 104px;
+  padding: 10px 6px 9px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 18px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  text-align: center;
+}
+.mn-tile:hover {
+  border-color: var(--lp-ink);
+}
+.mn-tile .icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 2px;
+  border-radius: 14px;
+  background: var(--lp-paper);
+  box-shadow: 0 0 0 1px var(--lp-line);
+}
+.mn-tile .icon.art {
+  background: #cdbd92;
+}
+.mn-tile strong {
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.mn-tile small {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A tool that is doing something right now (a broadcast running). */
+.mn-tile.on {
+  border-color: var(--on);
+  box-shadow: inset 0 0 0 1.5px var(--on);
+}
+.mn-tile.on .icon {
+  background: var(--on);
+  color: #fff;
+}
+
+/* ── Switches: a row with what it is, and whether it is on ── */
+.mn-switches {
+  display: grid;
+  gap: 6px;
+}
+.mn-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 50px;
+  padding: 6px 12px 6px 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  font-size: 0.98rem;
+  font-weight: 600;
+  text-align: left;
+}
+.mn-switch.part {
+  width: calc(100% - 22px);
+  min-height: 44px;
+  margin-left: 22px;
+  font-size: 0.92rem;
+}
+.mn-switch i {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 28px;
+  border-radius: 99px;
+  background: var(--lp-line);
+  transition: background 0.18s ease;
+}
+.mn-switch i::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(10, 25, 15, 0.4);
+  transition: transform 0.18s ease;
+}
+.mn-switch[aria-checked="true"] i {
+  background: var(--lp-green);
+}
+.mn-switch[aria-checked="true"] i::after {
+  transform: translateX(18px);
+}
+
+/* ── Lists ── */
+.mn-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 3rem;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-card);
+  color: var(--lp-ink-soft);
+}
+.mn-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-size: 1rem;
+  color: var(--lp-ink);
+  outline: none;
+}
+.mn-search:focus-within {
+  border-color: var(--lp-ink);
+}
+.mn-tool .swatch.block {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--lp-line);
+}
+
+/* ── Broadcasts: one big button each, in its own colour ── */
+.mn-casts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.mn-cast {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 64px;
+  border-radius: 18px;
+  background: var(--on);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  box-shadow: 0 10px 20px -12px var(--on);
+}
+.mn-cast:disabled {
+  opacity: 0.45;
+}
+.mn-live {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--lp-display);
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+.mn-live i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--on);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--on) 30%, transparent);
+}
+.mn-chip.cast {
+  background: var(--on);
+  color: #fff;
+}
+.mn-chip.cast .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* ── Menus for something picked on the map ── */
+.mn-menu {
+  display: grid;
+  gap: 10px;
+  max-height: min(72dvh, 34rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.mn-menu .head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mn-menu .head .art {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #cdbd92;
+  color: #15261c;
+}
+.mn-menu .about {
+  flex: 1;
+  min-width: 0;
+}
+.mn-menu h2 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.mn-menu .about p {
+  margin-top: 2px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: var(--lp-ink-soft);
+}
+.mn-menu .lp-btn {
+  min-height: 2.9rem;
+}
+/* Swatches sit in even rows (`--across` of them), big enough for a thumb. */
+.mn-swatches {
+  display: grid;
+  grid-template-columns: repeat(var(--across, 5), minmax(0, 44px));
+  justify-content: space-between;
+  gap: 8px;
+}
+.mn-swatches button {
+  aspect-ratio: 1;
+  border: 3px solid var(--lp-card);
+  border-radius: 50%;
+  background: var(--swatch);
+  box-shadow: 0 0 0 1.5px var(--lp-line);
+}
+.mn-swatches button.selected {
+  box-shadow: 0 0 0 2.5px var(--lp-ink);
+}
+/* "No colour": a white disc with a line through it. */
+.mn-swatches button.none {
+  background:
+    linear-gradient(
+      135deg,
+      transparent calc(50% - 1px),
+      var(--lp-rust) calc(50% - 1px),
+      var(--lp-rust) calc(50% + 1px),
+      transparent calc(50% + 1px)
+    ),
+    #fff;
+}
+.mn-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+}
+.mn-pair button {
+  min-height: 42px;
+  border-radius: 99px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lp-ink-soft);
+}
+.mn-pair button[aria-pressed="true"] {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-note-field {
+  position: relative;
+}
+.mn-note-field textarea,
+.mn-fields input,
+.mn-fields select {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 0.8rem;
+  background: var(--lp-card);
+  font-size: 1rem;
+  line-height: 1.35;
+  color: var(--lp-ink);
+}
+.mn-note-field textarea {
+  display: block;
+  padding-right: 3.2rem;
+  resize: none;
+}
+.mn-note-field textarea:focus,
+.mn-fields input:focus,
+.mn-fields select:focus {
+  border-color: var(--lp-ink);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lp-yellow) 60%, transparent);
+}
+.mn-note-field .save {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  color: #15261c;
+  transform: translateY(-50%);
+}
+.mn-fields {
+  display: grid;
+  gap: 8px;
+}
+.mn-fields label {
+  display: grid;
+  gap: 3px;
+}
+.mn-fields input,
+.mn-fields select {
+  min-height: 2.8rem;
+}
+.mn-slider {
+  display: grid;
+  gap: 2px;
+}
+.mn-width {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mn-width .stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mn-width .stepper button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--lp-paper);
+  color: var(--lp-ink);
+  box-shadow: 0 0 0 1.5px var(--lp-line);
+}
+.mn-width .stepper button:disabled {
+  opacity: 0.4;
+}
+.mn-width .stepper b {
+  min-width: 3.6rem;
+  font-family: var(--lp-display);
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.mn-width .stepper small {
+  margin-left: 2px;
+  font-family: var(--lp-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--lp-ink-faint);
+}
+.mn-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mn-chips button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  background: var(--lp-card);
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+.mn-chips button[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-menu-actions {
+  display: flex;
+  gap: 6px;
+}
+.mn-menu-actions button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 46px;
+  padding: 0 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-menu-actions button.danger {
+  border-color: color-mix(in srgb, var(--lp-rust) 55%, transparent);
+  color: var(--lp-rust);
+}
+.mn-menu-actions button.armed {
+  background: var(--lp-rust);
+  color: #fff;
+}
+
+/* ── Measuring ── */
+.mn-measure {
+  display: flex;
+  gap: 6px;
+}
+.mn-measure div {
+  display: grid;
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--lp-paper);
+  box-shadow: 0 0 0 1px var(--lp-line);
+}
+.mn-measure b {
+  font-family: var(--lp-display);
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.mn-measure span {
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+}
+
+/* ── A count of something waiting (unread messages) ── */
+.mn-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--lp-rust);
+  color: #fff;
+  font-family: var(--lp-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.mn-tile {
+  position: relative;
+}
+.mn-tile .mn-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.mn-tools-button .mn-badge {
+  margin-right: -6px;
+}
+
+/* ── Messages ── */
+.mn-inbox .art b {
+  font-family: var(--lp-mono);
+  font-size: 0.85rem;
+  color: var(--lp-ink);
+}
+.mn-inbox .doing.unread {
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+/* A conversation fills the panel: the messages scroll, the box to type in
+   stays put at the bottom. */
+.mn-panel.chat {
+  height: 88dvh;
+  overflow: hidden;
+}
+.mn.wide .mn-panel.chat {
+  height: auto;
+}
+.mn-convo-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: -8px;
+}
+.mn-convo-head .state {
+  overflow: hidden;
+  font-size: 0.82rem;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-convo-head .state.on::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #39d27a;
+}
+.mn-convo-head .mn-text-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  width: auto;
+  min-height: 32px;
+}
+.mn-thread {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 120px;
+  padding: 10px;
+  overflow-y: auto;
+  border-radius: 16px;
+  background: var(--lp-paper);
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.mn-thread .day {
+  align-self: center;
+  margin: 6px 0 2px;
+  font-family: var(--lp-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+}
+.mn-thread .mn-empty {
+  margin: auto 0;
+  text-align: center;
+  font-size: 0.85rem;
+}
+.mn-bubble {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  align-self: flex-start;
+  max-width: 84%;
+  padding: 9px 12px 7px;
+  border-radius: 16px 16px 16px 5px;
+  background: var(--lp-card);
+  box-shadow: 0 0 0 1px var(--lp-line);
+  color: var(--lp-ink);
+}
+/* One carrying a place is as wide as a bubble gets, so its name fits. */
+.mn-bubble.placed {
+  width: 84%;
+}
+.mn-bubble.mine {
+  align-self: flex-end;
+  border-radius: 16px 16px 5px 16px;
+  background: var(--lp-ink);
+  box-shadow: none;
+  color: var(--lp-paper);
+}
+.mn-bubble p {
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.mn-bubble small {
+  justify-self: end;
+  font-family: var(--lp-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.03em;
+  opacity: 0.65;
+}
+/* A place sent with a message: tap it and the map goes there. */
+.mn-bubble .place {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 6px 10px;
+  line-height: 1.2;
+  border-radius: 11px;
+  background: var(--lp-paper-2);
+  color: var(--lp-ink);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: left;
+}
+.mn-bubble.mine .place {
+  background: rgba(244, 241, 230, 0.16);
+  color: var(--lp-paper);
+}
+.mn-bubble .place span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mn-bubble .place svg {
+  flex-shrink: 0;
+}
+.mn-bubble .place b {
+  font-family: var(--lp-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+/* Answers that take one tap. */
+.mn-quick {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  margin: 0 -2px;
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.mn-quick::-webkit-scrollbar {
+  display: none;
+}
+.mn-quick button {
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  background: var(--lp-card);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-quick button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-places {
+  display: grid;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.mn-places button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-places button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-attached {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 6px 0 12px;
+  border-radius: 12px;
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-attached span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-attached button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+.mn-compose {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+.mn-compose input {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  background: var(--lp-card);
+  font-size: 1rem;
+  color: var(--lp-ink);
+}
+.mn-compose input:focus {
+  border-color: var(--lp-ink);
+  outline: none;
+}
+.mn-compose button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--lp-ink);
+}
+.mn-compose .place {
+  border: 1.5px solid var(--lp-line);
+}
+.mn-compose .place.on {
+  border-color: var(--lp-ink);
+  background: var(--lp-yellow);
+}
+.mn-compose .send {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-compose .send:disabled {
+  opacity: 0.35;
+}
+
+/* A message that has just come in while the messages are closed. It stays
+   until it is answered or put away. */
+.mn-notice {
+  position: absolute;
+  top: calc(var(--mn-top) + 58px);
+  right: var(--mn-gap);
+  left: calc(var(--mn-rail) + var(--mn-gap));
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  max-width: min(26rem, calc(100% - var(--mn-rail) - 2 * var(--mn-gap)));
+  margin-inline: auto;
+  padding: 6px 6px 6px 8px;
+  border-radius: 20px;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1.5px var(--lp-ink),
+    0 14px 30px -12px rgba(10, 25, 15, 0.85);
+}
+.mn-notice .open {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+  min-height: 46px;
+  padding: 4px 8px;
+  text-align: left;
+  color: var(--lp-ink);
+}
+.mn-notice strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.mn-notice .open > span {
+  overflow: hidden;
+  font-size: 0.98rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-notice .reply {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* ── Direction marks on a picked trail: two small switches ── */
+.mn-marks {
+  display: flex;
+  gap: 6px;
+}
+.mn-marks button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 10px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--lp-ink-soft);
+}
+.mn-marks button[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-marks .line {
+  width: 18px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* ── Moving a pin: what to do, in the current viewer's amber ── */
+.mn-move-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 1.5px dashed rgba(217, 119, 6, 0.6);
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #92400e;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+/* ── What is attached to a pin: photos, areas, lines ── */
+.mn-attach {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  color: var(--lp-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: left;
+}
+.mn-attach:hover {
+  border-color: var(--lp-ink);
+}
+.mn-attach span {
+  flex: 1;
+}
+.mn-attach b {
+  min-width: 26px;
+  padding: 3px 9px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+  font-family: var(--lp-mono);
+  font-size: 0.75rem;
+  text-align: center;
+}
+.mn-menu > .mn-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  min-height: 34px;
+}
+.mn-photos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.mn-photos button {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  background: var(--lp-paper-2) center / cover no-repeat;
+  box-shadow: 0 0 0 1px var(--lp-line);
+}
+.mn-drawn {
+  display: grid;
+  gap: 6px;
+}
+.mn-drawn li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 4px 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+}
+.mn-drawn .swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.25);
+}
+.mn-drawn .what {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.mn-drawn button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--lp-rust);
+}
+.mn-menu-actions button:disabled {
+  opacity: 0.6;
+}
+/* A photo opened to fill the screen. */
+.mn-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) 14px
+    max(14px, env(safe-area-inset-bottom));
+  background: rgba(8, 14, 10, 0.94);
+  color: #f4f1e6;
+}
+.mn-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 10px;
+  object-fit: contain;
+}
+.mn-lightbox .bar {
+  display: flex;
+  gap: 10px;
+}
+.mn-lightbox .bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 99px;
+  background: #f4f1e6;
+  color: #15261c;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+.mn-lightbox .bar .danger {
+  background: transparent;
+  box-shadow: 0 0 0 1.5px rgba(244, 241, 230, 0.6);
+  color: #f4f1e6;
+}
+
+/* ── The rail's front page: a small grid of tools, the crew under it ── */
+.mn.wide .mn-grid {
+  gap: 6px;
+}
+.mn.wide .mn-tile {
+  min-height: 82px;
+  padding: 7px 4px 6px;
+  border-radius: 15px;
+}
+.mn.wide .mn-tile .icon {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 1px;
+  border-radius: 11px;
+}
+.mn.wide .mn-tile .icon svg {
+  max-width: 28px;
+  max-height: 28px;
+}
+.mn.wide .mn-tile strong {
+  font-size: 0.86rem;
+}
+.mn.wide .mn-tile small {
+  font-size: 0.68rem;
+}
+.mn-home-crew {
+  display: grid;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1.5px solid var(--lp-line);
+}
+/* A crew row: finding them takes the row, messaging them the button. */
+.mn-crew li {
+  display: flex;
+  gap: 5px;
+}
+.mn-crew li > button:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.mn-crew .msg {
+  position: relative;
+  flex-shrink: 0;
+  justify-content: center;
+  width: 3.1rem;
+  padding: 0;
+}
+.mn-crew .msg .mn-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+.mn-crew .msg:disabled {
+  opacity: 1;
+}
+
+/* ── The crew button (phone): bottom left, beside the trail button ── */
+.mn-crew-button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    0 10px 24px -10px rgba(10, 25, 15, 0.8);
+}
+.mn-crew-button span {
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+.mn-crew-button b {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 2px solid var(--lp-card);
+  border-radius: 99px;
+  background: #39d27a;
+  color: #0d1611;
+  font-family: var(--lp-mono);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ── A yes that counts itself down: the bar under the word drains ── */
+.mn-count {
+  position: relative;
+  overflow: hidden;
+}
+.mn-count::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--left, 100%);
+  height: 5px;
+  background: rgba(21, 38, 28, 0.45);
+  transition: width 1s linear;
+}
+.mn-card-actions.three {
+  grid-template-columns: 1fr 1fr 1.3fr;
+}
+
+/* ── Messages, second pass: the sheet is only as tall as what is in it ── */
+.mn-panel.chat {
+  height: auto;
+  max-height: 88dvh;
+}
+.mn-thread {
+  flex: 0 1 auto;
+  min-height: 64px;
+}
+/* Two plain buttons over the box to type in: a place, or a job. */
+.mn-send-row {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.mn-send-row button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-card);
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-send-row button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-send-row button.on {
+  border-color: var(--lp-ink);
+  background: var(--lp-yellow);
+}
+
+/* ── A job: where it is, what it is, how far along ── */
+.mn-jobs {
+  display: grid;
+  gap: 8px;
+}
+.mn-job {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 10px;
+  padding: 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 16px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-job.done {
+  opacity: 0.72;
+}
+.mn-job .where {
+  align-self: start;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.25);
+}
+.mn-job .what {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+}
+.mn-job .what strong {
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.mn-job .status {
+  justify-self: start;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+  font-family: var(--lp-mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mn-job .status.accepted {
+  background: var(--lp-yellow);
+}
+.mn-job .status.done {
+  background: #1f8a4c;
+  color: #fff;
+}
+.mn-job .places,
+.mn-job .note,
+.mn-job .who {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: var(--lp-ink-soft);
+  overflow-wrap: anywhere;
+}
+.mn-job .places svg {
+  display: inline;
+  vertical-align: -2px;
+}
+.mn-job .note {
+  color: var(--lp-ink);
+}
+.mn-job .moves {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 6px;
+}
+.mn-job .moves button {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  border: 1.5px solid var(--lp-ink);
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.mn-job .moves .finish {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+/* In a conversation the job is the bubble. */
+.mn-bubble.job {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--lp-ink);
+}
+.mn-bubble.job small {
+  padding-right: 4px;
+  color: var(--lp-ink-soft);
+}
+
+/* ── Putting a job together: what, where (tapped on the map), who ── */
+.mn-job-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mn-job-items span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 0 4px 0 11px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-job-items span button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+}
+.mn-job-build {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+/* ── Third pass ─────────────────────────────────────────────────────────── */
+/* Things kept on a paddock: a name and a size on each row. */
+.mn-drawn .what small {
+  margin-left: 6px;
+  font-family: var(--lp-mono);
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--lp-ink-soft);
+}
+.mn-drawn li.picked {
+  border-color: var(--lp-ink);
+  background: var(--lp-yellow);
+}
+/* Trails through a paddock: a chip each, with the trail's colour. */
+.mn-through button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.mn-through i {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+}
+.mn-through span {
+  align-self: center;
+  font-size: 0.8rem;
+  color: var(--lp-ink-soft);
+}
+
+/* ── Crew rows: the job someone is on, and green when they are trailing ── */
+.mn-crew .job {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  justify-self: start;
+  font-family: var(--lp-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--lp-ink-faint);
+}
+/* (Its colour is the colour the trail is being laid in.) */
+.mn-crew .job.on {
+  padding: 2px 8px 2px 6px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  box-shadow: inset 0 0 0 1px rgba(21, 38, 28, 0.35);
+  color: #fff;
+}
+.mn-crew .job.on i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: mn-trailing 1.2s ease-in-out infinite;
+}
+@keyframes mn-trailing {
+  50% {
+    opacity: 0.25;
+  }
+}
+/* On the map now, or laying a trail: a light blue shade, no heavier. */
+.mn-crew button.live {
+  border-color: color-mix(in srgb, #38bdf8 38%, var(--lp-line));
+  background: color-mix(in srgb, #38bdf8 15%, var(--lp-paper));
+}
+.mn-crew .invite {
+  border-style: dashed;
+}
+.mn-crew .invite .art {
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+}
+.mn-home-crew > .mn-switch,
+.mn-panel > .mn-switch {
+  flex-shrink: 0;
+}
+
+/* ── Following one of the crew: a chip that says so, and lets go ── */
+.mn-chip.tail {
+  gap: 8px;
+  padding-right: 6px;
+  background: #1f8a4c;
+  color: #fff;
+}
+.mn-chip.tail button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Pins tool: the kind chosen, and the colour its pins get ── */
+.mn-pin-kind {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 16px;
+  background: var(--lp-paper);
+}
+.mn-pin-kind .top {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.mn-pin-kind .top div {
+  display: grid;
+  gap: 2px;
+}
+.mn-pin-kind .top strong {
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.mn-pin-kind .top span {
+  font-size: 0.84rem;
+  line-height: 1.3;
+  color: var(--lp-ink-soft);
+}
+.mn-pin-kind .lp-eyebrow b {
+  color: var(--lp-ink);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.mn-pin-kind .mn-swatches {
+  gap: 4px;
+}
+.mn-pin-kind .mn-swatches button {
+  border-width: 2px;
+}
+.mn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  min-height: 34px;
+}
+
+/* ── Keeping what was drawn: a name, then where it goes ── */
+.mn-keep {
+  display: grid;
+  gap: 6px;
+}
+.mn-keep button {
+  display: grid;
+  gap: 1px;
+  min-height: 50px;
+  padding: 7px 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-keep button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-keep button:disabled {
+  opacity: 0.5;
+}
+.mn-keep strong {
+  font-size: 0.96rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.mn-keep span {
+  font-size: 0.82rem;
+  line-height: 1.3;
+  color: var(--lp-ink-soft);
+}
+.mn-keep .danger strong {
+  color: var(--lp-rust);
+}
+.mn-link-box {
+  padding: 9px 12px;
+  border-radius: 12px;
+  background: var(--lp-paper-2);
+  font-family: var(--lp-mono);
+  font-size: 0.74rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+/* An action that is on right now (following someone). */
+.mn-menu-actions button.on {
+  border-color: var(--lp-ink);
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-menu > .mn-text-button.danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* In the toolbox the grids of pin kinds are as tall as they need to be: the
+   panel does the scrolling. */
+.mn-panel .mn-kinds.all {
+  flex-shrink: 0;
+  max-height: none;
+  overflow: visible;
+}
+.mn-panel .mn-pin-kind,
+.mn-panel > .mn-menu-actions,
+.mn-panel > .lp-btn,
+.mn-panel > .mn-search {
+  flex-shrink: 0;
+}
+.mn-crew .job {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* On the rail a conversation fills the height, the box to type in at the
+   bottom. */
+.mn.wide .mn-thread {
+  flex: 1 1 auto;
+}
+
+/* A job nobody has yet: it stands out, and it can be withdrawn. */
+.mn-job .status.grabs {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+.mn-job .moves .withdraw {
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border-color: var(--lp-line);
+  color: var(--lp-ink-soft);
+}
+
+/* ── Fourth pass ────────────────────────────────────────────────────────── */
+/* A job's steps: a numbered list, each ticked off by whoever has the job. */
+.mn-job .job-steps {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 5px;
+}
+.mn-job .job-steps li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.mn-job .job-steps li.ticked > span {
+  color: var(--lp-ink-faint);
+  text-decoration: line-through;
+}
+.mn-job .job-steps small {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--lp-ink-soft);
+  text-decoration: none;
+}
+.mn-job .job-steps .tick {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1.5px solid var(--lp-ink);
+  border-radius: 50%;
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.mn-job .job-steps .ticked .tick {
+  background: #1f8a4c;
+  border-color: #1f8a4c;
+  color: #fff;
+}
+.mn-job .job-steps .tick:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+/* Putting a multi-step job together: a row a step, the one being added to
+   marked. */
+.mn-steps {
+  display: grid;
+  gap: 6px;
+}
+.mn-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  align-items: center;
+  padding: 6px 6px 6px 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+}
+.mn-step.current {
+  border-color: var(--lp-ink);
+  background: var(--lp-paper);
+}
+.mn-step .n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.mn-step input {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 10px;
+  background: var(--lp-card);
+  font-size: 0.95rem;
+}
+.mn-step .mn-job-items {
+  grid-column: 2 / -1;
+}
+.mn-step .mn-job-items:empty {
+  display: none;
+}
+.mn-job-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mn-job-tools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+.mn-job-tools button:hover {
+  border-color: var(--lp-ink);
+}
+
+/* The note's "show on the map" switch: an eye in the corner of the note. */
+.mn-note-field .eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--lp-paper-2);
+  color: var(--lp-ink);
+  transform: translateY(-50%);
+}
+.mn-note-field .eye.off {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--lp-line);
+  color: var(--lp-ink-faint);
+}
+
+/* Crew: the heading with its settings button, and the settings list. */
+.mn-crew-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 32px;
+}
+.mn-crew-head .mn-icon-button {
+  width: 36px;
+  height: 36px;
+  margin: -6px -6px -6px 0;
+  color: var(--lp-ink);
+}
+.mn-tool.armed {
+  border-color: var(--lp-rust);
+  background: color-mix(in srgb, var(--lp-rust) 12%, var(--lp-card));
+  color: var(--lp-rust);
+}
+/* A paddock's crop and variety share a line; what has been used before is
+   offered underneath. */
+.mn-crop {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.mn-crop input:disabled {
+  opacity: 0.5;
+}
+.mn-ideas button {
+  min-height: 34px;
+  background: var(--lp-yellow);
+  border-color: transparent;
+  font-family: inherit;
+}
+
+/* A machine laying a trail: how long, how much, in the trailing green. */
+.mn-trailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #1f8a4c;
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.mn-trailing i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #b9f5cf;
+  animation: mn-trailing 1.2s ease-in-out infinite;
+}
+/* Following one of the crew: a marker on the right edge for as long as it
+   lasts. Tapping it lets go. */
+.mn-tailing {
+  position: absolute;
+  top: 34%;
+  right: var(--mn-gap);
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 6px;
+  border-radius: 99px;
+  background: #1f8a4c;
+  color: #fff;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 10px 24px -10px rgba(10, 25, 15, 0.8);
+  animation: mn-tailing 2s ease-in-out infinite;
+}
+.mn-tailing.cab {
+  background: var(--lp-ink);
+}
+.mn-tailing .art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+}
+.mn-tailing .words {
+  display: grid;
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: left;
+}
+.mn-tailing .words b {
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+@keyframes mn-tailing {
+  50% {
+    box-shadow:
+      0 0 0 2px #fff,
+      0 0 0 7px rgba(31, 138, 76, 0.35),
+      0 10px 24px -10px rgba(10, 25, 15, 0.8);
+  }
+}
+.mn-chip.tail.job {
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+}
+.mn-chip.tail.job button {
+  background: rgba(21, 38, 28, 0.15);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-tailing,
+  .mn-trailing i {
+    animation: none;
+  }
+}
+
+/* Following a trail: the bar at the top of the map that says where the line
+   is, what comes next and how much is left. */
+.mn-guide {
+  --tone: var(--lp-ink-soft);
+  display: grid;
+  gap: 8px;
+  width: min(25rem, calc(100vw - var(--mn-rail) - 2 * var(--mn-gap)));
+  padding: 10px 10px 12px 14px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    inset 0 5px 0 -1px var(--tone),
+    0 12px 30px -14px rgba(10, 25, 15, 0.75);
+}
+.mn-guide.good {
+  --tone: #1f8a4c;
+}
+.mn-guide.near {
+  --tone: #d99a06;
+}
+.mn-guide.far {
+  --tone: var(--lp-rust);
+}
+.mn-guide .top {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.mn-guide .say {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px 0 0;
+  color: inherit;
+  text-align: left;
+}
+.mn-guide .say .lp-eyebrow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-guide .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.mn-guide .head strong {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.mn-guide .point {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--lp-ink);
+  color: var(--lp-yellow);
+}
+.mn-guide .more {
+  display: flex;
+  color: var(--lp-ink-faint);
+  transition: transform 0.15s;
+}
+.mn-guide .more.open {
+  transform: rotate(180deg);
+}
+.mn-guide .mn-icon-button {
+  flex: none;
+  width: 40px;
+  height: 40px;
+}
+/* The middle is the machine; the mark is the line. */
+.mn-guide .bar {
+  position: relative;
+  height: 22px;
+  margin-right: 4px;
+  border-radius: 99px;
+  background:
+    linear-gradient(var(--lp-line), var(--lp-line)) 25% 50% / 1.5px 8px
+      no-repeat,
+    linear-gradient(var(--lp-line), var(--lp-line)) 75% 50% / 1.5px 8px
+      no-repeat,
+    var(--lp-paper-2);
+  box-shadow: inset 0 0 0 1px var(--lp-line);
+}
+.mn-guide .bar .me {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--lp-ink);
+}
+.mn-guide .bar .line {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border-radius: 50%;
+  background: var(--tone);
+  box-shadow: 0 0 0 2.5px var(--lp-card);
+  transition: left 0.2s linear;
+}
+.mn-guide .next {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.2;
+}
+.mn-guide .next b {
+  font-weight: 800;
+}
+.mn-guide .next span {
+  margin-left: auto;
+  font-family: var(--lp-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-soft);
+  white-space: nowrap;
+}
+.mn-guide .warn {
+  margin: 0 4px 0 0;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--lp-rust) 14%, var(--lp-card));
+  color: var(--lp-rust);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-guide .moves {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-right: 4px;
+}
+.mn-guide .moves button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--lp-paper-2);
+  box-shadow: inset 0 0 0 1px var(--lp-line);
+  color: var(--lp-ink);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-guide .moves button.strong {
+  background: var(--lp-yellow);
+  box-shadow: none;
+}
+.mn-guide .fine {
+  margin: 0 4px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.35;
+  color: var(--lp-ink-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-guide .bar .line,
+  .mn-guide .more {
+    transition: none;
+  }
+}
+/* On a trail's card: the way into following it. */
+.mn-follow-trail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--lp-yellow);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-follow-trail:disabled {
+  opacity: 0.6;
+}
+.mn-follow-trail > span {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.mn-follow-trail strong {
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+.mn-follow-trail span span {
+  font-size: 0.78rem;
+  line-height: 1.25;
+  opacity: 0.8;
+}
+
+/* A paddock in a list, and in its own menu, is drawn as its own shape. */
+.mn-tool > .mn-shape {
+  margin: -2px 0;
+}
+.mn-drawn > li > .mn-shape {
+  flex: none;
+}
+/* Places named in a job or a message, each with its picture. */
+.mn-job .places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 10px;
+}
+.mn-job .places .item,
+.mn-job-items > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.mn-bubble .place > .mn-shape,
+.mn-bubble .place > .mn-pin-art,
+.mn-places button > .mn-shape,
+.mn-places button > .mn-pin-art {
+  flex: none;
+}
+/* Changing a boundary: the card's headline sits over the paddock's name. */
+.mn-boundary .about .lp-eyebrow {
+  margin: 0 0 2px;
+}
+.mn-boundary .mn-keep strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The demo run's speed, beside the guide's close button. */
+.mn-guide .rate {
+  flex: none;
+  min-width: 44px;
+  height: 40px;
+  padding: 0 8px;
+  border-radius: 12px;
+  background: var(--lp-ink);
+  color: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.mn-boundary .mn-keep {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ── Fifth pass ─────────────────────────────────────────────────────────── */
+/* A menu taller than its room scrolls, but its head and its bottom row of
+   buttons stay where they are. */
+.mn-card.mn-menu > .head,
+.mn-card.mn-menu > .mn-card-head {
+  position: sticky;
+  top: -14px;
+  z-index: 3;
+  margin: -14px -14px 0;
+  padding: 14px 14px 6px;
+  background: var(--lp-card);
+}
+.mn-card.mn-menu > .mn-card-actions:last-child,
+.mn-card.mn-menu > .mn-menu-actions:last-child {
+  position: sticky;
+  bottom: -14px;
+  z-index: 3;
+  margin: 0 -14px -14px;
+  padding: 10px 14px 14px;
+  background: var(--lp-card);
+  box-shadow: 0 -1px 0 var(--lp-line);
+}
+
+/* What is known about a paddock: a block each, tapped to change it. */
+.mn-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.mn-info .block {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 7px 34px 7px 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-paper);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-info .block.whole {
+  grid-column: 1 / -1;
+}
+.mn-info button.block:hover:not(:disabled) {
+  border-color: var(--lp-ink);
+}
+.mn-info .block strong {
+  font-size: 1.02rem;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.mn-info .block.empty strong {
+  font-weight: 600;
+  color: var(--lp-ink-soft);
+}
+.mn-info .block i {
+  position: absolute;
+  top: 50%;
+  right: 11px;
+  display: flex;
+  color: var(--lp-ink-soft);
+  transform: translateY(-50%);
+}
+.mn-info .block.still {
+  padding-right: 12px;
+  border-style: dashed;
+  background: none;
+}
+.mn-info .block.editing {
+  padding-right: 50px;
+  border-color: var(--lp-ink);
+  background: var(--lp-card);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lp-yellow) 60%, transparent);
+}
+.mn-info .block input,
+.mn-info .block select {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--lp-ink);
+  outline: none;
+}
+.mn-info .block .go {
+  position: absolute;
+  top: 50%;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--lp-yellow);
+  color: #15261c;
+  transform: translateY(-50%);
+}
+/* Something kept on a paddock: the row itself picks it out on the map. */
+.mn-drawn li:has(> .pick) {
+  padding-left: 0;
+}
+.mn-drawn button.pick {
+  flex: 1;
+  justify-content: flex-start;
+  gap: 10px;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  min-height: 44px;
+  padding-left: 12px;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-drawn li.picked .pick {
+  color: #15261c;
+}
+
+/* ── Sixth pass ─────────────────────────────────────────────────────────── */
+/* A paddock's trails: one row, however many there are. */
+.mn-ptrails {
+  display: grid;
+  gap: 7px;
+}
+.mn-ptrails .row {
+  display: flex;
+  gap: 6px;
+}
+.mn-ptrails .all,
+.mn-ptrails .one {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-ptrails .all {
+  flex: 1;
+  min-width: 0;
+}
+.mn-ptrails .all[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+/* A dropdown that looks like the button beside it. */
+.mn-ptrails .one,
+.mn-drop {
+  position: relative;
+  cursor: pointer;
+}
+.mn-ptrails .one select,
+.mn-drop select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 1rem;
+  opacity: 0;
+  cursor: pointer;
+}
+.mn-drop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 0 12px 0 14px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+}
+.mn-drop .lp-eyebrow {
+  flex-shrink: 0;
+}
+.mn-drop strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-drop:focus-within {
+  border-color: var(--lp-ink);
+}
+/* Figures side by side: the number big, what it is small under it. */
+.mn-stats {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-paper);
+}
+.mn-stats > div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 8px 10px;
+}
+.mn-stats > div + div {
+  border-left: 1.5px solid var(--lp-line);
+}
+.mn-stats strong {
+  font-family: var(--lp-display);
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.mn-stats span {
+  overflow: hidden;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Two sides of one section: a pair of tabs where its heading was. */
+.mn-tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+}
+.mn-tabs button {
+  min-height: 32px;
+  padding: 0 13px;
+  border-radius: 99px;
+  font-family: var(--lp-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mn-tabs button[aria-selected="true"] {
+  background: var(--lp-ink);
+  color: var(--lp-paper);
+}
+/* A farm in the paddock list: its heading folds its paddocks away. */
+.mn-farm-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mn-farm-head .fold {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px 0 10px;
+  border-radius: 12px;
+  background: var(--lp-paper-2);
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-farm-head .fold svg {
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+.mn-farm-head .fold[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+.mn-farm-head .fold strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.98rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-farm-head .fold span {
+  flex-shrink: 0;
+  font-family: var(--lp-mono);
+  font-size: 0.74rem;
+  color: var(--lp-ink-soft);
+}
+.mn-farm-head .mn-icon-button {
+  color: var(--lp-ink);
+}
+.mn-newfarm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mn-newfarm input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-ink);
+  border-radius: 12px;
+  background: var(--lp-card);
+  font-size: 1rem;
+  color: var(--lp-ink);
+}
+.mn-newfarm .lp-btn {
+  min-height: 46px;
+  padding-inline: 16px;
+}
+
+/* ── Seventh pass ───────────────────────────────────────────────────────── */
+.mn-panel {
+  --pad: 16px;
+}
+.mn.wide .mn-panel {
+  --pad: 14px;
+}
+/* The Crew | Log tabs stay put while what is under them scrolls. */
+.mn-crew-head {
+  position: sticky;
+  top: -14px;
+  z-index: 4;
+  margin: 0 calc(-1 * var(--pad));
+  padding: 8px var(--pad);
+  background: var(--lp-card);
+}
+.mn-crew-head .mn-icon-button {
+  margin: 0;
+}
+.mn-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* How many are on the map now. */
+.mn-tabs b {
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: #38bdf8;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: #0b2233;
+  text-align: center;
+}
+.mn-crew .art i,
+.mn-convo-head .state.on::before {
+  background: #38bdf8;
+}
+/* A conversation with nothing in it yet takes no room. */
+.mn-thread.bare {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 0;
+  background: none;
+}
+.mn-thread .none {
+  font-size: 0.85rem;
+  color: var(--lp-ink-soft);
+}
+.mn-panel.chat:has(.mn-thread.bare) {
+  height: auto;
+}
+/* Behind the + beside the box: a place, or a job. */
+.mn-more {
+  display: grid;
+  flex-shrink: 0;
+  gap: 6px;
+}
+.mn-more button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-more button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-more button span {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--lp-ink-soft);
+}
+/* Picking a place to send: a bar across the top of the map. */
+.mn-pickbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  max-width: min(34rem, calc(100vw - 2 * var(--mn-gap, 12px)));
+  padding: 8px 8px 8px 14px;
+  border-radius: 20px;
+  background: #15261c;
+  box-shadow:
+    0 0 0 2px #f7db5c,
+    0 14px 30px -14px rgba(0, 0, 0, 0.7);
+  color: #f4f1e6;
+}
+.mn-pickbar p {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+.mn-pickbar p b {
+  font-weight: 800;
+  color: #f7db5c;
+}
+.mn-pickbar button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1.5px solid rgba(244, 241, 230, 0.4);
+  border-radius: 99px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #f4f1e6;
+}
+.mn-pickbar button:hover {
+  border-color: #f7db5c;
+  color: #f7db5c;
+}
+
+/* ── Eighth pass ────────────────────────────────────────────────────────── */
+/* Pin buttons, bottom right: one per default pin, stacked above the trail
+   button. Pressed once a button is armed (and offers to change); pressed
+   again it drops the pin. */
+.mn-quickpins {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.mn-quickpins .slot {
+  position: relative;
+  display: flex;
+}
+.mn-quickpins.many .mn-pin-button {
+  width: 60px;
+  height: 60px;
+  border-radius: 21px;
+}
+.mn-quickpins .mn-pin-button span {
+  max-width: 100%;
+  padding: 0 3px;
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-quickpins .mn-pin-button.armed {
+  background: #15261c;
+  box-shadow:
+    0 0 0 3px #f7db5c,
+    0 12px 26px -10px rgba(10, 25, 15, 0.9);
+  color: #f7db5c;
+}
+.mn-quickpins .change {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 99px;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1.5px var(--lp-ink),
+    0 10px 22px -10px rgba(10, 25, 15, 0.8);
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--lp-ink);
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+/* The Pins tool: which kinds have a button. */
+.mn-quickset {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 16px;
+}
+.mn-quickset .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mn-quickset .chips > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 10px 0 6px;
+  border-radius: 99px;
+  background: var(--lp-paper-2);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.mn-quickset .chips small {
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+}
+.mn-quickset .chips button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: -6px;
+  border-radius: 50%;
+  color: var(--lp-ink-soft);
+}
+.mn-quickset .add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  border: 1.5px dashed var(--lp-ink-soft);
+  border-radius: 99px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+
+/* ── Ninth pass ─────────────────────────────────────────────────────────── */
+/* Words on a button stay on one line on a phone; the button gives way. */
+.mn-card .lp-btn,
+.mn-card-actions .mn-remove {
+  min-width: 0;
+  white-space: nowrap;
+}
+.mn-card .lp-btn :global(svg),
+.mn-card .lp-btn svg {
+  flex-shrink: 0;
+}
+.mn-panel-head .word {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The colour of a paddock's one trail, on its button. */
+.mn-ptrails .all i {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(21, 38, 28, 0.35);
+}
+
+/* ── Tenth pass ─────────────────────────────────────────────────────────── */
+/* A pin button is the pin itself, with small badges laid over it: a plus
+   to say it drops one; armed, a "Drop" tab and a pencil to change it. */
+.mn-quickpins .slot {
+  position: relative;
+  display: flex;
+}
+.mn-quickpins .pin {
+  position: relative;
+  display: flex;
+  border-radius: 50%;
+  filter: drop-shadow(0 6px 10px rgba(10, 25, 15, 0.55));
+  transition: transform 0.15s ease-out;
+}
+.mn-quickpins .pin:active {
+  transform: scale(0.94);
+}
+.mn-quickpins .plus {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #15261c;
+  color: #fff;
+}
+/* Armed: a white ring breathing round it, as round a picked pin. */
+.mn-quickpins .slot.armed .pin {
+  transform: scale(1.08);
+}
+.mn-quickpins .slot.armed .pin::before {
+  position: absolute;
+  inset: -3px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  content: "";
+}
+.mn-quickpins .slot.armed .pin::after {
+  position: absolute;
+  inset: -3px;
+  z-index: -1;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  content: "";
+  animation: mn-pick-ring 2s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+@keyframes mn-pick-ring {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+.mn-quickpins .drop {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  padding: 2px 9px 3px;
+  border: 2px solid #fff;
+  border-radius: 99px;
+  background: #15261c;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  color: #f7db5c;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+}
+.mn-quickpins .change {
+  position: absolute;
+  top: -8px;
+  right: auto;
+  left: -10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  min-height: 0;
+  height: 30px;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #15261c;
+  box-shadow: 0 4px 10px rgba(10, 25, 15, 0.5);
+  color: #fff;
+  transform: none;
+}
+/* A word that rises and fades on the map where a pin was placed or
+   deleted… */
+.mn-flag {
+  position: relative;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.mn-flag b {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: #1f8a4c;
+  box-shadow: 0 4px 12px rgba(10, 25, 15, 0.5);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: mn-flag-rise 1.4s ease-out both;
+}
+.mn-flag i {
+  position: absolute;
+  top: -22px;
+  left: -22px;
+  width: 44px;
+  height: 44px;
+  border: 3px solid #1f8a4c;
+  border-radius: 50%;
+  animation: mn-flag-ring 0.7s ease-out both;
+}
+.mn-flag.gone b {
+  background: var(--lp-rust, #c2410c);
+}
+.mn-flag.gone i {
+  border-color: var(--lp-rust, #c2410c);
+  animation-name: mn-flag-shut;
+}
+@keyframes mn-flag-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.85);
+  }
+  14% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  65% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -26px);
+  }
+}
+@keyframes mn-flag-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+/* (A deleted pin's ring closes in instead of opening out.) */
+@keyframes mn-flag-shut {
+  0% {
+    opacity: 0.9;
+    transform: scale(1.4);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+/* …and a badge that rises from the button that did it. */
+.mn-floater {
+  position: fixed;
+  z-index: 70;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: #1f8a4c;
+  box-shadow: 0 4px 12px rgba(10, 25, 15, 0.45);
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: mn-floater 1s ease-out both;
+}
+.mn-floater.gone {
+  background: var(--lp-rust, #c2410c);
+}
+@keyframes mn-floater {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -60%);
+  }
+  15% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -64px);
+  }
+}
+/* The Pins tool: each button's row says which is the default. */
+.mn-quickset .rows {
+  display: grid;
+  gap: 5px;
+}
+.mn-quickset .rows li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 44px;
+  padding: 0 4px 0 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 13px;
+}
+.mn-quickset .rows strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-quickset .rows em {
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+  color: var(--lp-paper);
+}
+.mn-quickset .rows .make {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 99px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+  white-space: nowrap;
+}
+.mn-quickset .rows .make:hover {
+  border-color: var(--lp-ink);
+}
+.mn-quickset .rows .off {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--lp-ink-soft);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-quickpins .slot.armed .pin::after {
+    animation: none;
+  }
+}
+
+.mn-drawn button.pen {
+  color: var(--lp-ink);
+}
+
+/* A hint about what the map does right now: the hand keeps its size and
+   the words sit beside it, on one line where they fit. */
+.mn-move-hint {
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  line-height: 1.3;
+  text-align: left;
+}
+.mn-move-hint svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Eleventh pass ──────────────────────────────────────────────────────── */
+/* A posted job's steps: two across, as many rows as it takes; the list
+   never scrolls sideways. */
+.mn-job .job-steps {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 8px;
+}
+.mn-job .job-steps li {
+  align-items: flex-start;
+  min-width: 0;
+}
+.mn-job .job-steps li > span {
+  min-width: 0;
+  padding-top: 5px;
+  overflow-wrap: anywhere;
+}
+/* The feed for a job being put together: top centre of the map. */
+.mn-feedwrap {
+  position: absolute;
+  top: var(--mn-top);
+  left: calc(var(--mn-rail) + (100% - var(--mn-rail)) / 2);
+  z-index: 11;
+  transform: translateX(-50%);
+}
+.mn:not(.wide) .mn-feedwrap {
+  /* (Under the status chip and the Tools button on a phone.) */
+  top: calc(var(--mn-top) + 52px);
+}
+
+/* ── Twelfth pass ───────────────────────────────────────────────────────── */
+/* An armed pin button wears the same ring and glow as a picked pin: tight
+   on its edge, steady, no pulsing. */
+.mn-quickpins .slot.armed .pin::before {
+  inset: 0;
+  border: 3px solid #fff;
+  box-shadow:
+    0 0 6px #fff,
+    0 0 12px #f8fafc;
+}
+.mn-quickpins .slot.armed .pin::after {
+  display: none;
+}
+
+/* ── Thirteenth pass ────────────────────────────────────────────────────── */
+/* A crew row: the account's name sits over its machine, and the name beside
+   it is whoever is in the machine. How far off and how fast share the
+   name's line and the status's, so the badge under them has the row's
+   whole width and nothing is pushed off the side. */
+.mn-crew button {
+  gap: 0.55rem;
+  padding: 0.4rem 0.6rem 0.4rem 0.35rem;
+}
+.mn-crew .unit {
+  display: grid;
+  flex-shrink: 0;
+  justify-items: center;
+  gap: 3px;
+  width: 62px;
+}
+.mn-crew .acct {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-crew .line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.mn-crew .who strong {
+  min-width: 0;
+  font-size: 0.95rem;
+}
+.mn-crew .who .doing {
+  min-width: 0;
+  font-size: 0.8rem;
+}
+/* (What they are doing runs to a second line before it is cut short.) */
+.mn-crew .line .doing {
+  display: -webkit-box;
+  flex: 1 1 auto;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+}
+.mn-crew .line .far,
+.mn-crew .line .pace {
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.mn-crew .guest {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--lp-line);
+  border-radius: 99px;
+  font-family: var(--lp-mono);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: var(--lp-ink-soft);
+}
+.mn-crew .job {
+  font-size: 0.62rem;
+}
+
+/* The change-pin card: every kind of pin in a grid that wraps, as many
+   across as fit. It scrolls down for the rest, never sideways. */
+.mn.wide .mn-card.pickpin {
+  max-width: 46rem;
+}
+.mn-card .mn-kinds.wrap {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 6px;
+  max-height: min(44dvh, 19.9rem);
+  margin: 10px -6px 0;
+  padding: 2px 6px 4px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.mn-card .mn-kinds.wrap::-webkit-scrollbar {
+  display: block;
+  width: 6px;
+}
+.mn-card .mn-kinds.wrap::-webkit-scrollbar-thumb {
+  border-radius: 99px;
+  background: var(--lp-line);
+}
+.mn-card .mn-kinds.wrap .mn-kind {
+  justify-content: flex-start;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 2px 5px;
+  border-radius: 13px;
+  font-size: 0.64rem;
+  line-height: 1.1;
+  white-space: normal;
+}
+.mn-card .mn-kinds.wrap .mn-kind span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+/* (Another button already drops this kind.) */
+.mn-card .mn-kinds.wrap .mn-kind.used {
+  opacity: 0.45;
+}
+
+/* ── Fourteenth pass ────────────────────────────────────────────────────── */
+/* The rail put away (a tablet): the map has the whole screen, and the Tools
+   button at the top left brings the rail back. */
+.mn.wide.shut {
+  --mn-rail: 0px;
+}
+.mn-toprow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The toolbox's heading: put it away, and back to the farm's dashboard. */
+.mn-panel-head.home {
+  gap: 4px;
+}
+.mn-panel-head .mini {
+  flex-shrink: 0;
+  margin-right: -6px;
+  color: var(--lp-ink);
+}
+.mn-panel-head.home .mn-dash {
+  margin-left: -6px;
+}
+.mn-dash {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 44px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 14px;
+  color: var(--lp-ink);
+  text-align: left;
+}
+.mn-dash:hover {
+  background: var(--lp-paper);
+}
+.mn-dash > svg {
+  flex-shrink: 0;
+}
+.mn-dash > span {
+  display: grid;
+  min-width: 0;
+  line-height: 1.12;
+}
+.mn-dash small {
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+}
+.mn-dash b {
+  overflow: hidden;
+  font-family: "Archivo", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.08rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A crew row, a line for each thing and none of them wrapped: what they are
+   doing (or the trailing badge) with their speed, then the paddock. */
+.mn-crew .line .doing {
+  display: block;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-crew .line .job {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.mn-crew .place {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.76rem;
+  line-height: 1.25;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-crew .place svg {
+  display: inline;
+  margin-right: 3px;
+  vertical-align: -1.5px;
+}
+
+/* The crew as a card over the map (a phone): about as tall as a paddock's
+   card, scrolling inside, the map free to move above it. */
+.mn-crewcard {
+  --pad: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(46dvh, 26rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.mn-crewcard.aside {
+  display: none;
+}
+.mn-menu .head .back {
+  flex-shrink: 0;
+  margin: 0 -8px 0 -8px;
+  color: var(--lp-ink);
+}
+
+/* The trail button while a trail is being laid: it draws a trail over and
+   over and glows; a pause button sits to its left, and a tag under it says
+   Trailing or Paused. Paused, everything holds still. */
+.mn-trailwrap {
+  position: relative;
+  display: flex;
+}
+.mn-pause {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow:
+    0 0 0 1px var(--lp-line),
+    0 10px 24px -10px rgba(10, 25, 15, 0.8);
+}
+.mn-pause.paused {
+  background: #f59e0b;
+  color: #15261c;
+  box-shadow:
+    0 0 0 1.5px #15261c,
+    0 10px 24px -10px rgba(120, 80, 10, 0.9);
+  animation: mn-pause-pulse 2s ease-in-out infinite;
+}
+@keyframes mn-pause-pulse {
+  50% {
+    box-shadow:
+      0 0 0 1.5px #15261c,
+      0 0 0 9px rgba(245, 158, 11, 0.3);
+  }
+}
+.mn-trail-button .laying {
+  width: 38px;
+  height: 19px;
+  overflow: visible;
+}
+.mn-trail-button .laying path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3.4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  animation: mn-lay 1.9s ease-in-out infinite;
+}
+@keyframes mn-lay {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  60% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: -1;
+  }
+}
+.mn-trail-button.on {
+  animation: mn-trail-glow 1.9s ease-in-out infinite;
+}
+@keyframes mn-trail-glow {
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(217, 93, 57, 0.3),
+      0 10px 24px -10px rgba(120, 40, 15, 0.9);
+  }
+}
+.mn-trail-button.paused,
+.mn-trail-button.paused .laying path {
+  animation-play-state: paused;
+}
+.mn-trail-button.paused .laying {
+  opacity: 0.45;
+}
+.mn-trailpill {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  padding: 2px 8px;
+  border: 1.5px solid #15261c;
+  border-radius: 99px;
+  background: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.3;
+  color: #15261c;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.mn-trailpill.paused {
+  background: #f59e0b;
+}
+.mn-chip.trail.paused .dot {
+  background: #f59e0b;
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-pause.paused,
+  .mn-trail-button.on,
+  .mn-trail-button .laying path {
+    animation: none;
+  }
+  .mn-trail-button .laying path {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ── Fifteenth pass ─────────────────────────────────────────────────────── */
+/* The look the map opens in, marked on its tile. */
+.mn-look em {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  font-family: var(--lp-mono);
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--lp-paper);
+  text-transform: uppercase;
+  vertical-align: 2px;
+}
+/* A row of the Pins tool with a second line under its name (a bin). */
+.mn-quickset .rows strong small {
+  display: block;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--lp-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A button for each grain bin, down the top right of the map: the bin as it
+   is drawn (so its level shows), the tonnes in it, and what it holds. */
+.mn-binrail {
+  gap: 8px;
+}
+.mn-binbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mn-binbtn .disc {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  /* No disc behind it: the bin's own ring (its level) is its edge. */
+  filter: drop-shadow(0 4px 7px rgba(10, 25, 15, 0.55));
+}
+.mn:not(.wide) .mn-binbtn .disc {
+  width: 50px;
+  height: 50px;
+}
+.mn-binbtn.open .disc {
+  box-shadow:
+    0 0 0 2px var(--lp-yellow),
+    0 0 0 4.5px #15261c;
+}
+.mn-binbtn .disc b {
+  position: absolute;
+  bottom: -7px;
+  left: 50%;
+  padding: 1px 6px;
+  border: 1.5px solid #15261c;
+  border-radius: 99px;
+  background: var(--lp-yellow);
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #15261c;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.mn-binbtn .tag {
+  max-width: 7.5rem;
+  padding: 3px 9px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(18, 32, 26, 0.92);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f4f1e6;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Sixteenth pass ─────────────────────────────────────────────────────── */
+/* The buttons on the map in AgSKAN's own colours: yellow with a black edge
+   and black on it. One that is switched on turns the other way round,
+   black with yellow on it. (A running trail's button stays red: it is the
+   one that stops something.) */
+.mn-tools-button,
+.mn-crew-button,
+.mn-follow,
+.mn-trail-button,
+.mn-pause {
+  border: 2px solid #15261c;
+  background: #f7db5c;
+  color: #15261c;
+  box-shadow: 0 8px 20px -10px rgba(10, 25, 15, 0.85);
+}
+.mn-tools-button .dots i {
+  border-color: #f7db5c;
+}
+.mn-crew-button b {
+  border-color: #15261c;
+}
+.mn-follow.follow,
+.mn-follow.cab {
+  border-color: #15261c;
+  background: #15261c;
+  color: #f7db5c;
+}
+.mn-trail-button .rec {
+  background: #15261c;
+}
+.mn-trail-button.on {
+  background: #d95d39;
+  color: #fff;
+  box-shadow: 0 8px 20px -10px rgba(120, 40, 15, 0.9);
+}
+.mn-pause.paused {
+  background: #15261c;
+  color: #f7db5c;
+  box-shadow: 0 8px 20px -10px rgba(10, 25, 15, 0.85);
+  animation: mn-pause-pulse-y 2s ease-in-out infinite;
+}
+@keyframes mn-pause-pulse-y {
+  50% {
+    box-shadow: 0 0 0 9px rgba(247, 219, 92, 0.38);
+  }
+}
+.mn-trailpill.paused {
+  background: #15261c;
+  color: #f7db5c;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-pause.paused {
+    animation: none;
+  }
+}
+
+/* The crew's card on a tablet whose rail is put away: bottom left, where
+   its button is, and no wider than the rail was. */
+.mn.wide .mn-crewcard {
+  max-width: 24rem;
+  margin-left: 0;
+}
+
+/* ── Seventeenth pass ───────────────────────────────────────────────────── */
+/* The Map tool's presets: three across, each a sample over its name. */
+.mn-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.mn-presets button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 5px 8px;
+  border: 1.5px solid var(--lp-line);
+  border-radius: 14px;
+  background: var(--lp-paper);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--lp-ink);
+}
+.mn-presets button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-presets button[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  box-shadow: inset 0 0 0 1.5px var(--lp-ink);
+}
+/* Two passes of a trail over a bit of country, at that strength (they
+   overlap in the middle, where it is stronger). */
+.mn-presets .trails {
+  position: relative;
+  width: 100%;
+  height: 30px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4c5a3d 0%, #6f6a44 45%, #8a7a4f 100%);
+}
+.mn-presets .trails::before,
+.mn-presets .trails::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 46%;
+  background: #f2a20c;
+  opacity: var(--o);
+}
+.mn-presets .trails::before {
+  left: 8%;
+}
+.mn-presets .trails::after {
+  left: 46%;
+}
+.mn-presets .pins {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 3px 4px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #4c5a3d 0%, #6f6a44 45%, #8a7a4f 100%);
+}
+.mn-presets .pins .mn-pin-art {
+  width: 26px;
+  height: 26px;
+}
+
+/* ── Eighteenth pass: colour and depth ──────────────────────────────────── */
+/* The menus were cream on cream. Now a menu has three levels: a dark band
+   for its heading (edged in yellow, or in the colour of the thing it is
+   about), a tan ground, and white blocks laid on the ground. Each tool has
+   a colour of its own, on its tile and beside its heading. */
+.mn {
+  --mn-ground: #e7e2d0;
+  --mn-ground-2: #dad3bc;
+  --mn-block: #fffdf8;
+  --mn-band: #15261c;
+  --mn-band-text: #f4f1e6;
+  --mn-band-soft: rgba(244, 241, 230, 0.74);
+  --mn-lift:
+    0 0 0 1px rgba(21, 38, 28, 0.1), 0 8px 16px -12px rgba(10, 25, 15, 0.6);
+}
+
+/* A colour for each tool. */
+.t-profile {
+  --hue: #2f6fde;
+}
+.t-crew,
+.t-crewSettings,
+.t-messages {
+  --hue: #1493c4;
+}
+.t-jobs {
+  --hue: #dc8400;
+}
+.t-machine {
+  --hue: #a8842c;
+}
+.t-pins {
+  --hue: #3fb1ce;
+}
+.t-trails {
+  --hue: #1f9d55;
+}
+.t-paddocks {
+  --hue: #6f8f1c;
+}
+.t-cast,
+.t-broadcast {
+  --hue: #d9482b;
+}
+.t-draw {
+  --hue: #7c4ddb;
+}
+.t-map {
+  --hue: #177e89;
+}
+.t-layers {
+  --hue: #4b5d70;
+}
+.t-farm {
+  --hue: #6f8f1c;
+}
+
+/* ── The toolbox ── */
+.mn-panel {
+  background: var(--mn-ground);
+}
+/* Its heading stays at the top while what is under it scrolls. */
+.mn-panel > .mn-panel-head {
+  position: sticky;
+  top: -14px;
+  z-index: 6;
+  flex-shrink: 0;
+  margin: -14px calc(-1 * var(--pad)) 0;
+  padding: 9px var(--pad) 12px;
+  background: var(--mn-band);
+  box-shadow: inset 0 -3px 0 var(--mn-edge);
+  color: var(--mn-band-text);
+}
+.mn-panel-head h2 {
+  color: var(--mn-band-text);
+}
+.mn-panel-head .mn-icon-button,
+.mn-panel-head .back,
+.mn-panel-head .mini {
+  color: var(--mn-band-text);
+}
+.mn-panel-head .mn-icon-button:hover,
+.mn-dash:hover {
+  background: var(--mn-band-wash);
+}
+.mn-dash {
+  color: var(--mn-band-text);
+}
+.mn-dash small {
+  color: var(--lp-yellow);
+}
+/* The tool's own mark beside its name. */
+.mn-headchip {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: var(--hue, var(--lp-yellow));
+  color: #fff;
+}
+.mn-panel-head .mn-headchip + h2 {
+  margin-left: 2px;
+}
+
+/* Tiles: a white block each, the tool's picture on its colour, its name
+   under it and nothing else. */
+.mn-tile {
+  align-content: center;
+  gap: 7px;
+  min-height: 108px;
+  padding: 12px 6px 11px;
+  border: 0;
+  background: var(--mn-block);
+  box-shadow: var(--mn-lift);
+}
+.mn-tile:hover {
+  box-shadow:
+    0 0 0 1.5px var(--lp-ink),
+    0 8px 16px -12px rgba(10, 25, 15, 0.6);
+}
+.mn-tile .icon {
+  width: 58px;
+  height: 58px;
+  margin-bottom: 0;
+  border-radius: 18px;
+  background: var(--hue, var(--lp-paper));
+  box-shadow: none;
+  color: #fff;
+}
+/* (Pictures that have colours of their own sit on a pale ground.) */
+.mn-tile .icon.art {
+  background: #d9cba0;
+}
+.mn-tile.t-pins .icon {
+  background: #d3ecf3;
+}
+.mn-tile strong {
+  font-size: 1.02rem;
+  font-weight: 800;
+}
+.mn.wide .mn-tile {
+  min-height: 96px;
+  padding: 10px 4px 9px;
+  border-radius: 17px;
+}
+.mn.wide .mn-tile .icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
+.mn.wide .mn-tile .icon svg {
+  max-width: 40px;
+  max-height: 40px;
+}
+.mn.wide .mn-tile strong {
+  font-size: 0.96rem;
+}
+.mn-tile.on {
+  box-shadow:
+    0 0 0 2.5px var(--on),
+    0 8px 16px -12px rgba(10, 25, 15, 0.6);
+}
+
+/* The crew under the tools: its tabs are a band of their own, which stops
+   under the toolbox's heading. */
+.mn-home-crew {
+  padding-top: 0;
+  border-top: 0;
+}
+.mn-crew-head {
+  background: var(--mn-ground-2);
+  box-shadow:
+    inset 0 1px 0 rgba(21, 38, 28, 0.1),
+    inset 0 -1px 0 rgba(21, 38, 28, 0.1);
+}
+.mn-panel .mn-crew-head {
+  top: var(--mn-head-h, 55px);
+}
+.mn-tabs {
+  background: rgba(21, 38, 28, 0.1);
+}
+.mn-crew-head .mn-icon-button {
+  color: var(--lp-ink);
+}
+.mn-crew-head .mn-icon-button:hover {
+  background: rgba(21, 38, 28, 0.1);
+}
+/* Crew rows are white blocks; whoever is on the map now keeps the blue. */
+.mn-crew button {
+  border-color: transparent;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn-crew button:hover {
+  border-color: var(--lp-ink);
+}
+.mn-crew button.live {
+  border-color: var(--mn-live-line);
+  background: var(--mn-live);
+  box-shadow: none;
+}
+.mn-crew .invite {
+  border-color: rgba(21, 38, 28, 0.35);
+  background: transparent;
+  box-shadow: none;
+}
+.mn-crew .msg {
+  color: var(--lp-ink);
+}
+.mn-crew .msg.home {
+  background: var(--lp-yellow);
+  border-color: var(--lp-ink);
+  box-shadow: none;
+}
+
+/* A tool's page: each section is a white block with a marked heading. */
+.mn-panel > .mn-section,
+.mn-panel > .mn-you {
+  padding: 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--mn-block);
+  box-shadow: var(--mn-lift);
+}
+.mn-panel > .lp-eyebrow,
+.mn-panel > .mn-section > .lp-eyebrow,
+.mn-panel > .mn-you > .lp-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--lp-ink);
+}
+.mn-panel > .lp-eyebrow::before,
+.mn-panel > .mn-section > .lp-eyebrow::before,
+.mn-panel > .mn-you > .lp-eyebrow::before {
+  content: "";
+  flex-shrink: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--hue, var(--lp-yellow));
+  box-shadow: 0 0 0 1.5px var(--lp-ink);
+}
+/* Rows inside a white block are set into it. */
+.mn-section .mn-tool,
+.mn-section .mn-switch {
+  background: var(--lp-paper);
+}
+.mn-tool.selected,
+.mn-tool[aria-pressed="true"] {
+  border-color: var(--lp-ink);
+  background: var(--mn-pick);
+}
+.mn-panel > .mn-switch,
+.mn-panel > .mn-switches .mn-switch,
+.mn-panel > .mn-search {
+  border-color: transparent;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn-panel > .mn-note,
+.mn-panel > .mn-empty {
+  color: var(--lp-ink);
+}
+.mn-panel-foot {
+  color: rgba(21, 38, 28, 0.62);
+}
+
+/* ── Cards over the map ── */
+/* The heading is a dark band, edged in the colour of what the card is about
+   (yellow when it has none). */
+.mn-card.mn-menu > .head {
+  top: -14px;
+  margin: -14px -14px 0;
+  padding: 11px 8px 13px 14px;
+  background: var(--mn-band);
+  box-shadow: inset 0 -3px 0 var(--accent, var(--mn-edge));
+  color: var(--mn-band-text);
+}
+.mn-card.mn-menu > .head h2 {
+  color: var(--mn-band-text);
+}
+.mn-card.mn-menu > .head .about p {
+  color: var(--mn-band-soft);
+}
+.mn-card.mn-menu > .head .mn-icon-button {
+  color: var(--mn-band-text);
+}
+.mn-card.mn-menu > .head .mn-icon-button:hover {
+  background: var(--mn-band-wash);
+}
+.mn-card.mn-menu > .head .art {
+  background: #e6dcb9;
+}
+/* Its bottom row of buttons sits on a band of the ground. */
+.mn-card.mn-menu > .mn-card-actions:last-child,
+.mn-card.mn-menu > .mn-menu-actions:last-child {
+  background: var(--mn-ground);
+  box-shadow: inset 0 1px 0 var(--mn-hair);
+}
+.mn-card.mn-menu > .mn-card-actions:last-child .lp-btn-ghost,
+.mn-card.mn-menu > .mn-menu-actions:last-child > button {
+  background: var(--mn-block);
+}
+/* The crew's card: its tabs are the band. */
+.mn-card.mn-crewcard > .mn-crew-head {
+  margin: -14px -14px 0;
+  padding: 10px 10px 10px 14px;
+  background: var(--mn-band);
+  box-shadow: inset 0 -3px 0 var(--mn-edge);
+}
+.mn-card.mn-crewcard .mn-tabs {
+  background: var(--mn-band-wash);
+}
+.mn-card.mn-crewcard .mn-tabs button {
+  color: var(--mn-band-soft);
+}
+.mn-card.mn-crewcard .mn-tabs button[aria-selected="true"] {
+  background: var(--mn-band-text);
+  color: var(--mn-band);
+}
+.mn-card.mn-crewcard > .mn-crew-head .mn-icon-button {
+  color: var(--mn-band-text);
+}
+.mn-card.mn-crewcard > .mn-crew-head .mn-icon-button:hover {
+  background: var(--mn-band-wash);
+}
+.mn-card.mn-crewcard {
+  background: var(--mn-ground);
+}
+/* The Pins tool's blocks, and the buttons that sit straight on the ground. */
+.mn-panel .mn-pin-kind,
+.mn-panel .mn-quickset {
+  border: 0;
+  background: var(--mn-block);
+  box-shadow: var(--mn-lift);
+}
+.mn-panel .mn-quickset .rows li {
+  background: var(--lp-paper);
+}
+.mn-panel > .mn-menu-actions button:not(.on):not(.armed),
+.mn-panel .mn-kinds.all .mn-kind {
+  border-color: transparent;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn-panel .mn-kinds.all .mn-kind.selected {
+  border-color: var(--lp-ink);
+  background: var(--mn-pick);
+}
+.mn-panel > .mn-menu-actions button.danger {
+  box-shadow: 0 0 0 1px rgba(217, 93, 57, 0.5);
+}
+.mn-panel > .mn-text-button {
+  color: var(--lp-ink);
+}
+/* (Inside a block there is less room across: the samples are smaller.) */
+.mn-presets .pins {
+  gap: 1px;
+  padding: 3px;
+}
+.mn-presets .pins .mn-pin-art {
+  width: 21px;
+  height: 21px;
+}
+.mn-presets button {
+  min-width: 0;
+  padding-inline: 4px;
+}
+/* (The crew card is a column that would otherwise squeeze its band.) */
+.mn-crew-head {
+  flex-shrink: 0;
+}
+
+/* ── Nineteenth pass: the toolbox's heading, counts, and menu looks ─────── */
+/* Everything that sits on a heading takes its colours from these, so the
+   menus can be dressed differently (the Map tool's "Menus"; the map's root
+   carries the choice as `data-ui`). "contrast" is the default: dark
+   headings on light menus. */
+.mn {
+  --mn-band-wash: rgba(244, 241, 230, 0.13);
+  --mn-band-accent: var(--lp-yellow);
+  --mn-edge: var(--lp-yellow);
+  --mn-hair: rgba(21, 38, 28, 0.12);
+  --mn-ring: #15261c;
+  --mn-pick: #fbefb4;
+  --mn-live: #e2f3fb;
+  --mn-live-line: #7cc7ea;
+}
+/* Light all through: the heading is a shade of the menu, nothing dark. */
+.mn[data-ui="light"] {
+  --mn-band: #ece6d2;
+  --mn-band-text: #15261c;
+  --mn-band-soft: rgba(21, 38, 28, 0.72);
+  --mn-band-wash: rgba(21, 38, 28, 0.09);
+  --mn-band-accent: #15261c;
+  --mn-edge: rgba(21, 38, 28, 0.22);
+}
+/* AgSKAN yellow headings, edged in black. */
+.mn[data-ui="yellow"] {
+  --mn-band: #f7db5c;
+  --mn-band-text: #15261c;
+  --mn-band-soft: rgba(21, 38, 28, 0.78);
+  --mn-band-wash: rgba(21, 38, 28, 0.1);
+  --mn-band-accent: #15261c;
+  --mn-edge: #15261c;
+}
+/* Dark all through. The menus themselves take the landing page's night
+   colours; what sits on the map (buttons, chips) is left as it is. */
+.mn[data-ui="dark"] {
+  --mn-band: #0b130f;
+  --mn-hair: rgba(244, 241, 230, 0.12);
+  --mn-ring: rgba(244, 241, 230, 0.3);
+  --mn-pick: rgba(247, 219, 92, 0.2);
+  --mn-live: #153343;
+  --mn-live-line: #2f7fa3;
+}
+.mn[data-ui="dark"] :is(.mn-panel, .mn-card, .pp) {
+  --lp-card: #1b2a21;
+  --lp-paper: #243529;
+  --lp-paper-2: #2d4234;
+  --lp-line: #3c5245;
+  --lp-ink: #f4f1e6;
+  --lp-ink-soft: rgba(244, 241, 230, 0.76);
+  --lp-ink-faint: rgba(244, 241, 230, 0.5);
+  --mn-ground: #111a15;
+  --mn-ground-2: #18251d;
+  --mn-block: #1e2e25;
+  --mn-lift: 0 0 0 1px rgba(244, 241, 230, 0.08);
+  color: var(--lp-ink);
+}
+/* (Anything yellow keeps dark writing on it.) */
+.mn[data-ui="dark"]
+  :is(
+    .lp-btn-primary,
+    .mn-put,
+    .mn-attached,
+    .mn-compose .place.on,
+    .mn-send-row button.on,
+    .mn-job .status.accepted,
+    .mn-drawn li.picked,
+    .mn-crew .invite .art,
+    .mn-crew .msg.home,
+    .mn-step .n,
+    .mn-ideas button,
+    .mn-guide .moves button.strong,
+    .mn-follow-trail,
+    .mn-panel-head .mark,
+    .mn-lookwrap .star.on
+  ) {
+  --lp-ink: #15261c;
+  --lp-ink-soft: rgba(21, 38, 28, 0.72);
+  color: #15261c;
+}
+.mn[data-ui="dark"] .mn-panel-foot {
+  color: var(--lp-ink-faint);
+}
+.mn[data-ui="dark"] .mn-tabs {
+  background: rgba(244, 241, 230, 0.1);
+}
+.mn[data-ui="dark"] .mn-crew .invite {
+  border-color: rgba(244, 241, 230, 0.3);
+}
+.mn-tool.selected,
+.mn-tool[aria-pressed="true"],
+.mn-panel .mn-kinds.all .mn-kind.selected {
+  background: var(--mn-pick);
+}
+.mn-crew button.live {
+  border-color: var(--mn-live-line);
+  background: var(--mn-live);
+}
+
+/* ── The toolbox's heading: the operation on the map, and putting the
+   toolbox away. Back to the dashboard is the small one. ── */
+.mn-panel-head.home {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mn-dashback {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: -5px;
+  border-radius: 50%;
+  color: var(--mn-band-soft);
+}
+.mn-dashback:hover {
+  background: var(--mn-band-wash);
+  color: var(--mn-band-text);
+}
+.mn-op {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 4px 10px 4px 13px;
+  border-radius: 15px;
+  background: var(--mn-band-wash);
+  color: var(--mn-band-text);
+  text-align: left;
+}
+.mn-op > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.14;
+}
+.mn-op small {
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--mn-band-accent);
+  text-transform: uppercase;
+}
+.mn-op b {
+  overflow: hidden;
+  font-family: "Archivo", "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.08rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-op > svg {
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+.mn-op.open > svg {
+  transform: rotate(180deg);
+}
+.mn-op.open {
+  box-shadow: inset 0 0 0 1.5px var(--mn-band-accent);
+}
+/* Putting the toolbox away is the big button: the one that gets used. */
+.mn-put {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-right: -3px;
+  border: 2px solid #15261c;
+  border-radius: 15px;
+  background: #f7db5c;
+  color: #15261c;
+}
+.mn-put:hover {
+  background: #ffe873;
+}
+.mn-oplist {
+  display: grid;
+  flex: 0 0 100%;
+  gap: 4px;
+  max-height: 44dvh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.mn-oplist p {
+  margin: 0 2px 2px;
+  font-size: 0.82rem;
+  color: var(--mn-band-soft);
+}
+.mn-oplist button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--mn-band-wash);
+  color: var(--mn-band-text);
+  text-align: left;
+}
+.mn-oplist button i {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--mn-band-soft);
+}
+.mn-oplist button[aria-selected="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--mn-band-accent);
+}
+.mn-oplist button[aria-selected="true"] i {
+  background: var(--mn-band-accent);
+  box-shadow: none;
+}
+.mn-oplist strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-oplist span {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--lp-mono);
+  font-size: 0.72rem;
+  color: var(--mn-band-soft);
+}
+.mn-oplist button:disabled {
+  opacity: 0.5;
+}
+
+/* How many of a thing there are (or that they are still loading), on the
+   corner of its tile. */
+.mn-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--lp-ink);
+  font-family: var(--lp-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--lp-paper);
+  text-align: center;
+}
+.mn-count.busy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--hue, var(--lp-ink));
+  color: #fff;
+}
+.mn-count.busy svg {
+  animation: mn-count-spin 0.9s linear infinite;
+}
+@keyframes mn-count-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The Map tool: a star on a look makes it the one the map opens in. */
+.mn-looks {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mn-lookwrap {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+.mn-lookwrap .star {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(13, 22, 17, 0.6);
+  color: #fff;
+}
+.mn-lookwrap .star:hover {
+  background: rgba(13, 22, 17, 0.85);
+}
+.mn-lookwrap .star.on {
+  background: #f7db5c;
+  box-shadow: 0 0 0 1.5px #15261c;
+  color: #15261c;
+}
+.mn-section > .mn-note {
+  margin: 0;
+}
+/* The menu looks: a small menu of each. */
+.mn-presets.four {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.mn-presets .menu {
+  display: block;
+  width: 100%;
+  max-width: 92px;
+  height: 36px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 7px;
+  background: #e7e2d0;
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.3);
+}
+.mn-presets .menu i {
+  display: block;
+  height: 11px;
+  margin-bottom: 4px;
+  background: #15261c;
+  box-shadow: inset 0 -2px 0 #f7db5c;
+}
+.mn-presets .menu b {
+  display: block;
+  height: 6px;
+  margin: 0 5px 3px;
+  border-radius: 2px;
+  background: #fffdf8;
+}
+.mn-presets .menu.light i {
+  background: #ece6d2;
+  box-shadow: inset 0 -1px 0 rgba(21, 38, 28, 0.3);
+}
+.mn-presets .menu.yellow i {
+  background: #f7db5c;
+  box-shadow: inset 0 -1.5px 0 #15261c;
+}
+.mn-presets .menu.dark {
+  background: #111a15;
+}
+.mn-presets .menu.dark i {
+  background: #0b130f;
+}
+.mn-presets .menu.dark b {
+  background: #2d4234;
+}
+
+/* How far off a machine is, at the end of its card's heading. */
+.mn-far {
+  flex-shrink: 0;
+  font-family: var(--lp-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--mn-band-soft);
+  white-space: nowrap;
+}
+/* (A long row in the Pins tool's blocks squeezes rather than poking out.) */
+.mn-quickset {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mn-quickset .rows,
+.mn-quickset .rows li {
+  min-width: 0;
+}
+
+/* ── Twentieth pass ─────────────────────────────────────────────────────── */
+/* Who is signed in to a machine: a badge on its picture, in its card. */
+.mn-menu .head .art {
+  position: relative;
+}
+.mn-driver {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  max-width: 68px;
+  padding: 1px 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #f7db5c;
+  box-shadow: 0 0 0 1.5px #15261c;
+  font-family: var(--lp-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: #15261c;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+/* A trail palette's sample: five of its colours side by side. */
+.mn-presets .shades {
+  display: flex;
+  width: 100%;
+  height: 26px;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.mn-presets .shades i {
+  flex: 1;
+}
+
+/* ── Twenty-first pass ──────────────────────────────────────────────────── */
+/* The testing tools' colour. */
+.t-dev {
+  --hue: #b4236a;
+}
+/* A new operation, at the foot of the list in the toolbox's heading. */
+.mn-oplist .add {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--mn-band-wash);
+}
+.mn-oplist form.new {
+  display: flex;
+  gap: 5px;
+}
+.mn-oplist form.new input {
+  flex: 1;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mn-band-text);
+  font-size: 1rem;
+  color: var(--mn-band);
+}
+.mn-oplist form.new input::placeholder {
+  color: var(--mn-band);
+  opacity: 0.55;
+}
+.mn-oplist form.new input.year {
+  flex: 0 0 74px;
+  padding: 0 8px;
+  text-align: center;
+}
+.mn-oplist form.new button {
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0 15px;
+  background: #f7db5c;
+  font-weight: 800;
+  color: #15261c;
+}
+/* (The form squeezes to the list's width rather than widening it.) */
+.mn-oplist {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mn-oplist form.new {
+  min-width: 0;
+}
+.mn-oplist form.new input {
+  width: 0;
+}
+
+/* ── Twenty-second pass ─────────────────────────────────────────────────── */
+/* Beside the default pin button for a few seconds after it has dropped a
+   pin: the way to the Pins tool (change the buttons, add one). */
+.mn-quickpins .more {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 9px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: 2px solid #15261c;
+  border-radius: 50%;
+  background: #f7db5c;
+  box-shadow: 0 8px 18px -8px rgba(10, 25, 15, 0.8);
+  color: #15261c;
+  transform: translateY(-50%);
+}
+
+/* ── Twenty-third pass ──────────────────────────────────────────────────── */
+/* The bottom controls under a card: still on the page, out of sight, so a
+   card coming and going doesn't take them down and put them back. */
+.mn-corner.away {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The trail button, as the current viewer has it: the trail mark on yellow;
+   while a trail is being laid, red with the mark in yellow drawing itself
+   over and over, and a tag under it that pulses. */
+.mn-trailwrap {
+  margin-bottom: 9px;
+}
+.mn-trail-button {
+  position: relative;
+  padding: 0;
+}
+.mn-trail-button .trailmark {
+  width: 36px;
+  height: 36px;
+  overflow: visible;
+  fill: currentColor;
+}
+.mn-trail-button.on {
+  border: 2px solid #000;
+  background: #ff0000;
+  box-shadow: 0 8px 20px -10px rgba(120, 10, 10, 0.9);
+  color: #f7db5c;
+  animation: none;
+}
+.mn-trail-button.on:hover {
+  background: #dc0000;
+}
+.mn-trail-button .trailmark.drawing {
+  opacity: 0.55;
+}
+.mn-trail-button .trailmark.drawing path {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 105;
+  animation:
+    mn-trail-draw 2s linear infinite,
+    mn-trail-fill 1.5s ease-in-out infinite;
+}
+.mn-trail-button.paused .trailmark.drawing {
+  opacity: 0.35;
+}
+.mn-trail-button.paused .trailmark.drawing path {
+  animation-play-state: paused;
+}
+@keyframes mn-trail-draw {
+  from {
+    stroke-dashoffset: 105;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes mn-trail-fill {
+  0%,
+  100% {
+    fill-opacity: 0;
+  }
+  50% {
+    fill-opacity: 1;
+  }
+}
+.mn-trailpill {
+  bottom: -10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 18px;
+  padding: 2px 8px;
+  border: 1.5px solid #000;
+  border-radius: 10px;
+  background: #f7db5c;
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  line-height: 1;
+  color: #000;
+}
+.mn-trailpill.on {
+  animation: mn-trail-pill 1.5s ease-in-out infinite;
+}
+.mn-trailpill.paused {
+  background: #f59e0b;
+  color: #000;
+  animation: none;
+}
+@keyframes mn-trail-pill {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+.mn-pause.paused {
+  border-color: #000;
+  background: #f59e0b;
+  box-shadow: 0 8px 20px -10px rgba(120, 80, 10, 0.9);
+  color: #000;
+  animation: mn-pause-fade 2s ease-in-out infinite;
+}
+@keyframes mn-pause-fade {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* A pin being carried from its button onto the map, and where to let go
+   of it to call that off. */
+.mn-quickpins .pin {
+  touch-action: none;
+}
+.mn-quickpins .pin.lifted {
+  opacity: 0.3;
+}
+.mn-pinghost {
+  position: fixed;
+  z-index: 80;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.mn-pinghost.cancel {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+.mn-pincancel {
+  position: fixed;
+  bottom: max(26px, env(safe-area-inset-bottom));
+  left: calc(50% + var(--mn-rail) / 2);
+  z-index: 79;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 20px;
+  border: 2px solid #15261c;
+  border-radius: 99px;
+  background: #fffdf8;
+  box-shadow: 0 12px 26px -12px rgba(10, 25, 15, 0.85);
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #15261c;
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease;
+}
+.mn-pincancel.over {
+  background: #d95d39;
+  color: #fff;
+  transform: translateX(-50%) scale(1.1);
+}
+
+/* A new operation's year: chosen from a list. */
+.mn-oplist form.new select.year {
+  flex: 0 0 84px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--mn-band-text);
+  font-size: 1rem;
+  color: var(--mn-band);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mn-trail-button .trailmark.drawing path,
+  .mn-trailpill.on,
+  .mn-pause.paused {
+    animation: none;
+  }
+}
+
+/* ── Twenty-fourth pass ─────────────────────────────────────────────────── */
+/* A card that slides up is slid by a wrapper. The slide is a transform, and
+   a transformed box becomes what its absolutely placed children are placed
+   against: with a wrapper of no size at the top of the page, the card was
+   drawn above the screen for as long as the slide lasted (its shadow showed
+   along the top edge) and then jumped down. The wrapper is the whole page
+   instead, so the card is in the same place with or without it. */
+.mn-riser {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+}
+.mn-riser > * {
+  pointer-events: auto;
+}
+
+/* The operation list in the toolbox's heading: room round it for what has
+   the focus, and the focus drawn inside each control so nothing is cut off
+   or laid over its neighbour. */
+.mn-oplist {
+  gap: 6px;
+  margin: 0 -3px -3px;
+  padding: 3px;
+}
+.mn-oplist form.new {
+  gap: 6px;
+}
+.mn-oplist form.new input,
+.mn-oplist form.new select.year,
+.mn-oplist form.new button {
+  box-sizing: border-box;
+  height: 44px;
+  min-height: 44px;
+}
+.mn .mn-op:focus-visible,
+.mn .mn-oplist button:focus-visible,
+.mn-oplist form.new input:focus,
+.mn-oplist form.new select.year:focus {
+  outline: 2.5px solid var(--mn-band-accent);
+  outline-offset: -2.5px;
+}
+.mn-oplist form.new input:focus,
+.mn-oplist form.new select.year:focus {
+  outline-color: #1f8a4c;
+}
+
+/* The status chip: the fix, the operation, and (while a trail is laid) how
+   many of its points are saved or waiting. It opens the connection card. */
+.mn-status .sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 1px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(244, 241, 230, 0.28);
+  letter-spacing: 0.04em;
+  color: #8fe3b0;
+}
+.mn-status .sync.waiting {
+  color: #f7b23b;
+}
+.mn-net {
+  display: grid;
+  gap: 8px;
+  width: min(21rem, calc(100vw - 2 * var(--mn-gap)));
+  padding: 8px 12px 12px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  box-shadow:
+    0 0 0 1.5px #15261c,
+    0 18px 38px -14px rgba(10, 25, 15, 0.75);
+  color: var(--lp-ink);
+}
+.mn-net .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mn-net .top strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+.mn-net .top .mn-icon-button {
+  width: 38px;
+  height: 38px;
+  margin-right: -6px;
+}
+.mn-net dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0;
+}
+.mn-net dl.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+.mn-net dl div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: var(--lp-paper);
+}
+.mn-net dt {
+  font-family: var(--lp-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lp-ink-soft);
+  text-transform: uppercase;
+}
+.mn-net dd {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn-net dl div.bad {
+  background: rgba(245, 158, 11, 0.18);
+  box-shadow: inset 0 0 0 1.5px rgba(217, 119, 6, 0.5);
+}
+.mn-net .lp-eyebrow,
+.mn-net .note {
+  margin: 0;
+}
+.mn-net .note {
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--lp-ink-soft);
+}
+
+/* Under "stop the trail?": throw it away instead. */
+.mn-discard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 42px;
+  margin-top: 8px;
+  border-radius: 99px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--lp-rust);
+}
+.mn-discard:hover {
+  background: rgba(217, 93, 57, 0.1);
+}
+.mn-discard.armed {
+  background: var(--lp-rust);
+  color: #fff;
+}
+/* (A long operation name is cut short on a phone, where the chip shares the
+   top of the screen with the bins.) */
+.mn-status .name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mn:not(.wide) .mn-status .name {
+  max-width: 7.5rem;
+}
+.mn:not(.wide) .mn-status:has(.sync) .name {
+  max-width: 5.2rem;
+}
+
+/* ── Twenty-fifth pass ──────────────────────────────────────────────────── */
+/* A modal: the page dims behind it and it sits in the middle. */
+.mn-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px
+    max(16px, env(safe-area-inset-bottom));
+  background: rgba(13, 22, 17, 0.55);
+}
+.mn-modal > .mn-net {
+  width: min(23rem, 100%);
+  max-height: 100%;
+  padding: 10px 14px 14px;
+  overflow-y: auto;
+  border-radius: 20px;
+}
+
+/* ── Twenty-sixth pass: the crew, a short row each ──────────────────────── */
+/* Rows are two lines beside a small machine, with a hairline between them
+   rather than a box round each, so a phone shows eight or so where it
+   showed three. */
+.mn .mn-crew {
+  gap: 0;
+}
+.mn .mn-crew li {
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--mn-hair, rgba(21, 38, 28, 0.12));
+}
+.mn .mn-crew li:last-child {
+  border-bottom: 0;
+}
+.mn .mn-crew li > button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  box-shadow: none;
+}
+.mn .mn-crew li > button:first-child {
+  gap: 9px;
+  padding: 3px 6px 3px 3px;
+}
+.mn .mn-crew li > button:first-child:hover:not(:disabled) {
+  background: var(--mn-block);
+}
+.mn .mn-crew li > button.live {
+  background: var(--mn-live);
+}
+.mn .mn-crew .art {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+}
+.mn .mn-crew .who {
+  gap: 1px;
+}
+.mn .mn-crew .line {
+  align-items: center;
+  gap: 5px;
+}
+.mn .mn-crew .who strong {
+  flex: 0 1 auto;
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+.mn .mn-crew .acct {
+  flex: 0 2 auto;
+  min-width: 1.5rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.mn .mn-crew .line .pace {
+  font-size: 0.7rem;
+}
+.mn .mn-crew .line .doing,
+.mn .mn-crew .place {
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+/* What they are doing is said in full; the paddock gives way before it,
+   and the job they are on (last on the line) before either. */
+.mn .mn-crew .line .doing {
+  flex: 0 1 auto;
+}
+.mn .mn-crew .place {
+  flex: 0 4 auto;
+}
+.mn .mn-crew .line .job {
+  flex: 0 12 auto;
+  font-size: 0.58rem;
+}
+.mn .mn-crew .line .job.on {
+  flex-shrink: 0;
+  padding: 1px 7px 1px 5px;
+}
+/* The buttons at the end of a row: messages; on your own, names and Home. */
+.mn .mn-crew .msg {
+  width: 40px;
+  min-height: 40px;
+  border-radius: 12px;
+  background: var(--mn-block);
+  box-shadow: 0 0 0 1px rgba(21, 38, 28, 0.1);
+}
+.mn .mn-crew .msg.home {
+  background: var(--lp-yellow);
+  box-shadow: 0 0 0 1.5px var(--lp-ink);
+}
+.mn .mn-crew .invite {
+  border: 0;
+}
+.mn .mn-crew .invite .art {
+  width: 36px;
+  height: 30px;
+}
+/* The crew's card on a phone: bottom left, where its button is, stopping
+   short of the buttons down the right (which stay), and taller than it was
+   now that there is less of it across. */
+.mn:not(.wide) .mn-crewcard {
+  right: calc(var(--mn-gap) + 78px);
+  max-height: min(62dvh, 36rem);
+  margin-inline: 0;
+  gap: 6px;
+}
+
+/* The Map tool on a phone: a panel down the left side rather than a sheet
+   over the bottom, and nothing dimmed, so the map it is changing shows
+   beside it as each thing is tried. */
+.mn-scrim.clear {
+  background: none;
+}
+.mn:not(.wide) .mn-panel.t-map {
+  top: 0;
+  right: auto;
+  width: min(64vw, 17.5rem);
+  max-height: none;
+  padding-top: max(14px, env(safe-area-inset-top));
+  border-radius: 0 22px 22px 0;
+  box-shadow: 18px 0 50px -20px rgba(10, 25, 15, 0.7);
+}
+/* (There is less room across in it: the looks go three to a row with
+   their names only, and the notes under each section are left out.) */
+.mn:not(.wide) .mn-panel.t-map {
+  gap: 10px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-looks {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-look {
+  min-width: 0;
+  padding: 4px 3px 6px;
+  font-size: 0.72rem;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-presets .pins {
+  gap: 0;
+  padding: 2px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-presets .pins .mn-pin-art {
+  width: 16px;
+  height: 16px;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-look small,
+.mn:not(.wide) .mn-panel.t-map .mn-note {
+  display: none;
+}
+.mn:not(.wide) .mn-panel.t-map .mn-presets button {
+  font-size: 0.76rem;
+}
