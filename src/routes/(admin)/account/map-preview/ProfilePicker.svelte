@@ -13,6 +13,8 @@
    * any other. Opened from the toolbox, names can be taken off the list too.
    */
   import { createEventDispatcher } from "svelte"
+  import { cubicOut } from "svelte/easing"
+  import { fade, fly } from "svelte/transition"
   import { Check, Plus, Trash2, X } from "lucide-svelte"
   import type { Operator } from "$lib/stores/operatorStore"
 
@@ -44,6 +46,13 @@
   }>()
 
   let name = ""
+
+  // It comes and goes as one sheet of paper fading over the map (never
+  // sliding: a sliding sheet shows a strip of the map under it), and what
+  // is on it settles into place a moment behind.
+  const still =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
   // It opened as a question (a count was running), and No hasn't been said.
   // (Stopping the count by touching the list leaves the question where it
@@ -107,8 +116,18 @@
   role="dialog"
   aria-modal="true"
   aria-label="Who's driving"
+  in:fade|global={{ duration: still ? 0 : 220 }}
+  out:fade|global={{ duration: still ? 0 : 180 }}
 >
-  <div class="inner">
+  <div
+    class="inner"
+    in:fly|global={{
+      y: still ? 0 : 10,
+      duration: still ? 0 : 320,
+      delay: still ? 0 : 60,
+      easing: cubicOut,
+    }}
+  >
     <header>
       <h1>{asking ? "Is this you?" : "Who's driving?"}</h1>
       <button
@@ -269,13 +288,6 @@
     overflow-y: auto;
     background: var(--lp-paper);
     color: var(--lp-ink);
-    animation: in 0.22s ease-out;
-  }
-  @keyframes in {
-    from {
-      opacity: 0;
-      transform: translateY(14px);
-    }
   }
   .inner {
     display: flex;
@@ -581,9 +593,6 @@
     color: var(--lp-ink-faint);
   }
   @media (prefers-reduced-motion: reduce) {
-    .mn-profile {
-      animation: none;
-    }
     .ans .count {
       transition: none;
     }
